@@ -131,7 +131,7 @@ fun NotificationsScreen(
                         .padding(top = 5.dp)
                         .size(7.dp)
                         .clip(CircleShape)
-                        .background(if (item.isImportant) FameGoGold else FameGoTextMuted.copy(alpha = 0.4f))
+                        .background(if (!item.isRead) FameGoGold else FameGoTextMuted.copy(alpha = 0.4f))
                     )
 
                     Spacer(modifier = Modifier.width(14.dp))
