@@ -382,6 +382,9 @@ object FameGoRepository {
 
   fun switchRole(role: Role) {
     _activeRole.value = role
+    // Keep the user exposed to the UI in sync with the role selector.  Previously
+    // only activeRole changed, while every screen rendered currentUser.role.
+    _currentUser.value = _currentUser.value.copy(role = role)
   }
 
   fun setActiveSearchingBooking(bookingId: String?) {
@@ -398,10 +401,15 @@ object FameGoRepository {
     _favoriteCrewIds.value = current
   }
 
-  fun toggleCrewAvailability(crewId: String = "crew_1") {
-    _isCrewAvailable.value = !_isCrewAvailable.value
+  fun toggleCrewAvailability(crewId: String? = null) {
+    val targetCrewId = crewId ?: _crewProfiles.value.firstOrNull {
+      it.userId == _currentUser.value.id || it.id == "crew_1"
+    }?.id ?: return
+    val currentAvailability = _crewProfiles.value.firstOrNull { it.id == targetCrewId }?.isAvailable
+      ?: _isCrewAvailable.value
+    _isCrewAvailable.value = !currentAvailability
     _crewProfiles.value = _crewProfiles.value.map { crew ->
-      if (crew.id == crewId) {
+      if (crew.id == targetCrewId) {
         crew.copy(isAvailable = _isCrewAvailable.value)
       } else {
         crew
@@ -449,6 +457,10 @@ object FameGoRepository {
 
   fun crewAcceptBooking(bookingId: String, crewId: String) {
     val crew = _crewProfiles.value.find { it.id == crewId } ?: return
+    val booking = _bookings.value.find { it.id == bookingId } ?: return
+    // A request can only be accepted once. This also prevents duplicate crew
+    // rows when a user taps Accept repeatedly during recomposition/animation.
+    if (booking.status != BookingStatus.SEARCHING_CREW || booking.assignedCrew.any { it.crewId == crewId }) return
     val assigned = AssignedCrewMember(
       crewId = crew.id,
       name = crew.fullName,
@@ -478,6 +490,10 @@ object FameGoRepository {
         bookingId = bookingId
       )
     )
+    _crewProfiles.value = _crewProfiles.value.map {
+      if (it.id == crewId) it.copy(isAvailable = false) else it
+    }
+    _isCrewAvailable.value = false
     addNotification(
       NotificationItem(
         title = "Shoot Accepted",
@@ -526,6 +542,8 @@ object FameGoRepository {
 
   fun adminAssignCrew(bookingId: String, crewId: String) {
     val crew = _crewProfiles.value.find { it.id == crewId } ?: return
+    val booking = _bookings.value.find { it.id == bookingId } ?: return
+    if (booking.status != BookingStatus.SEARCHING_CREW) return
     val assigned = AssignedCrewMember(
       crewId = crew.id,
       name = crew.fullName,
@@ -545,6 +563,9 @@ object FameGoRepository {
       } else b
     }
     refreshIncomingRequests()
+    _crewProfiles.value = _crewProfiles.value.map {
+      if (it.id == crewId) it.copy(isAvailable = false) else it
+    }
 
     addNotification(
       NotificationItem(
@@ -576,6 +597,7 @@ object FameGoRepository {
   }
 
   fun sendChatMessage(bookingId: String, text: String, senderRole: Role, senderName: String) {
+    if (_bookings.value.none { it.id == bookingId } || text.isBlank()) return
     val currentMap = _chatMessages.value.toMutableMap()
     val list = (currentMap[bookingId] ?: emptyList()).toMutableList()
     val newMsg = ChatMessage(
@@ -619,6 +641,8 @@ object FameGoRepository {
   }
 
   fun assignCrewToBooking(bookingId: String, crew: AssignedCrewMember) {
+    val booking = _bookings.value.find { it.id == bookingId } ?: return
+    if (booking.status != BookingStatus.SEARCHING_CREW) return
     _bookings.value = _bookings.value.map { b ->
       if (b.id == bookingId) {
         b.copy(
@@ -628,13 +652,27 @@ object FameGoRepository {
       } else b
     }
     refreshIncomingRequests()
+    _crewProfiles.value = _crewProfiles.value.map { profile ->
+      if (profile.id == crew.crewId) profile.copy(isAvailable = false) else profile
+    }
+    addNotification(
+      NotificationItem(
+        title = "Crew confirmed",
+        message = "${crew.name} was assigned to '${booking.shootTitle}'.",
+        timestampText = "Just now",
+        targetRole = Role.CLIENT,
+        bookingId = bookingId
+      )
+    )
   }
 
   fun updateBookingStatus(bookingId: String, status: BookingStatus) {
     adminUpdateBookingStatus(bookingId, status)
   }
 
-  fun markAllNotificationsRead() {
-    _notifications.value = _notifications.value.map { it.copy(isRead = true) }
+  fun markAllNotificationsRead(role: Role? = null) {
+    _notifications.value = _notifications.value.map {
+      if (role == null || it.targetRole == role) it.copy(isRead = true) else it
+    }
   }
 }

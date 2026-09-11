@@ -73,7 +73,8 @@ fun BookingDetailsScreen(
   modifier: Modifier = Modifier
 ) {
   val bookings by FameGoRepository.bookings.collectAsState()
-  val booking = bookings.firstOrNull { it.id == bookingId } ?: bookings.firstOrNull()
+  // A stale deep link must not silently display a different booking.
+  val booking = bookings.firstOrNull { it.id == bookingId }
 
   val scrollState = rememberScrollState()
 
@@ -114,7 +115,8 @@ fun BookingDetailsScreen(
         )
         // Chat shortcut
         IconButton(
-          onClick = { onOpenChat(booking?.id ?: "") },
+          onClick = { booking?.id?.let(onOpenChat) },
+          enabled = booking != null,
           modifier = Modifier.testTag("call_sheet_chat_icon")
         ) {
           Icon(
@@ -343,7 +345,7 @@ fun BookingDetailsScreen(
           state = FlowPillState.CUSTOM,
           customText = "Message crew",
           customIcon = Icons.Default.Chat,
-          onClick = { onOpenChat(booking?.id ?: "") },
+          onClick = { booking?.id?.let(onOpenChat) },
           testTag = "call_sheet_chat_pill"
         )
       }

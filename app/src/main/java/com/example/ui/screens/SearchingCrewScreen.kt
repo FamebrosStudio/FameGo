@@ -99,7 +99,9 @@ fun SearchingCrewScreen(
   modifier: Modifier = Modifier
 ) {
   val bookings by FameGoRepository.bookings.collectAsState()
-  val booking = bookings.firstOrNull { it.id == bookingId } ?: bookings.firstOrNull()
+  // Do not show or mutate an unrelated booking when a notification contains a
+  // stale ID.
+  val booking = bookings.firstOrNull { it.id == bookingId }
 
   // Searching status progression
   val statusStages = listOf(
@@ -478,7 +480,7 @@ fun SearchingCrewScreen(
                     border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorderSubtle),
                     modifier = Modifier
                       .weight(1f)
-                      .clickable { onOpenChat(booking?.id ?: "") }
+                  .clickable(enabled = booking != null) { booking?.id?.let(onOpenChat) }
                       .testTag("confirmed_message_crew_button")
                   ) {
                     Row(
@@ -508,7 +510,7 @@ fun SearchingCrewScreen(
                     border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorderSubtle),
                     modifier = Modifier
                       .weight(1f)
-                      .clickable { onOpenDetails(booking?.id ?: "") }
+                      .clickable(enabled = booking != null) { booking?.id?.let(onOpenDetails) }
                       .testTag("confirmed_view_details_button")
                   ) {
                     Box(

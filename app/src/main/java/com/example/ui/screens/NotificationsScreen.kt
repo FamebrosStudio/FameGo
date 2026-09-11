@@ -18,6 +18,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,6 +28,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.FameGoRepository
+import com.example.model.NotificationItem
 import com.example.ui.components.SoftCard
 import com.example.ui.theme.fameGoRise
 import com.example.ui.theme.FameGoBg
@@ -34,59 +39,17 @@ import com.example.ui.theme.FameGoTextPrimary
 import com.example.ui.theme.FameGoTextSecondary
 import com.example.ui.theme.FameGoWhite
 
-data class ProductionNotification(
-  val id: String,
-  val title: String,
-  val body: String,
-  val time: String,
-  val isImportant: Boolean,
-  val group: String, // NOW, TODAY, EARLIER
-  val bookingId: String? = null
-)
-
 @Composable
 fun NotificationsScreen(
   onOpenBooking: (String) -> Unit,
   modifier: Modifier = Modifier
 ) {
-  val notifications = listOf(
-    ProductionNotification(
-      id = "n1",
-      title = "Crew confirmed for Friday",
-      body = "Aarav is confirmed for your shoot at Veranda Studio.",
-      time = "Just now",
-      isImportant = true,
-      group = "New",
-      bookingId = "booking_1"
-    ),
-    ProductionNotification(
-      id = "n2",
-      title = "Aarav is on the way",
-      body = "Estimated arrival in 15 minutes.",
-      time = "10:30 AM",
-      isImportant = true,
-      group = "Today",
-      bookingId = "booking_1"
-    ),
-    ProductionNotification(
-      id = "n3",
-      title = "Shoot started",
-      body = "Camera rolling at Veranda Studio.",
-      time = "9:00 AM",
-      isImportant = false,
-      group = "Today",
-      bookingId = "booking_1"
-    ),
-    ProductionNotification(
-      id = "n4",
-      title = "Your footage is ready to download",
-      body = "Raw files and selects are ready in your folder.",
-      time = "Yesterday",
-      isImportant = false,
-      group = "Earlier",
-      bookingId = "booking_1"
-    )
-  )
+  val currentUser by FameGoRepository.currentUser.collectAsState()
+  val repositoryNotifications by FameGoRepository.notifications.collectAsState()
+  val notifications = repositoryNotifications.filter { it.targetRole == currentUser.role }
+
+  // Opening the notification centre acknowledges the currently visible items.
+  LaunchedEffect(currentUser.role) { FameGoRepository.markAllNotificationsRead(currentUser.role) }
 
   val scrollState = rememberScrollState()
 
@@ -141,9 +104,9 @@ fun NotificationsScreen(
           }
         }
       } else {
-        val groups = listOf("New", "Today", "Earlier")
+        val groups = listOf("Just now", "Today", "Earlier")
         groups.forEach { grp ->
-          val itemsInGroup = notifications.filter { it.group == grp }
+          val itemsInGroup = notifications.filter { notificationGroup(it) == grp }
           if (itemsInGroup.isNotEmpty()) {
             Text(
               text = grp,
@@ -179,20 +142,20 @@ fun NotificationsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                       ) {
                         Text(
-                          text = item.title,
+                        text = item.title,
                           color = FameGoWhite,
                           fontSize = 14.sp,
                           fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                          text = item.time,
+                          text = item.timestampText,
                           color = FameGoTextMuted,
                           fontSize = 11.sp
                         )
                       }
 
                       Text(
-                        text = item.body,
+                        text = item.message,
                         color = FameGoTextSecondary,
                         fontSize = 12.sp,
                         lineHeight = 17.sp,
@@ -212,4 +175,11 @@ fun NotificationsScreen(
       Spacer(modifier = Modifier.height(110.dp))
     }
   }
+}
+
+private fun notificationGroup(item: NotificationItem): String = when {
+  item.timestampText.contains("now", ignoreCase = true) ||
+    item.timestampText.contains("just", ignoreCase = true) -> "Just now"
+  item.timestampText.contains("yesterday", ignoreCase = true) -> "Earlier"
+  else -> "Today"
 }

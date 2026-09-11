@@ -333,7 +333,9 @@ fun BookAShootScreen(
                   clientName = "Kabir Sharma",
                   clientCompany = "Urban Brew Cafe",
                   category = category,
-                  dateText = "Friday, 12 Sep 2026",
+                  // Preserve the date selected by the user. The old value always
+                  // submitted Friday 12, even when another chip was selected.
+                  dateText = selectedDate,
                   timeText = callTime,
                   durationHours = durationHours,
                   venueName = venueName,

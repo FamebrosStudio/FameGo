@@ -515,6 +515,9 @@ fun AuthScreen(
       FameGoButton(
         text = if (isSignUp) "Create account" else "Sign in",
         onClick = { onAuthenticated(selectedRole) },
+        enabled = email.trim().isNotEmpty() &&
+          password.isNotEmpty() &&
+          (!isSignUp || (fullName.trim().isNotEmpty() && phone.trim().isNotEmpty())),
         modifier = Modifier.fillMaxWidth(),
         testTag = "auth_submit_button"
       )

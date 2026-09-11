@@ -123,11 +123,15 @@ class MainActivity : ComponentActivity() {
 fun FameGoApp() {
   var currentScreen by remember { mutableStateOf<Screen>(Screen.Splash) }
   val currentUser by FameGoRepository.currentUser.collectAsState()
-  val bookings by FameGoRepository.bookings.collectAsState()
+  val notifications by FameGoRepository.notifications.collectAsState()
   var showRoleSwitcherDialog by remember { mutableStateOf(false) }
 
   // Handle Android system back button
-  BackHandler(enabled = currentScreen !is Screen.Splash && currentScreen !is Screen.Main) {
+  BackHandler(
+    enabled = currentScreen !is Screen.Splash &&
+      currentScreen !is Screen.Main &&
+      currentScreen !is Screen.Welcome
+  ) {
     when (currentScreen) {
       is Screen.Welcome -> { /* exit or stay */ }
       is Screen.Auth -> currentScreen = Screen.Welcome
@@ -182,7 +186,9 @@ fun FameGoApp() {
             topBar = {
               FameGoTopBar(
                 currentRole = currentUser.role,
-                unreadNotifications = 1,
+                unreadNotifications = notifications.count {
+                  it.targetRole == currentUser.role && !it.isRead
+                },
                 onRoleClick = { showRoleSwitcherDialog = true },
                 onNotificationsClick = { currentScreen = Screen.Main("notifications") },
                 onProfileClick = { currentScreen = Screen.Main("profile") }
@@ -243,7 +249,10 @@ fun FameGoApp() {
                       "profile" -> ClientProfileScreen(
                         onSwitchRole = { showRoleSwitcherDialog = true },
                         onOpenSupport = { currentScreen = Screen.CustomerSupport },
-                        onLogout = { currentScreen = Screen.Welcome }
+                        onLogout = {
+                          FameGoRepository.switchRole(Role.CLIENT)
+                          currentScreen = Screen.Welcome
+                        }
                       )
                       else -> ClientHomeScreen(
                         onBookAShoot = { cat -> currentScreen = Screen.BookAShoot(cat) },
