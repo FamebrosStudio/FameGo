@@ -1,0 +1,771 @@
+package com.example.ui.screens
+
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.data.FameGoRepository
+import com.example.model.AssignedCrewMember
+import com.example.model.Booking
+import com.example.model.BookingStatus
+import com.example.model.CrewRoleType
+import com.example.ui.components.FlowPill
+import com.example.ui.components.FlowPillState
+import com.example.ui.components.GestureRequestCard
+import com.example.ui.components.LiveOrb
+import com.example.ui.components.SoftCard
+import com.example.ui.components.StatusCapsule
+import com.example.ui.theme.FameGoAccentCyan
+import com.example.ui.theme.FameGoBg
+import com.example.ui.theme.FameGoBorder
+import com.example.ui.theme.FameGoBorderSubtle
+import com.example.ui.theme.FameGoCard
+import com.example.ui.theme.FameGoCardElevated
+import com.example.ui.theme.FameGoGold
+import com.example.ui.theme.FameGoGoldContainer
+import com.example.ui.theme.FameGoLiveRed
+import com.example.ui.theme.FameGoSuccessGreen
+import com.example.ui.theme.FameGoSurface
+import com.example.ui.theme.FameGoTextMuted
+import com.example.ui.theme.FameGoTextPrimary
+import com.example.ui.theme.FameGoTextSecondary
+import com.example.ui.theme.FameGoWhite
+
+// =============================================================================
+// 15 & 16. CREW HOME SCREEN (Ultra-clean, Status Capsule & Priority Request)
+// =============================================================================
+
+@Composable
+fun CrewHomeScreen(
+  onViewRequestDetail: (String) -> Unit,
+  onOpenBooking: (String) -> Unit,
+  onOpenChat: (String) -> Unit,
+  modifier: Modifier = Modifier
+) {
+  val isAvailable by FameGoRepository.isCrewAvailable.collectAsState()
+  val incomingRequests by FameGoRepository.incomingShootRequests.collectAsState()
+  val bookings by FameGoRepository.bookings.collectAsState()
+
+  // Find active shoot for this crew
+  val activeShoot = bookings.firstOrNull {
+    it.status == BookingStatus.IN_PROGRESS || it.status == BookingStatus.CONFIRMED
+  }
+
+  val scrollState = rememberScrollState()
+
+  Box(
+    modifier = modifier
+      .fillMaxSize()
+      .background(FameGoBg)
+  ) {
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .verticalScroll(scrollState)
+        .padding(horizontal = 20.dp)
+    ) {
+      Spacer(modifier = Modifier.height(16.dp))
+
+      // Top: Availability capsule & Crew greeting
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Column {
+          Text(
+            text = "Good evening, Arjun",
+            color = FameGoTextSecondary,
+            fontSize = 14.sp
+          )
+          Text(
+            text = "Cinematographer",
+            color = FameGoWhite,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold
+          )
+        }
+
+        // Interactive Status Capsule (OFF DUTY <-> READY FOR SHOOTS)
+        StatusCapsule(
+          isAvailable = isAvailable,
+          onToggle = { FameGoRepository.toggleCrewAvailability() }
+        )
+      }
+
+      Text(
+        text = "You will get notified when clients near you need crew.",
+        color = FameGoTextMuted,
+        fontSize = 12.sp,
+        modifier = Modifier.padding(top = 6.dp)
+      )
+
+      Spacer(modifier = Modifier.height(24.dp))
+
+      // 16. CREW NEW REQUEST (Floating Priority Card)
+      if (incomingRequests.isNotEmpty()) {
+        val priorityRequest = incomingRequests.first()
+        Text(
+          text = "New shoot request",
+          color = FameGoWhite,
+          fontSize = 16.sp,
+          fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+
+        GestureRequestCard(
+          title = priorityRequest.title,
+          subtitle = "${priorityRequest.location.venueName}, ${priorityRequest.location.address.substringBefore(",")}",
+          timeText = "${priorityRequest.date} • ${priorityRequest.time}",
+          requestedRole = "Cinematographer (Sony FX3)",
+          payoutText = "₹${priorityRequest.estimatedBudget}",
+          onAccept = {
+            FameGoRepository.acceptShootRequest(
+              bookingId = priorityRequest.id,
+              crewMember = AssignedCrewMember(
+                crewId = "crew_1",
+                name = "Aarav Mehta",
+                role = CrewRoleType.CINEMATOGRAPHER,
+                phone = "+91 98200 11223",
+                gear = "Sony FX6 Cinema Line & Rig",
+                rating = 4.95,
+                isVerified = true
+              )
+            )
+          },
+          onDecline = {
+            FameGoRepository.declineShootRequest(priorityRequest.id)
+          }
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+      }
+
+      // 17. CREW JOB TIMELINE / ACTIVE SHOOT CARD
+      if (activeShoot != null) {
+        Text(
+          text = "Active shoot",
+          color = FameGoWhite,
+          fontSize = 16.sp,
+          fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+
+        CrewEvolvingJobCard(
+          booking = activeShoot,
+          onOpenBooking = { onOpenBooking(activeShoot.id) },
+          onOpenChat = { onOpenChat(activeShoot.id) },
+          onAdvanceStatus = { nextStatus ->
+            FameGoRepository.updateBookingStatus(activeShoot.id, nextStatus)
+          }
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+      }
+
+      // If nothing scheduled
+      if (incomingRequests.isEmpty() && activeShoot == null) {
+        Spacer(modifier = Modifier.height(40.dp))
+        Column(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+          LiveOrb(
+            color = if (isAvailable) FameGoSuccessGreen else FameGoTextMuted,
+            size = 12.dp
+          )
+          Spacer(modifier = Modifier.height(16.dp))
+          Text(
+            text = "No shoot requests right now",
+            color = FameGoWhite,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold
+          )
+          Text(
+            text = if (isAvailable)
+              "We'll notify you when shoots open up nearby."
+            else
+              "Tap the capsule above to make yourself discoverable to producers.",
+            color = FameGoTextMuted,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(top = 4.dp, start = 20.dp, end = 20.dp)
+          )
+        }
+      }
+
+      // Generous bottom spacing
+      Spacer(modifier = Modifier.height(110.dp))
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// 17. CREW EVOLVING JOB CARD (Visual timeline morphing without replacing screen)
+// -----------------------------------------------------------------------------
+@Composable
+fun CrewEvolvingJobCard(
+  booking: Booking,
+  onOpenBooking: () -> Unit,
+  onOpenChat: () -> Unit,
+  onAdvanceStatus: (BookingStatus) -> Unit,
+  modifier: Modifier = Modifier
+) {
+  SoftCard(
+    modifier = modifier.fillMaxWidth(),
+    isElevated = true,
+    shape = RoundedCornerShape(22.dp),
+    testTag = "crew_evolving_job_card"
+  ) {
+    Column(modifier = Modifier.padding(20.dp)) {
+      // Status header
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          LiveOrb(
+            color = when (booking.status) {
+              BookingStatus.IN_PROGRESS -> FameGoGold
+              BookingStatus.CONFIRMED -> FameGoSuccessGreen
+              else -> FameGoAccentCyan
+            },
+            size = 8.dp
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(
+            text = when (booking.status) {
+              BookingStatus.CONFIRMED -> "Crew on the way"
+              BookingStatus.IN_PROGRESS -> "Shoot in progress"
+              BookingStatus.COMPLETED -> "Wrap completed"
+              else -> "Confirmed"
+            },
+            color = when (booking.status) {
+              BookingStatus.IN_PROGRESS -> FameGoGold
+              BookingStatus.CONFIRMED -> FameGoSuccessGreen
+              else -> FameGoTextSecondary
+            },
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
+          )
+        }
+
+        Text(
+          text = booking.date,
+          color = FameGoTextMuted,
+          fontSize = 12.sp
+        )
+      }
+
+      Spacer(modifier = Modifier.height(12.dp))
+
+      Text(
+        text = booking.title,
+        color = FameGoWhite,
+        fontSize = 17.sp,
+        fontWeight = FontWeight.Bold
+      )
+
+      Text(
+        text = "${booking.time} • ${booking.durationHours} hours • ${booking.location.venueName}",
+        color = FameGoTextSecondary,
+        fontSize = 13.sp,
+        modifier = Modifier.padding(top = 3.dp)
+      )
+
+      Spacer(modifier = Modifier.height(18.dp))
+
+      // Progressive action button based on shoot timeline
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+      ) {
+        // Chat with producer
+        Surface(
+          shape = RoundedCornerShape(14.dp),
+          color = FameGoSurface,
+          border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorderSubtle),
+          modifier = Modifier
+            .clickable { onOpenChat() }
+            .padding(0.dp)
+        ) {
+          Box(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            contentAlignment = Alignment.Center
+          ) {
+            Icon(
+              imageVector = Icons.Default.Chat,
+              contentDescription = "Message",
+              tint = FameGoTextSecondary,
+              modifier = Modifier.size(16.dp)
+            )
+          }
+        }
+
+        // Timeline advancement
+        val nextActionText = when (booking.status) {
+          BookingStatus.CONFIRMED -> "Start shoot"
+          BookingStatus.IN_PROGRESS -> "Wrap shoot"
+          else -> "View shoot"
+        }
+
+        Surface(
+          shape = RoundedCornerShape(14.dp),
+          color = if (booking.status == BookingStatus.IN_PROGRESS) Color(0xFF142E20) else FameGoGold,
+          modifier = Modifier
+            .weight(1f)
+            .clickable {
+              when (booking.status) {
+                BookingStatus.CONFIRMED -> onAdvanceStatus(BookingStatus.IN_PROGRESS)
+                BookingStatus.IN_PROGRESS -> onAdvanceStatus(BookingStatus.COMPLETED)
+                else -> onOpenBooking()
+              }
+            }
+            .testTag("crew_advance_job_button")
+        ) {
+          Box(
+            modifier = Modifier.padding(vertical = 11.dp),
+            contentAlignment = Alignment.Center
+          ) {
+            Text(
+              text = nextActionText,
+              color = if (booking.status == BookingStatus.IN_PROGRESS) FameGoSuccessGreen else FameGoBg,
+              fontSize = 13.sp,
+              fontWeight = FontWeight.Bold
+            )
+          }
+        }
+      }
+    }
+  }
+}
+
+// =============================================================================
+// CREW REQUEST DETAIL SCREEN
+// =============================================================================
+
+@Composable
+fun CrewRequestDetailScreen(
+  requestId: String,
+  onAccept: () -> Unit,
+  onDecline: () -> Unit,
+  onBack: () -> Unit,
+  modifier: Modifier = Modifier
+) {
+  val incomingRequests by FameGoRepository.incomingShootRequests.collectAsState()
+  val request = incomingRequests.firstOrNull { it.id == requestId } ?: incomingRequests.firstOrNull()
+
+  Box(
+    modifier = modifier
+      .fillMaxSize()
+      .background(FameGoBg)
+      .statusBarsPadding()
+      .navigationBarsPadding()
+  ) {
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .padding(horizontal = 20.dp)
+    ) {
+      Spacer(modifier = Modifier.height(12.dp))
+
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        IconButton(onClick = onBack) {
+          Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = "Back",
+            tint = FameGoTextSecondary
+          )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+          text = "Call Sheet Request",
+          color = FameGoWhite,
+          fontSize = 18.sp,
+          fontWeight = FontWeight.Bold
+        )
+      }
+
+      Spacer(modifier = Modifier.height(20.dp))
+
+      if (request != null) {
+        SoftCard(
+          shape = RoundedCornerShape(22.dp),
+          isElevated = true,
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Column(modifier = Modifier.padding(22.dp)) {
+            Text(
+              text = "${request.category.title.uppercase()} SHOOT",
+              color = FameGoGold,
+              fontSize = 11.sp,
+              fontWeight = FontWeight.Bold,
+              letterSpacing = 1.sp
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+              text = request.title,
+              color = FameGoWhite,
+              fontSize = 20.sp,
+              fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+              text = "SCHEDULE & VENUE",
+              color = FameGoTextMuted,
+              fontSize = 10.sp,
+              fontWeight = FontWeight.Bold,
+              letterSpacing = 1.sp
+            )
+            Text(
+              text = "${request.date} • Call: ${request.time} (${request.durationHours} Hours)",
+              color = FameGoTextPrimary,
+              fontSize = 14.sp,
+              modifier = Modifier.padding(top = 2.dp)
+            )
+            Text(
+              text = "${request.location.venueName}, ${request.location.address}",
+              color = FameGoTextSecondary,
+              fontSize = 13.sp,
+              modifier = Modifier.padding(top = 2.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+              text = "BRIEF",
+              color = FameGoTextMuted,
+              fontSize = 10.sp,
+              fontWeight = FontWeight.Bold,
+              letterSpacing = 1.sp
+            )
+            Text(
+              text = request.brief,
+              color = FameGoTextSecondary,
+              fontSize = 13.sp,
+              modifier = Modifier.padding(top = 2.dp)
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+              Text(text = "Guaranteed Payout", color = FameGoTextSecondary, fontSize = 14.sp)
+              Text(
+                text = "₹${request.estimatedBudget}",
+                color = FameGoGold,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+              )
+            }
+          }
+        }
+      }
+
+      Spacer(modifier = Modifier.weight(1f))
+
+      // Actions
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(bottom = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+      ) {
+        Surface(
+          shape = RoundedCornerShape(24.dp),
+          color = FameGoSurface,
+          border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorderSubtle),
+          modifier = Modifier
+            .weight(1f)
+            .clickable { onDecline() }
+            .testTag("request_detail_decline_button")
+        ) {
+          Box(
+            modifier = Modifier.padding(vertical = 14.dp),
+            contentAlignment = Alignment.Center
+          ) {
+            Text(text = "Decline", color = FameGoTextMuted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+          }
+        }
+
+        Surface(
+          shape = RoundedCornerShape(24.dp),
+          color = FameGoGold,
+          modifier = Modifier
+            .weight(1.5f)
+            .clickable { onAccept() }
+            .testTag("request_detail_accept_button")
+        ) {
+          Box(
+            modifier = Modifier.padding(vertical = 14.dp),
+            contentAlignment = Alignment.Center
+          ) {
+            Text(text = "Accept Call Sheet", color = FameGoBg, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+          }
+        }
+      }
+    }
+  }
+}
+
+// =============================================================================
+// CREW SCHEDULE / JOBS SCREEN
+// =============================================================================
+
+@Composable
+fun CrewJobsScreen(
+  onOpenBooking: (String) -> Unit,
+  modifier: Modifier = Modifier
+) {
+  val bookings by FameGoRepository.bookings.collectAsState()
+  val crewJobs = bookings.filter { it.assignedCrew.any { c -> c.name.contains("Aarav", ignoreCase = true) || c.name.contains("Arjun", ignoreCase = true) } }
+
+  Column(
+    modifier = modifier
+      .fillMaxSize()
+      .background(FameGoBg)
+      .padding(horizontal = 20.dp)
+  ) {
+    Spacer(modifier = Modifier.height(16.dp))
+
+    Text(
+      text = "Your Production Calls",
+      color = FameGoWhite,
+      fontSize = 22.sp,
+      fontWeight = FontWeight.Bold
+    )
+    Text(
+      text = "Confirmed and past shoots",
+      color = FameGoTextMuted,
+      fontSize = 13.sp,
+      modifier = Modifier.padding(top = 2.dp, bottom = 18.dp)
+    )
+
+    if (crewJobs.isEmpty()) {
+      Spacer(modifier = Modifier.height(40.dp))
+      Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+      ) {
+        Text(
+          text = "Nothing scheduled yet.",
+          color = FameGoWhite,
+          fontSize = 18.sp,
+          fontWeight = FontWeight.Bold
+        )
+        Text(
+          text = "New production bookings will appear here.",
+          color = FameGoTextMuted,
+          fontSize = 13.sp,
+          modifier = Modifier.padding(top = 4.dp)
+        )
+      }
+    } else {
+      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        crewJobs.forEach { job ->
+          SoftCard(
+            onClick = { onOpenBooking(job.id) },
+            testTag = "crew_job_item_${job.id}"
+          ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+              ) {
+                Text(
+                  text = job.title,
+                  color = FameGoWhite,
+                  fontSize = 15.sp,
+                  fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                  text = "₹${job.estimatedBudget}",
+                  color = FameGoGold,
+                  fontSize = 14.sp,
+                  fontWeight = FontWeight.Bold
+                )
+              }
+              Text(
+                text = "${job.date} • ${job.time} • ${job.location.venueName}",
+                color = FameGoTextMuted,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 4.dp)
+              )
+            }
+          }
+        }
+      }
+    }
+
+    Spacer(modifier = Modifier.height(110.dp))
+  }
+}
+
+// =============================================================================
+// 18. CREW PROFILE SCREEN (Grouped Floating Sections)
+// =============================================================================
+
+@Composable
+fun CrewProfileScreen(
+  onSwitchRole: () -> Unit,
+  modifier: Modifier = Modifier
+) {
+  val scrollState = rememberScrollState()
+
+  Column(
+    modifier = modifier
+      .fillMaxSize()
+      .background(FameGoBg)
+      .verticalScroll(scrollState)
+      .padding(horizontal = 20.dp)
+  ) {
+    Spacer(modifier = Modifier.height(16.dp))
+
+    // Top Profile Header
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      modifier = Modifier.fillMaxWidth()
+    ) {
+      Box(
+        modifier = Modifier
+          .size(56.dp)
+          .clip(CircleShape)
+          .background(FameGoCardElevated)
+          .border(1.dp, FameGoGold, CircleShape),
+        contentAlignment = Alignment.Center
+      ) {
+        Text(text = "AM", color = FameGoGold, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+      }
+
+      Spacer(modifier = Modifier.width(16.dp))
+
+      Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Text(text = "Arjun Mehta", color = FameGoWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+          Spacer(modifier = Modifier.width(6.dp))
+          Box(
+            modifier = Modifier
+              .size(6.dp)
+              .clip(CircleShape)
+              .background(FameGoSuccessGreen)
+          )
+        }
+        Text(text = "Cinematographer • Mumbai", color = FameGoTextSecondary, fontSize = 13.sp)
+        Text(text = "Verified by Famebros Studio", color = FameGoGold, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+      }
+    }
+
+    Spacer(modifier = Modifier.height(28.dp))
+
+    // Grouped Floating Sections
+    Text(text = "OPERATOR SUITE", color = FameGoTextMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+    Spacer(modifier = Modifier.height(8.dp))
+
+    SoftCard {
+      Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+        ProfileRowItem(label = "Verified Gear Kit", value = "Sony FX3, DJI RS4")
+        ProfileRowItem(label = "Reputation Score", value = "4.96 ★ (48 Shoots)")
+        ProfileRowItem(label = "Payout Settings", value = "HDFC Bank •••• 4012")
+        ProfileRowItem(label = "Studio Guidelines", value = "Standard NDA Active")
+      }
+    }
+
+    Spacer(modifier = Modifier.height(20.dp))
+
+    Text(text = "PREFERENCES", color = FameGoTextMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+    Spacer(modifier = Modifier.height(8.dp))
+
+    SoftCard {
+      Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+        ProfileRowItem(label = "Preferred Shooting Zones", value = "Bandra, BKC, Town")
+        ProfileRowItem(label = "Emergency Support", value = "24/7 Famebros Desk")
+      }
+    }
+
+    Spacer(modifier = Modifier.height(24.dp))
+
+    // Switch Role Button
+    Surface(
+      shape = RoundedCornerShape(16.dp),
+      color = FameGoSurface,
+      border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorderSubtle),
+      modifier = Modifier
+        .fillMaxWidth()
+        .clickable { onSwitchRole() }
+        .testTag("profile_switch_role_button")
+    ) {
+      Box(modifier = Modifier.padding(vertical = 14.dp), contentAlignment = Alignment.Center) {
+        Text(text = "Switch Persona / Mode", color = FameGoGold, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+      }
+    }
+
+    Spacer(modifier = Modifier.height(110.dp))
+  }
+}
+
+@Composable
+private fun ProfileRowItem(label: String, value: String) {
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(vertical = 12.dp),
+    horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    Text(text = label, color = FameGoWhite, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+    Text(text = value, color = FameGoTextMuted, fontSize = 13.sp)
+  }
+}
