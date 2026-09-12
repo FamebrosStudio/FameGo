@@ -129,6 +129,19 @@ fun BookingDetailsScreen(
 
       Spacer(modifier = Modifier.height(18.dp))
 
+      if (booking == null) {
+        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 60.dp), contentAlignment = Alignment.Center) {
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = "Booking not found", color = FameGoWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(
+              text = "It may have been cancelled or removed.",
+              color = FameGoTextMuted, fontSize = 13.sp,
+              modifier = Modifier.padding(top = 4.dp)
+            )
+          }
+        }
+      }
+
       if (booking != null) {
         // Main Live Shoot Card
         SoftCard(

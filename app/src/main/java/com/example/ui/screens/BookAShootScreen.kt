@@ -61,6 +61,7 @@ import com.example.model.BookingStatus
 import com.example.model.CrewRequirement
 import com.example.model.CrewRoleType
 import com.example.model.ShootCategory
+import com.example.model.ShootPlan
 import com.example.model.ShootLocation
 import com.example.ui.components.FlowPill
 import com.example.ui.components.FlowPillState
@@ -85,8 +86,9 @@ import java.util.UUID
 
 @Composable
 fun BookAShootScreen(
+  plan: ShootPlan,
   preselectedCategory: ShootCategory? = null,
-  onBookingSubmitted: (String) -> Unit,
+  onBookingReadyForPayment: (Booking) -> Unit,
   onCancel: () -> Unit,
   modifier: Modifier = Modifier
 ) {
@@ -94,13 +96,13 @@ fun BookAShootScreen(
   // Conversational 6-step flow (1 question per view)
   var currentStep by remember { mutableStateOf(1) }
 
-  // Step 1: Category
-  var category by remember { mutableStateOf(preselectedCategory ?: ShootCategory.VIDEO) }
+  // Step 1: Category (reset when launched with a different preselected category)
+  var category by remember(preselectedCategory) { mutableStateOf(preselectedCategory ?: ShootCategory.VIDEO) }
 
   // Step 2: Date, Call Time & Duration
   var selectedDate by remember { mutableStateOf("") }
   var callTime by remember { mutableStateOf("") }
-  var durationHours by remember { mutableStateOf(2) }
+  val durationHours = plan.durationHours
 
   // Step 3: Location
   var venueName by remember { mutableStateOf("") }
@@ -135,10 +137,7 @@ fun BookAShootScreen(
 
   // Cost calculation
   val totalCrewCount = crewCounts.values.sumOf { it }
-  val estimatedCost = remember(crewCounts.values.toList(), durationHours) {
-    val hourly = crewCounts.entries.sumOf { it.key.ratePerHour * it.value }
-    (hourly * durationHours).coerceAtLeast(4000)
-  }
+  val estimatedCost = plan.priceRupees
 
   Box(
     modifier = modifier
@@ -231,8 +230,7 @@ fun BookAShootScreen(
               onDateSelect = { selectedDate = it },
               callTime = callTime,
               onCallTimeSelect = { callTime = it },
-              duration = durationHours,
-              onDurationSelect = { durationHours = it }
+              plan = plan
             )
 
             // STEP 3: Where are we shooting?
@@ -297,6 +295,21 @@ fun BookAShootScreen(
       }
 
       // Bottom Actions
+      val canContinue = when (currentStep) {
+        1 -> true
+        2 -> selectedDate.isNotBlank() && callTime.isNotBlank()
+        3 -> venueName.isNotBlank() && venueAddress.isNotBlank()
+        4 -> totalCrewCount > 0
+        5 -> shootBrief.isNotBlank()
+        else -> true
+      }
+      val continueHint = when {
+        currentStep == 2 && !canContinue -> "Select date & call time"
+        currentStep == 3 && !canContinue -> "Add venue & address"
+        currentStep == 4 && totalCrewCount == 0 -> "Add at least one crew member"
+        currentStep == 5 && !canContinue -> "Add a shoot brief"
+        else -> "Continue"
+      }
       Box(
         modifier = Modifier
           .fillMaxWidth()
@@ -306,8 +319,8 @@ fun BookAShootScreen(
         if (currentStep < 6) {
           FlowPill(
             state = FlowPillState.CONTINUE,
-            customText = if (currentStep == 4 && totalCrewCount == 0) "Add at least one crew member" else "Continue",
-            enabled = currentStep != 4 || totalCrewCount > 0,
+            customText = continueHint,
+            enabled = canContinue,
             onClick = {
               if (currentStep < 6) currentStep++
             },
@@ -354,10 +367,11 @@ fun BookAShootScreen(
                   specialInstructions = specialInstructions,
                   brandName = currentUser.companyName,
                   referenceLink = referenceLink.ifBlank { instagramRef.ifBlank { driveLink } },
+                  plan = plan,
+                  priceRupees = plan.priceRupees,
                   status = BookingStatus.SEARCHING_CREW
                 )
-                FameGoRepository.createBooking(newBooking)
-                onBookingSubmitted(newBooking.id)
+                onBookingReadyForPayment(newBooking)
               },
               modifier = Modifier.weight(1.6f),
               testTag = "wizard_find_crew_button"
@@ -460,8 +474,7 @@ private fun StepWhen(
   onDateSelect: (String) -> Unit,
   callTime: String,
   onCallTimeSelect: (String) -> Unit,
-  duration: Int,
-  onDurationSelect: (Int) -> Unit
+  plan: ShootPlan
 ) {
   val scrollState = rememberScrollState()
 
@@ -541,7 +554,7 @@ private fun StepWhen(
     Spacer(modifier = Modifier.height(10.dp))
 
     Row(
-      modifier = Modifier.fillMaxWidth(),
+      modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
       horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
       listOf("09:00 AM", "10:00 AM", "02:00 PM", "05:00 PM").forEach { time ->
@@ -554,7 +567,6 @@ private fun StepWhen(
             if (isSelected) FameGoGold else FameGoBorderSubtle
           ),
           modifier = Modifier
-            .weight(1f)
             .clip(RoundedCornerShape(14.dp))
             .clickable { onCallTimeSelect(time) }
             .testTag("time_chip_$time")
@@ -585,37 +597,14 @@ private fun StepWhen(
     )
     Spacer(modifier = Modifier.height(10.dp))
 
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.spacedBy(8.dp)
+    Surface(
+      shape = RoundedCornerShape(14.dp), color = FameGoGoldContainer,
+      border = androidx.compose.foundation.BorderStroke(1.dp, FameGoGold),
+      modifier = Modifier.fillMaxWidth().testTag("selected_plan_duration")
     ) {
-      listOf(2 to "2 Hours", 4 to "4 Hours", 8 to "8 Hours").forEach { (hrs, label) ->
-        val isSelected = duration == hrs
-        Surface(
-          shape = RoundedCornerShape(14.dp),
-          color = if (isSelected) FameGoGoldContainer else FameGoCard,
-          border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (isSelected) FameGoGold else FameGoBorderSubtle
-          ),
-          modifier = Modifier
-            .weight(1f)
-            .clip(RoundedCornerShape(14.dp))
-            .clickable { onDurationSelect(hrs) }
-            .testTag("duration_chip_$hrs")
-        ) {
-          Box(
-            modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
-            contentAlignment = Alignment.Center
-          ) {
-            Text(
-              text = label,
-              color = if (isSelected) FameGoGold else FameGoTextSecondary,
-              fontSize = 12.sp,
-              fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-            )
-          }
-        }
+      Column(Modifier.padding(14.dp)) {
+        Text(plan.durationLabel, color = FameGoGold, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text("Included with ${plan.title}", color = FameGoTextMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
       }
     }
   }

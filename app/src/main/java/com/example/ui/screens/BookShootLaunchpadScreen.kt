@@ -345,7 +345,8 @@ fun BookShootLaunchpadScreen(
         )
       }
 
-      Spacer(modifier = Modifier.height(24.dp))
+      // Clearance for the FameGo rotating wheel
+      Spacer(modifier = Modifier.height(145.dp))
     }
   }
 }

@@ -386,7 +386,11 @@ fun CrewRequestDetailScreen(
   modifier: Modifier = Modifier
 ) {
   val incomingRequests by FameGoRepository.incomingShootRequests.collectAsState()
-  val request = incomingRequests.firstOrNull { it.id == requestId } ?: incomingRequests.firstOrNull()
+  val bookings by FameGoRepository.bookings.collectAsState()
+  // Never display an unrelated request for a stale ID: fall back to the
+  // booking pool, otherwise show an empty state.
+  val request = incomingRequests.firstOrNull { it.id == requestId }
+    ?: bookings.firstOrNull { it.id == requestId }
 
   Box(
     modifier = modifier
@@ -429,8 +433,7 @@ fun CrewRequestDetailScreen(
           shape = RoundedCornerShape(22.dp),
           isElevated = true,
           modifier = Modifier.fillMaxWidth()
-        ) {
-          Column(modifier = Modifier.padding(22.dp)) {
+        ) {          Column(modifier = Modifier.padding(22.dp)) {
             Text(
               text = "${request.category.title.uppercase()} SHOOT",
               color = FameGoGold,
@@ -500,6 +503,17 @@ fun CrewRequestDetailScreen(
             }
           }
         }
+      } else {
+        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = "Request no longer available", color = FameGoWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(
+              text = "It may have been assigned or cancelled.",
+              color = FameGoTextMuted, fontSize = 13.sp,
+              modifier = Modifier.padding(top = 4.dp)
+            )
+          }
+        }
       }
 
       Spacer(modifier = Modifier.weight(1f))
@@ -517,7 +531,7 @@ fun CrewRequestDetailScreen(
           border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorderSubtle),
           modifier = Modifier
             .weight(1f)
-            .clickable { onDecline() }
+            .clickable(enabled = request != null) { onDecline() }
             .testTag("request_detail_decline_button")
         ) {
           Box(
@@ -533,7 +547,7 @@ fun CrewRequestDetailScreen(
           color = FameGoGold,
           modifier = Modifier
             .weight(1.5f)
-            .clickable { onAccept() }
+            .clickable(enabled = request != null) { onAccept() }
             .testTag("request_detail_accept_button")
         ) {
           Box(
@@ -718,6 +732,22 @@ fun CrewProfileScreen(
       Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
         ProfileRowItem(label = "Preferred shooting zones", value = "Not added")
         ProfileRowItem(label = "Emergency support", value = "Available from support")
+      }
+    }
+
+    Spacer(modifier = Modifier.height(20.dp))
+
+    SoftCard(
+      onClick = onSwitchRole,
+      testTag = "crew_switch_role_card"
+    ) {
+      Row(
+        modifier = Modifier.padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+      ) {
+        Text(text = "Switch role", color = FameGoWhite, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(text = "Client • Crew • Admin", color = FameGoTextMuted, fontSize = 13.sp)
       }
     }
 

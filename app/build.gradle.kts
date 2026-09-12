@@ -37,10 +37,14 @@ android {
   signingConfigs {
     create("release") {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      // Only wire the file when it actually exists so plain `assembleRelease`
+      // doesn't fail on machines without the upload key.
+      if (file(keystorePath).exists()) {
+        storeFile = file(keystorePath)
+        storePassword = System.getenv("STORE_PASSWORD")
+        keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
+        keyPassword = System.getenv("KEY_PASSWORD")
+      }
     }
   }
 
@@ -49,7 +53,10 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      // Use the upload key only when fully configured; otherwise fall back to
+      // the debug key so release builds still work locally.
+      val releaseKey = signingConfigs.getByName("release")
+      signingConfig = if (releaseKey.storeFile?.exists() == true) releaseKey else signingConfigs.getByName("debug")
     }
   }
   compileOptions {

@@ -278,7 +278,12 @@ fun CustomerSupportScreen(
 
             FameGoButton(
               text = "Send message",
-              onClick = { isSubmitted = true },
+              onClick = {
+                if (disputeText.isNotBlank()) {
+                  com.example.data.FameGoRepository.submitSupportMessage("[$disputeReason] $disputeText")
+                }
+                isSubmitted = true
+              },
               icon = Icons.AutoMirrored.Filled.Send,
               modifier = Modifier.fillMaxWidth(),
               testTag = "submit_support_ticket"

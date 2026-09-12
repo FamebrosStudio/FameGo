@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
+import android.os.SystemClock
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,8 +25,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -39,6 +45,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.Font
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -48,10 +59,13 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import com.example.model.Role
 import com.example.model.User
 import com.example.data.SupabaseAuthClient
 import com.example.data.SupabaseRestClient
+import com.example.data.FameGoRepository
 import com.example.ui.components.FameGoButton
 import com.example.ui.components.FameGoWordmark
 import com.example.ui.components.FameGoOutlinedButton
@@ -60,6 +74,7 @@ import com.example.ui.theme.FameGoBorder
 import com.example.ui.theme.FameGoCard
 import com.example.ui.theme.FameGoCardElevated
 import com.example.ui.theme.FameGoGold
+import com.example.ui.theme.FameGoGoldContainer
 import com.example.ui.theme.FameGoSurface
 import com.example.ui.theme.FameGoTextMuted
 import com.example.ui.theme.FameGoTextPrimary
@@ -67,27 +82,68 @@ import com.example.ui.theme.FameGoTextSecondary
 import com.example.ui.theme.FameGoWhite
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.animation.core.tween
 
 @Composable
 fun SplashScreen(
-  onFinishSplash: () -> Unit,
+  onFinishSplash: (User?) -> Unit,
   modifier: Modifier = Modifier
 ) {
+  val reveal = remember { Animatable(0f) }
+  val finish by rememberUpdatedState(onFinishSplash)
   LaunchedEffect(Unit) {
-    // Keep the brand moment brief; a fixed 1.5s pause made every cold launch
-    // feel slow even though there is no startup work to wait for.
-    delay(600)
-    onFinishSplash()
+    val startedAt = SystemClock.elapsedRealtime()
+    launch { reveal.animateTo(1f, tween(1200, easing = FastOutSlowInEasing)) }
+    val restoredUser = withTimeoutOrNull(2200) {
+      runCatching { FameGoRepository.restoreSignedInUser() }.getOrNull()
+    }
+    val remaining = 2600L - (SystemClock.elapsedRealtime() - startedAt)
+    if (remaining > 0) delay(remaining)
+    finish(restoredUser)
   }
 
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg),
+      .background(FameGoBg)
+      .testTag("cinematic_splash"),
     contentAlignment = Alignment.Center
   ) {
-    FameGoWordmark(modifier = Modifier.width(190.dp))
+    Canvas(modifier = Modifier.fillMaxSize()) {
+      val progress = reveal.value
+      // A quiet pool of light and four viewfinder corners settle into focus.
+      drawRect(Brush.radialGradient(
+        listOf(Color(0xFF252017).copy(alpha = progress * 0.55f), Color.Transparent),
+        center = center, radius = size.minDimension * 0.8f
+      ))
+      val halfWidth = size.width * (0.37f - progress * 0.04f)
+      val halfHeight = size.minDimension * (0.20f - progress * 0.03f)
+      val corner = 12.dp.toPx()
+      val ink = FameGoGold.copy(alpha = progress * 0.40f)
+      for (x in listOf(-1f, 1f)) {
+        for (y in listOf(-1f, 1f)) {
+          val point = center + Offset(x * halfWidth, y * halfHeight)
+          drawLine(ink, point, point - Offset(x * corner, 0f), 1.dp.toPx())
+          drawLine(ink, point, point - Offset(0f, y * corner), 1.dp.toPx())
+        }
+      }
+    }
+    Column(
+      modifier = Modifier.graphicsLayer {
+        alpha = reveal.value
+        scaleX = 1.035f - reveal.value * 0.035f
+        scaleY = scaleX
+      },
+      horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+      Text("FameGo", color = FameGoWhite,
+        fontFamily = FontFamily(Font(com.example.R.font.megrim_regular)),
+        fontSize = 42.sp, letterSpacing = 1.sp)
+      Spacer(modifier = Modifier.height(14.dp))
+      Text("FAMEBROS STUDIO", color = FameGoTextSecondary,
+        fontSize = 9.sp, letterSpacing = 3.sp)
+    }
   }
 }
 
@@ -242,17 +298,95 @@ fun ValuePill(title: String) {
 
 @Composable
 fun AuthScreen(
+  initialSignUp: Boolean = false,
   onAuthenticated: (User) -> Unit,
   onBack: () -> Unit,
   modifier: Modifier = Modifier
 ) {
+  var isSignUp by remember(initialSignUp) { mutableStateOf(initialSignUp) }
   var email by remember { mutableStateOf("") }
   var password by remember { mutableStateOf("") }
+  var confirmPassword by remember { mutableStateOf("") }
+  var fullName by remember { mutableStateOf("") }
+  var phone by remember { mutableStateOf("") }
+  var companyName by remember { mutableStateOf("") }
   var isSubmitting by remember { mutableStateOf(false) }
   var authError by remember { mutableStateOf<String?>(null) }
+  var authNotice by remember { mutableStateOf<String?>(null) }
   val coroutineScope = rememberCoroutineScope()
 
   val scrollState = rememberScrollState()
+  val emailValid = email.trim().contains("@") && email.trim().contains(".")
+  val passwordValid = password.length >= 6
+  val signUpValid = fullName.trim().length >= 2 && phone.filter(Char::isDigit).length >= 10 &&
+    password == confirmPassword
+  val canSubmit = !isSubmitting && emailValid && passwordValid && (!isSignUp || signUpValid)
+
+  fun demoUser(): User {
+    val name = fullName.trim().ifEmpty { email.substringBefore("@").ifEmpty { "Demo Producer" } }
+    return User(
+      id = "demo_${email.trim().lowercase().hashCode()}",
+      name = name,
+      email = email.trim(),
+      phone = phone.trim(),
+      companyName = companyName.trim(),
+      role = Role.CLIENT,
+      avatarInitials = name.split(" ").filter { it.isNotBlank() }.take(2)
+        .joinToString("") { it.first().uppercase() }.ifEmpty { "FG" }
+    )
+  }
+
+  fun submit() {
+    authError = null
+    authNotice = null
+    if (!canSubmit) {
+      authError = if (!emailValid) "Enter a valid email address."
+        else if (!passwordValid) "Password must be at least 6 characters."
+        else if (phone.filter(Char::isDigit).length < 10) "Enter a valid phone number."
+        else if (password != confirmPassword) "Passwords do not match."
+        else "Please complete all required fields."
+      return
+    }
+    if (!com.example.data.SupabaseConfig.isConfigured) {
+      authError = "FameGo is temporarily unavailable. Please try again later."
+      return
+    }
+    isSubmitting = true
+    coroutineScope.launch {
+      val result = SupabaseAuthClient.authenticate(
+        email = email.trim(), password = password, signUp = isSignUp,
+        name = fullName.trim(), phone = phone.trim(), role = Role.CLIENT.name,
+        companyName = companyName.trim()
+      )
+      isSubmitting = false
+      result.onSuccess { auth ->
+        val profile = SupabaseRestClient.get("profiles?select=*&id=eq.${auth.id}").getOrNull()
+        val profileJson = profile?.let { runCatching { org.json.JSONArray(it).optJSONObject(0) }.getOrNull() }
+        val displayName = profileJson?.optString("full_name").orEmpty()
+          .ifEmpty { fullName.trim() }
+          .ifEmpty { email.substringBefore("@").ifEmpty { "User" } }
+        val resolvedRole = runCatching { Role.valueOf(profileJson?.optString("role").orEmpty()) }
+          .getOrDefault(Role.CLIENT)
+          .let { if (it == Role.CLIENT) it else Role.CLIENT }
+        onAuthenticated(User(
+          id = auth.id, name = displayName, email = auth.email,
+          phone = profileJson?.optString("phone").orEmpty().ifEmpty { phone.trim() },
+          companyName = profileJson?.optString("company_name").orEmpty().ifEmpty { companyName.trim() },
+          role = resolvedRole,
+          avatarInitials = displayName.split(" ").filter { it.isNotBlank() }.take(2)
+            .joinToString("") { it.first().uppercase() }.ifEmpty { "FG" }
+        ))
+      }.onFailure { e ->
+        val msg = e.message ?: "Authentication failed"
+        if (msg.contains("confirm your email", ignoreCase = true)) {
+          authNotice = "Account created. Check your email to confirm it, then sign in."
+          isSignUp = false
+        } else {
+          authError = SupabaseAuthClient.friendlyMessage(e, signingUp = isSignUp)
+        }
+      }
+    }
+  }
 
   Box(
     modifier = modifier
@@ -260,6 +394,7 @@ fun AuthScreen(
       .background(FameGoBg)
       .statusBarsPadding()
       .navigationBarsPadding()
+      .imePadding()
   ) {
     Column(
       modifier = Modifier
@@ -294,14 +429,15 @@ fun AuthScreen(
 
       // Heading
       Text(
-        text = "Sign in",
+        text = if (isSignUp) "Create account" else "Sign in",
         color = FameGoWhite,
         fontSize = 26.sp,
         fontWeight = FontWeight.Bold
       )
 
       Text(
-        text = "Welcome back. Sign in to your account.",
+        text = if (isSignUp) "Join FameGo to book verified crew in minutes."
+          else "Welcome back. Sign in to your account.",
         color = FameGoTextSecondary,
         fontSize = 13.sp,
         modifier = Modifier.padding(top = 4.dp, bottom = 20.dp)
@@ -310,6 +446,32 @@ fun AuthScreen(
       Spacer(modifier = Modifier.height(20.dp))
 
       // Input Fields
+      if (isSignUp) {
+        FameGoTextField(
+          value = fullName,
+          onValueChange = { fullName = it },
+          label = "Full name",
+          icon = Icons.Default.Person,
+          keyboardType = KeyboardType.Text
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        FameGoTextField(
+          value = phone,
+          onValueChange = { phone = it },
+          label = "Phone",
+          icon = Icons.Default.Phone,
+          keyboardType = KeyboardType.Phone
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        FameGoTextField(
+          value = companyName,
+          onValueChange = { companyName = it },
+          label = "Company (optional)",
+          icon = Icons.Default.Business,
+          keyboardType = KeyboardType.Text
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+      }
 
       FameGoTextField(
         value = email,
@@ -324,41 +486,29 @@ fun AuthScreen(
       FameGoTextField(
         value = password,
         onValueChange = { password = it },
-        label = "Password",
+        label = "Password (min 6 chars)",
         icon = Icons.Default.Lock,
         isPassword = true
       )
+
+      if (isSignUp) {
+        Spacer(modifier = Modifier.height(12.dp))
+        FameGoTextField(
+          value = confirmPassword,
+          onValueChange = { confirmPassword = it },
+          label = "Confirm password",
+          icon = Icons.Default.Lock,
+          isPassword = true
+        )
+      }
 
       Spacer(modifier = Modifier.height(24.dp))
 
       // Primary CTA
       FameGoButton(
-        text = "Sign in",
-        onClick = {
-          authError = null
-          isSubmitting = true
-          coroutineScope.launch {
-            val result = SupabaseAuthClient.authenticate(
-              email = email.trim(), password = password, signUp = false,
-              name = "", phone = "", role = Role.CLIENT.name,
-              companyName = ""
-            )
-            isSubmitting = false
-            result.onSuccess { auth ->
-              val profile = SupabaseRestClient.get("profiles?select=*&id=eq.${auth.id}").getOrNull()
-              val profileJson = profile?.let { runCatching { org.json.JSONArray(it).optJSONObject(0) }.getOrNull() }
-              val displayName = profileJson?.optString("full_name").orEmpty().ifEmpty { email.substringBefore("@").ifEmpty { "User" } }
-              val resolvedRole = runCatching { Role.valueOf(profileJson?.optString("role").orEmpty()) }.getOrDefault(Role.CLIENT)
-              onAuthenticated(User(
-                id = auth.id, name = displayName, email = auth.email,
-                phone = profileJson?.optString("phone").orEmpty(), companyName = profileJson?.optString("company_name").orEmpty(), role = resolvedRole,
-                avatarInitials = displayName.split(" ").filter { it.isNotBlank() }.take(2)
-                  .joinToString("") { it.first().uppercase() }.ifEmpty { "FG" }
-              ))
-            }.onFailure { authError = it.message ?: "Authentication failed" }
-          }
-        },
-        enabled = !isSubmitting && email.trim().isNotEmpty() && password.isNotEmpty(),
+        text = if (isSignUp) "Create account" else "Sign in",
+        onClick = { submit() },
+        enabled = canSubmit,
         modifier = Modifier.fillMaxWidth(),
         testTag = "auth_submit_button"
       )
@@ -366,8 +516,28 @@ fun AuthScreen(
       authError?.let { message ->
         Text(message, color = Color(0xFFFF7B84), fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
       }
+      authNotice?.let { message ->
+        Text(message, color = FameGoGold, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+      }
 
       Spacer(modifier = Modifier.height(16.dp))
+
+      Row(
+        modifier = Modifier.fillMaxWidth().clickable {
+          isSignUp = !isSignUp
+          authError = null
+          authNotice = null
+        },
+        horizontalArrangement = Arrangement.Center
+      ) {
+        Text(
+          text = if (isSignUp) "Have an account? Sign in" else "New here? Create account",
+          color = FameGoGold,
+          fontSize = 13.sp,
+          fontWeight = FontWeight.SemiBold,
+          modifier = Modifier.padding(vertical = 8.dp)
+        )
+      }
 
       Spacer(modifier = Modifier.height(20.dp))
 

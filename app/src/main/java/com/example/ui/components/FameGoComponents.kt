@@ -298,7 +298,7 @@ fun FlowDock(
             .size(44.dp)
             .clip(CircleShape)
             .background(FameGoGold)
-            .clickable { onNavigate("book_a_shoot") }
+            .clickable { onNavigate("book") }
             .testTag("nav_book_a_shoot"),
           contentAlignment = Alignment.Center
         ) {
@@ -461,6 +461,42 @@ fun AdaptiveHeader(
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium
           )
+        }
+      }
+
+      // Notifications button with unread badge
+      Box(
+        modifier = Modifier
+          .size(32.dp)
+          .clip(CircleShape)
+          .background(FameGoCard)
+          .border(1.dp, FameGoBorderSubtle, CircleShape)
+          .clickable { onNotificationsClick() }
+          .testTag("top_bar_notifications_button"),
+        contentAlignment = Alignment.Center
+      ) {
+        Icon(
+          imageVector = Icons.Default.Notifications,
+          contentDescription = "Notifications",
+          tint = FameGoTextSecondary,
+          modifier = Modifier.size(16.dp)
+        )
+        if (unreadNotifications > 0) {
+          Box(
+            modifier = Modifier
+              .align(Alignment.TopEnd)
+              .size(14.dp)
+              .clip(CircleShape)
+              .background(FameGoGold),
+            contentAlignment = Alignment.Center
+          ) {
+            Text(
+              text = if (unreadNotifications > 9) "9+" else "$unreadNotifications",
+              color = FameGoBg,
+              fontSize = 8.sp,
+              fontWeight = FontWeight.Bold
+            )
+          }
         }
       }
 

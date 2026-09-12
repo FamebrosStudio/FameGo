@@ -29,6 +29,38 @@ enum class BookingStatus(val label: String) {
   }
 }
 
+enum class PaymentStatus { PENDING, PAID, FAILED, REFUNDED }
+
+enum class ShootPlan(
+  val title: String,
+  val durationLabel: String,
+  val durationHours: Int,
+  val priceRupees: Int,
+  val description: String
+) {
+  BRONZE_90(
+    "Bronze 90",
+    "1 hour + 30 min buffer",
+    1,
+    1_999,
+    "Fast and focused for small shoots."
+  ),
+  BRONZE_3H(
+    "Bronze 3 Hour",
+    "3 hours + 30 min buffer",
+    3,
+    2_999,
+    "For product shoots, reels and small campaigns."
+  ),
+  BRONZE_6H(
+    "Bronze 6 Hour",
+    "6 hours + 30 min buffer",
+    6,
+    8_999,
+    "Reliable coverage for larger productions."
+  )
+}
+
 enum class ShootCategory(
   val title: String,
   val subtitle: String,
@@ -159,6 +191,10 @@ data class Booking(
   val specialInstructions: String = "",
   val brandName: String = "",
   val referenceLink: String = "",
+  val plan: ShootPlan = ShootPlan.BRONZE_3H,
+  val priceRupees: Int = plan.priceRupees,
+  val paymentStatus: PaymentStatus = PaymentStatus.PENDING,
+  val paymentReference: String = "",
   val status: BookingStatus = BookingStatus.SEARCHING_CREW,
   val assignedCrew: List<AssignedCrewMember> = emptyList(),
   val createdAtMillis: Long = System.currentTimeMillis()
@@ -167,7 +203,7 @@ data class Booking(
   val date: String get() = dateText
   val time: String get() = timeText
   val brief: String get() = shootDescription
-  val estimatedBudget: String get() = "${durationHours * 3500}"
+  val estimatedBudget: String get() = priceRupees.toString()
   val location: ShootLocationData get() = ShootLocationData(venueName, fullAddress)
   val requiredCrew: List<CrewRequirement> get() = crewRequirements
 }

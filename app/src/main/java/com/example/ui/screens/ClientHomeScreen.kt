@@ -341,7 +341,8 @@ fun ClientHomeScreen(
         }
       }
 
-      Spacer(modifier = Modifier.height(24.dp))
+      // Generous bottom clearance for the FameGo rotating wheel
+      Spacer(modifier = Modifier.height(130.dp))
     }
   }
 }

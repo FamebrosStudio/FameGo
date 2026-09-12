@@ -57,14 +57,19 @@ import androidx.compose.ui.unit.sp
 import com.example.data.FameGoRepository
 import com.example.data.SupabaseSession
 import com.example.model.BookingStatus
+import com.example.model.Booking
 import com.example.model.Role
 import com.example.model.ShootCategory
+import com.example.model.ShootPlan
 import com.example.ui.components.FameGoBottomNav
 import com.example.ui.components.FameGoTopBar
+import com.example.ui.components.FameGoWheelNavigation
 import com.example.ui.screens.AdminDashboardScreen
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.BookAShootScreen
 import com.example.ui.screens.BookShootLaunchpadScreen
+import com.example.ui.screens.ShootPlanScreen
+import com.example.ui.screens.PaymentDemoScreen
 import com.example.ui.screens.BookingChatScreen
 import com.example.ui.screens.BookingDetailsScreen
 import com.example.ui.screens.ClientBookingsScreen
@@ -97,9 +102,11 @@ import com.example.ui.theme.FameGoWhite
 sealed class Screen {
   object Splash : Screen()
   object Welcome : Screen()
-  object Auth : Screen()
+  data class Auth(val startInSignUp: Boolean = false) : Screen()
   data class Main(val tab: String = "home") : Screen()
-  data class BookAShoot(val preselectedCategory: ShootCategory? = null) : Screen()
+  data class ShootPlans(val preselectedCategory: ShootCategory? = null) : Screen()
+  data class BookAShoot(val plan: ShootPlan, val preselectedCategory: ShootCategory? = null) : Screen()
+  data class Payment(val booking: Booking) : Screen()
   data class SearchingCrew(val bookingId: String) : Screen()
   data class BookingDetails(val bookingId: String) : Screen()
   data class CrewRequestDetail(val bookingId: String) : Screen()
@@ -110,6 +117,7 @@ sealed class Screen {
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    SupabaseSession.initialize(applicationContext)
     enableEdgeToEdge()
     setContent {
       FameGoTheme {
@@ -124,7 +132,6 @@ fun FameGoApp() {
   var currentScreen by remember { mutableStateOf<Screen>(Screen.Splash) }
   val currentUser by FameGoRepository.currentUser.collectAsState()
   val notifications by FameGoRepository.notifications.collectAsState()
-  var showRoleSwitcherDialog by remember { mutableStateOf(false) }
 
   // Handle Android system back button
   BackHandler(
@@ -132,10 +139,12 @@ fun FameGoApp() {
       currentScreen !is Screen.Main &&
       currentScreen !is Screen.Welcome
   ) {
-    when (currentScreen) {
+    when (val current = currentScreen) {
       is Screen.Welcome -> { /* exit or stay */ }
       is Screen.Auth -> currentScreen = Screen.Welcome
-      is Screen.BookAShoot -> currentScreen = Screen.Main("home")
+      is Screen.ShootPlans -> currentScreen = Screen.Main("home")
+      is Screen.BookAShoot -> currentScreen = Screen.ShootPlans(current.preselectedCategory)
+      is Screen.Payment -> currentScreen = Screen.BookAShoot(current.booking.plan, current.booking.category)
       is Screen.SearchingCrew -> currentScreen = Screen.Main("home")
       is Screen.BookingDetails -> currentScreen = Screen.Main("bookings")
       is Screen.CrewRequestDetail -> currentScreen = Screen.Main("home")
@@ -159,19 +168,22 @@ fun FameGoApp() {
       when (screen) {
         is Screen.Splash -> {
           SplashScreen(
-            onFinishSplash = { currentScreen = Screen.Welcome }
+            onFinishSplash = { restoredUser ->
+              currentScreen = if (restoredUser == null) Screen.Welcome else Screen.Main("home")
+            }
           )
         }
 
         is Screen.Welcome -> {
           WelcomeScreen(
-            onGetStarted = { currentScreen = Screen.Auth },
-            onSignIn = { currentScreen = Screen.Auth }
+            onGetStarted = { currentScreen = Screen.Auth(startInSignUp = true) },
+            onSignIn = { currentScreen = Screen.Auth(startInSignUp = false) }
           )
         }
 
         is Screen.Auth -> {
           AuthScreen(
+            initialSignUp = screen.startInSignUp,
             onAuthenticated = { user ->
               FameGoRepository.setCurrentUser(user)
               currentScreen = Screen.Main(tab = "home")
@@ -184,20 +196,21 @@ fun FameGoApp() {
           Scaffold(
             topBar = {
               FameGoTopBar(
-                currentRole = currentUser.role,
+                currentRole = Role.CLIENT,
                 unreadNotifications = notifications.count {
-                  it.targetRole == currentUser.role && !it.isRead
+                  it.targetRole == Role.CLIENT && !it.isRead
                 },
                 onRoleClick = {},
                 onNotificationsClick = { currentScreen = Screen.Main("notifications") },
-                onProfileClick = { currentScreen = Screen.Main("profile") }
+                onProfileClick = { currentScreen = Screen.Main("profile") },
+                roleSwitcherEnabled = false
               )
             },
             containerColor = FameGoBg
           ) { innerPadding ->
             Box(
-              modifier = Modifier
-                .fillMaxSize()
+                modifier = Modifier
+                  .fillMaxSize()
                 .padding(top = innerPadding.calculateTopPadding())
             ) {
               // Keep back navigation synchronized with the current app screen.
@@ -205,124 +218,102 @@ fun FameGoApp() {
                 currentScreen = Screen.Main("home")
               }
 
-              when (currentUser.role) {
-                Role.CLIENT -> {
-                  val clientTabOrder = listOf("home", "bookings", "book", "notifications", "profile")
+              val clientTabOrder = listOf("home", "bookings", "book", "notifications", "profile")
 
-                  AnimatedContent(
-                    targetState = screen.tab,
-                    transitionSpec = {
-                      val initialIdx = clientTabOrder.indexOf(initialState).let { if (it == -1) 0 else it }
-                      val targetIdx = clientTabOrder.indexOf(targetState).let { if (it == -1) 0 else it }
-                      val direction = if (targetIdx >= initialIdx) 1 else -1
-                      (slideInHorizontally(
+              AnimatedContent(
+                targetState = screen.tab,
+                modifier = Modifier.fillMaxSize()
+                  .navigationBarsPadding()
+                  .padding(bottom = 142.dp),
+                transitionSpec = {
+                  val initialIdx = clientTabOrder.indexOf(initialState).let { if (it == -1) 0 else it }
+                  val targetIdx = clientTabOrder.indexOf(targetState).let { if (it == -1) 0 else it }
+                  val direction = if (targetIdx >= initialIdx) 1 else -1
+                  (slideInHorizontally(
+                    animationSpec = tween(280, easing = FastOutSlowInEasing)
+                  ) { width -> direction * (width / 3) } + fadeIn(tween(240)))
+                    .togetherWith(
+                      slideOutHorizontally(
                         animationSpec = tween(280, easing = FastOutSlowInEasing)
-                      ) { width -> direction * (width / 3) } + fadeIn(tween(240)))
-                        .togetherWith(
-                          slideOutHorizontally(
-                            animationSpec = tween(280, easing = FastOutSlowInEasing)
-                          ) { width -> -direction * (width / 3) } + fadeOut(tween(200))
-                        )
-                    },
-                    label = "clientScreenTransition"
-                  ) { tab ->
-                    when (tab) {
-                      "home", "dashboard" -> ClientHomeScreen(
-                        onBookAShoot = { cat -> currentScreen = Screen.BookAShoot(cat) },
-                        onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
-                        onOpenLiveSearch = { id -> currentScreen = Screen.SearchingCrew(id) },
-                        onOpenChat = { id -> currentScreen = Screen.BookingChat(id) },
-                        onViewAllBookings = { currentScreen = Screen.Main("bookings") }
-                      )
-                      "bookings" -> ClientBookingsScreen(
-                        onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
-                        onBookAgain = { cat -> currentScreen = Screen.BookAShoot(cat) },
-                        onNewBooking = { currentScreen = Screen.BookAShoot(null) }
-                      )
-                      "book" -> BookShootLaunchpadScreen(
-                        onStartBooking = { cat -> currentScreen = Screen.BookAShoot(cat) }
-                      )
-                      "notifications", "alerts" -> NotificationsScreen(
-                        onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) }
-                      )
-                      "profile" -> ClientProfileScreen(
-                        onSwitchRole = {},
-                        onOpenSupport = { currentScreen = Screen.CustomerSupport },
-                        onLogout = {
-                          SupabaseSession.clear()
-                          FameGoRepository.switchRole(Role.CLIENT)
-                          currentScreen = Screen.Welcome
-                        }
-                      )
-                      else -> ClientHomeScreen(
-                        onBookAShoot = { cat -> currentScreen = Screen.BookAShoot(cat) },
-                        onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
-                        onOpenLiveSearch = { id -> currentScreen = Screen.SearchingCrew(id) },
-                        onOpenChat = { id -> currentScreen = Screen.BookingChat(id) },
-                        onViewAllBookings = { currentScreen = Screen.Main("bookings") }
-                      )
-                    }
-                  }
-                }
-
-                Role.CREW -> {
-                  when (screen.tab) {
-                    "home" -> CrewHomeScreen(
-                      onViewRequestDetail = { id -> currentScreen = Screen.CrewRequestDetail(id) },
-                      onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
-                      onOpenChat = { id -> currentScreen = Screen.BookingChat(id) }
+                      ) { width -> -direction * (width / 3) } + fadeOut(tween(200))
                     )
-                    "bookings" -> CrewJobsScreen(
-                      onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) }
-                    )
-                    "notifications" -> NotificationsScreen(
-                      onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) }
-                    )
-                    "profile" -> CrewProfileScreen(
-                      onSwitchRole = {}
-                    )
-                    else -> CrewHomeScreen(
-                      onViewRequestDetail = { id -> currentScreen = Screen.CrewRequestDetail(id) },
-                      onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
-                      onOpenChat = { id -> currentScreen = Screen.BookingChat(id) }
-                    )
-                  }
-                }
-
-                Role.ADMIN -> {
-                  AdminDashboardScreen(
+                },
+                label = "clientScreenTransition"
+              ) { tab ->
+                when (tab) {
+                  "home", "dashboard" -> ClientHomeScreen(
+                    onBookAShoot = { cat -> currentScreen = Screen.ShootPlans(cat) },
                     onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
-                    onOpenSupport = { currentScreen = Screen.CustomerSupport }
+                    onOpenLiveSearch = { id -> currentScreen = Screen.SearchingCrew(id) },
+                    onOpenChat = { id -> currentScreen = Screen.BookingChat(id) },
+                    onViewAllBookings = { currentScreen = Screen.Main("bookings") }
+                  )
+                  "bookings" -> ClientBookingsScreen(
+                    onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
+                    onBookAgain = { cat -> currentScreen = Screen.ShootPlans(cat) },
+                    onNewBooking = { currentScreen = Screen.ShootPlans(null) }
+                  )
+                  "book" -> BookShootLaunchpadScreen(
+                    onStartBooking = { cat -> currentScreen = Screen.ShootPlans(cat) }
+                  )
+                  "notifications", "alerts" -> NotificationsScreen(
+                    onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) }
+                  )
+                  "profile" -> ClientProfileScreen(
+                    onOpenSupport = { currentScreen = Screen.CustomerSupport },
+                    onLogout = {
+                      SupabaseSession.clear()
+                      currentScreen = Screen.Welcome
+                    }
+                  )
+                  else -> ClientHomeScreen(
+                    onBookAShoot = { cat -> currentScreen = Screen.ShootPlans(cat) },
+                    onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
+                    onOpenLiveSearch = { id -> currentScreen = Screen.SearchingCrew(id) },
+                    onOpenChat = { id -> currentScreen = Screen.BookingChat(id) },
+                    onViewAllBookings = { currentScreen = Screen.Main("bookings") }
                   )
                 }
               }
 
-              // Standard bottom navigation
-              if (currentUser.role == Role.CLIENT) {
-                FameGoBottomNav(
-                  currentRoute = screen.tab,
-                  onNavigate = { destination ->
-                    currentScreen = Screen.Main(tab = destination)
-                  },
-                  modifier = Modifier.align(Alignment.BottomCenter)
-                )
-              }
+              // FameGo rotating wheel navigation (swipe left/right to switch tabs)
+              FameGoWheelNavigation(
+                currentTab = screen.tab,
+                onNavigate = { destination ->
+                  currentScreen = Screen.Main(tab = destination)
+                },
+                onOpenBookingFlow = {
+                  currentScreen = Screen.ShootPlans(null)
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
+              )
             }
           }
         }
 
+        is Screen.ShootPlans -> {
+          ShootPlanScreen(
+            preselectedCategory = screen.preselectedCategory,
+            onContinue = { plan, category -> currentScreen = Screen.BookAShoot(plan, category) },
+            onBack = { currentScreen = Screen.Main("home") }
+          )
+        }
+
         is Screen.BookAShoot -> {
-          if (currentUser.role == Role.CLIENT) {
-            BookAShootScreen(
-              preselectedCategory = screen.preselectedCategory,
-              onBookingSubmitted = { bookingId ->
-                currentScreen = Screen.SearchingCrew(bookingId)
-              },
-              onCancel = { currentScreen = Screen.Main("home") }
-            )
-          } else {
-            currentScreen = Screen.Main("home")
-          }
+          BookAShootScreen(
+            plan = screen.plan,
+            preselectedCategory = screen.preselectedCategory,
+            onBookingReadyForPayment = { booking -> currentScreen = Screen.Payment(booking) },
+            onCancel = { currentScreen = Screen.ShootPlans(screen.preselectedCategory) }
+          )
+        }
+
+        is Screen.Payment -> {
+          PaymentDemoScreen(
+            booking = screen.booking,
+            onPaid = { bookingId -> currentScreen = Screen.SearchingCrew(bookingId) },
+            onBack = { currentScreen = Screen.BookAShoot(screen.booking.plan, screen.booking.category) }
+          )
         }
 
         is Screen.SearchingCrew -> {
@@ -340,7 +331,7 @@ fun FameGoApp() {
             bookingId = screen.bookingId,
             onBack = { currentScreen = Screen.Main("bookings") },
             onOpenChat = { bId -> currentScreen = Screen.BookingChat(bId) },
-            onRebook = { cat -> currentScreen = Screen.BookAShoot(cat) },
+            onRebook = { cat -> currentScreen = Screen.ShootPlans(cat) },
             onContactSupport = { currentScreen = Screen.CustomerSupport }
           )
         }
@@ -383,118 +374,6 @@ fun FameGoApp() {
             onBack = { currentScreen = Screen.Main("home") }
           )
         }
-      }
-    }
-
-    // Fast Persona / Role Switcher Modal
-    if (showRoleSwitcherDialog) {
-      AlertDialog(
-        onDismissRequest = { showRoleSwitcherDialog = false },
-        containerColor = FameGoCard,
-        title = {
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            Text(
-              text = "Switch role",
-              color = FameGoWhite,
-              fontSize = 18.sp,
-              fontWeight = FontWeight.Bold
-            )
-            IconButton(onClick = { showRoleSwitcherDialog = false }, modifier = Modifier.size(28.dp)) {
-              Icon(Icons.Default.Close, contentDescription = "Close", tint = FameGoTextMuted)
-            }
-          }
-        },
-        text = {
-          Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(
-              text = "Switch roles to try out each perspective:",
-              color = FameGoTextSecondary,
-              fontSize = 13.sp
-            )
-
-            // Client Option
-            PersonaCard(
-              title = "Client",
-              subtitle = "Book shoots, track crew, and message on set",
-              badgeColor = FameGoGold,
-              isSelected = currentUser.role == Role.CLIENT,
-              onClick = {
-                FameGoRepository.switchRole(Role.CLIENT)
-                showRoleSwitcherDialog = false
-                currentScreen = Screen.Main("home")
-              }
-            )
-
-            // Crew Option
-            PersonaCard(
-              title = "Crew",
-              subtitle = "Accept shoot requests and manage your availability",
-              badgeColor = FameGoSuccessGreen,
-              isSelected = currentUser.role == Role.CREW,
-              onClick = {
-                FameGoRepository.switchRole(Role.CREW)
-                showRoleSwitcherDialog = false
-                currentScreen = Screen.Main("home")
-              }
-            )
-
-            // Admin Option
-            PersonaCard(
-              title = "Studio admin",
-              subtitle = "Oversee active shoots, dispatch crew, and manage sets",
-              badgeColor = FameGoAccentCyan,
-              isSelected = currentUser.role == Role.ADMIN,
-              onClick = {
-                FameGoRepository.switchRole(Role.ADMIN)
-                showRoleSwitcherDialog = false
-                currentScreen = Screen.Main("home")
-              }
-            )
-          }
-        },
-        confirmButton = {}
-      )
-    }
-  }
-}
-
-@Composable
-fun PersonaCard(
-  title: String,
-  subtitle: String,
-  badgeColor: Color,
-  isSelected: Boolean,
-  onClick: () -> Unit
-) {
-  Surface(
-    shape = RoundedCornerShape(12.dp),
-    color = if (isSelected) FameGoCardElevated else FameGoSurface,
-    border = androidx.compose.foundation.BorderStroke(
-      1.dp,
-      if (isSelected) badgeColor else FameGoBorder
-    ),
-    modifier = Modifier
-      .fillMaxWidth()
-      .clickable { onClick() }
-  ) {
-    Row(
-      modifier = Modifier.padding(12.dp),
-      verticalAlignment = Alignment.CenterVertically
-    ) {
-      Box(
-        modifier = Modifier
-          .size(10.dp)
-          .clip(CircleShape)
-          .background(badgeColor)
-      )
-      Spacer(modifier = Modifier.width(12.dp))
-      Column(modifier = Modifier.weight(1f)) {
-        Text(title, color = FameGoWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        Text(subtitle, color = FameGoTextSecondary, fontSize = 11.sp)
       }
     }
   }

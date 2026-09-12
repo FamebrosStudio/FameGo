@@ -61,7 +61,6 @@ import com.example.ui.theme.fameGoRise
 
 @Composable
 fun ClientProfileScreen(
-  onSwitchRole: () -> Unit,
   onOpenSupport: () -> Unit,
   onLogout: () -> Unit,
   modifier: Modifier = Modifier

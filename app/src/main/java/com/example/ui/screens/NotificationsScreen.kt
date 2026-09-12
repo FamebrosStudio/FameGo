@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -47,9 +46,7 @@ fun NotificationsScreen(
   val currentUser by FameGoRepository.currentUser.collectAsState()
   val repositoryNotifications by FameGoRepository.notifications.collectAsState()
   val notifications = repositoryNotifications.filter { it.targetRole == currentUser.role }
-
-  // Opening the notification centre acknowledges the currently visible items.
-  LaunchedEffect(currentUser.role) { FameGoRepository.markAllNotificationsRead(currentUser.role) }
+  val unreadCount = notifications.count { !it.isRead }
 
   val scrollState = rememberScrollState()
 
@@ -74,12 +71,30 @@ fun NotificationsScreen(
         fontWeight = FontWeight.Bold,
         letterSpacing = (-0.5).sp
       )
-      Text(
-        text = "Updates about your shoots",
-        color = FameGoTextMuted,
-        fontSize = 13.sp,
-        modifier = Modifier.padding(top = 2.dp, bottom = 20.dp)
-      )
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Text(
+          text = "Updates about your shoots",
+          color = FameGoTextMuted,
+          fontSize = 13.sp,
+          modifier = Modifier.padding(top = 2.dp, bottom = 20.dp)
+        )
+        if (unreadCount > 0) {
+          Text(
+            text = "Mark all read",
+            color = FameGoGold,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+              .clickable { FameGoRepository.markAllNotificationsRead(currentUser.role) }
+              .padding(bottom = 20.dp)
+              .testTag("notifications_mark_all_read")
+          )
+        }
+      }
 
       if (notifications.isEmpty()) {
         Box(
@@ -119,7 +134,10 @@ fun NotificationsScreen(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
               itemsInGroup.forEach { item ->
                 SoftCard(
-                  onClick = { item.bookingId?.let { onOpenBooking(it) } },
+                  onClick = {
+                    FameGoRepository.markNotificationRead(item.id)
+                    item.bookingId?.let { onOpenBooking(it) }
+                  },
                   testTag = "notification_${item.id}"
                 ) {
                   Row(
