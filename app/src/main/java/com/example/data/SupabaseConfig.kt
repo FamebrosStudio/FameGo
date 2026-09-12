@@ -12,3 +12,8 @@ object SupabaseConfig {
       !baseUrl.contains("your-project") &&
       publishableKey.startsWith("sb_publishable_")
 }
+
+object SupabaseSession {
+  @Volatile var accessToken: String? = null
+  fun clear() { accessToken = null }
+}

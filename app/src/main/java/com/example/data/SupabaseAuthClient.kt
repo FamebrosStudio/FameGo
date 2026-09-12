@@ -8,7 +8,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 
-data class SupabaseAuthResult(val id: String, val email: String)
+data class SupabaseAuthResult(val id: String, val email: String, val accessToken: String)
 
 /** Small REST auth adapter kept independent from the app's UI and local state. */
 object SupabaseAuthClient {
@@ -60,8 +60,9 @@ object SupabaseAuthClient {
         val user = root.optJSONObject("user") ?: root
         SupabaseAuthResult(
           id = user.optString("id").ifBlank { error("Supabase did not return a user id") },
-          email = user.optString("email", email)
-        )
+          email = user.optString("email", email),
+          accessToken = root.optString("access_token").ifBlank { error("Supabase did not return a session") }
+        ).also { SupabaseSession.accessToken = it.accessToken }
       }
     }
   }

@@ -81,6 +81,7 @@ import com.example.ui.theme.FameGoTextMuted
 import com.example.ui.theme.FameGoTextPrimary
 import com.example.ui.theme.FameGoTextSecondary
 import com.example.ui.theme.FameGoWhite
+import java.util.UUID
 
 @Composable
 fun BookAShootScreen(
@@ -332,7 +333,7 @@ fun BookAShootScreen(
                 shootBrief.isNotBlank() && totalCrewCount > 0,
               onClick = {
                 val newBooking = Booking(
-                  id = "booking_${System.currentTimeMillis()}",
+                  id = UUID.randomUUID().toString(),
                   bookingCode = "FG-" + (1000..9999).random(),
                   shootTitle = shootTitle.ifBlank { "${category.title} Shoot - $venueName" },
                   clientName = currentUser.name,

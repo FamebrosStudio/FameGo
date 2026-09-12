@@ -79,6 +79,8 @@ fun BookingChatScreen(
   val booking = bookings.find { it.id == bookingId }
   val messages = allMessages[bookingId] ?: emptyList()
 
+  LaunchedEffect(bookingId) { FameGoRepository.loadChatMessages(bookingId) }
+
   var messageInput by remember { mutableStateOf("") }
   val listState = rememberLazyListState()
 
