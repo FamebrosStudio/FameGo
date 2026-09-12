@@ -78,7 +78,7 @@ import com.example.ui.screens.CrewRequestDetailScreen
 import com.example.ui.screens.CustomerSupportScreen
 import com.example.ui.screens.NotificationsScreen
 import com.example.ui.screens.SearchingCrewScreen
-import com.example.ui.screens.SplashScreen
+import com.example.ui.screens.CameraIntroExperience
 import com.example.ui.screens.WelcomeScreen
 import com.example.ui.theme.FameGoAccentCyan
 import com.example.ui.theme.FameGoBg
@@ -159,8 +159,8 @@ fun FameGoApp() {
     ) { screen ->
       when (screen) {
         is Screen.Splash -> {
-          SplashScreen(
-            onFinishSplash = { currentScreen = Screen.Welcome }
+          CameraIntroExperience(
+            onFinished = { currentScreen = Screen.Welcome }
           )
         }
 

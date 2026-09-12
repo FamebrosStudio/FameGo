@@ -82,6 +82,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -394,7 +395,7 @@ fun FameGoWordmark(modifier: Modifier = Modifier) {
   Text(
     text = "FameGo",
     color = FameGoWhite,
-    fontFamily = FontFamily.Cursive,
+    fontFamily = FontFamily(Font(R.font.megrim_regular)),
     fontSize = 20.sp,
     letterSpacing = 0.4.sp,
     modifier = modifier
