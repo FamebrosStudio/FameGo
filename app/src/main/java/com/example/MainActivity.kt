@@ -166,7 +166,7 @@ fun FameGoApp() {
 
         is Screen.Welcome -> {
           WelcomeScreen(
-            onGetStarted = { currentScreen = Screen.Auth(isSignUp = true) },
+            onGetStarted = { currentScreen = Screen.Auth(isSignUp = false) },
             onSignIn = { currentScreen = Screen.Auth(isSignUp = false) }
           )
         }

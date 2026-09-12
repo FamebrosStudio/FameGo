@@ -57,8 +57,10 @@ import androidx.compose.ui.unit.sp
 import com.example.model.Role
 import com.example.model.User
 import com.example.data.SupabaseAuthClient
+import com.example.data.SupabaseRestClient
 import com.example.ui.components.FameGoButton
 import com.example.ui.components.FameGoLogo
+import com.example.ui.components.FameGoWordmark
 import com.example.ui.components.FameGoOutlinedButton
 import com.example.ui.theme.FameGoAccentCyan
 import com.example.ui.theme.FameGoBg
@@ -115,7 +117,7 @@ fun SplashScreen(
         val shift = size.width * gradientShift
         drawRect(
           Brush.linearGradient(
-            colors = listOf(FameGoBg, Color(0xFF171019), Color(0xFF10212A), FameGoBg),
+            colors = listOf(Color(0xFF2B0600), Color(0xFF763807), Color(0xFF511F03), Color(0xFF2B0600)),
             start = Offset(shift, 0f),
             end = Offset(size.width + shift, size.height)
           )
@@ -159,7 +161,7 @@ fun WelcomeScreen(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        FameGoLogo(modifier = Modifier.width(108.dp).height(38.dp))
+        FameGoWordmark(modifier = Modifier.width(108.dp))
         Text(
           text = "by Famebros Studio",
           color = FameGoTextMuted,
@@ -288,8 +290,7 @@ fun AuthScreen(
   initialIsSignUp: Boolean = false,
   modifier: Modifier = Modifier
 ) {
-  var isSignUp by remember { mutableStateOf(initialIsSignUp) }
-  var selectedRole by remember { mutableStateOf(Role.CLIENT) }
+  val isSignUp = false
 
   var fullName by remember { mutableStateOf("") }
   var email by remember { mutableStateOf("") }
@@ -335,7 +336,7 @@ fun AuthScreen(
           )
         }
 
-        FameGoLogo(modifier = Modifier.width(96.dp).height(34.dp))
+        FameGoWordmark(modifier = Modifier.width(96.dp))
       }
 
       Spacer(modifier = Modifier.height(28.dp))
@@ -355,6 +356,7 @@ fun AuthScreen(
         modifier = Modifier.padding(top = 4.dp, bottom = 20.dp)
       )
 
+      if (false) {
       // Role Selection Pills (Client / Crew)
       Row(
         modifier = Modifier
@@ -368,19 +370,19 @@ fun AuthScreen(
           modifier = Modifier
             .weight(1f)
             .clip(RoundedCornerShape(8.dp))
-            .background(if (selectedRole == Role.CLIENT) FameGoGoldContainer else Color.Transparent)
+            .background(if (Role.CLIENT == Role.CLIENT) FameGoGoldContainer else Color.Transparent)
             .border(
               1.dp,
-              if (selectedRole == Role.CLIENT) FameGoGold else Color.Transparent,
+              if (Role.CLIENT == Role.CLIENT) FameGoGold else Color.Transparent,
               RoundedCornerShape(8.dp)
             )
-            .clickable { selectedRole = Role.CLIENT }
+            .clickable { }
             .padding(vertical = 10.dp),
           contentAlignment = Alignment.Center
         ) {
           Text(
             text = "Client",
-            color = if (selectedRole == Role.CLIENT) FameGoGold else FameGoTextMuted,
+            color = if (Role.CLIENT == Role.CLIENT) FameGoGold else FameGoTextMuted,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold
           )
@@ -390,23 +392,25 @@ fun AuthScreen(
           modifier = Modifier
             .weight(1f)
             .clip(RoundedCornerShape(8.dp))
-            .background(if (selectedRole == Role.CREW) FameGoGoldContainer else Color.Transparent)
+            .background(Color.Transparent)
             .border(
               1.dp,
-              if (selectedRole == Role.CREW) FameGoGold else Color.Transparent,
+              Color.Transparent,
               RoundedCornerShape(8.dp)
             )
-            .clickable { selectedRole = Role.CREW }
+            .clickable { }
             .padding(vertical = 10.dp),
           contentAlignment = Alignment.Center
         ) {
           Text(
             text = "Crew",
-            color = if (selectedRole == Role.CREW) FameGoGold else FameGoTextMuted,
+            color = FameGoTextMuted,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold
           )
         }
+      }
+
       }
 
       Spacer(modifier = Modifier.height(20.dp))
@@ -421,7 +425,7 @@ fun AuthScreen(
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (selectedRole == Role.CLIENT) {
+        if (Role.CLIENT == Role.CLIENT) {
           FameGoTextField(
             value = companyName,
             onValueChange = { companyName = it },
@@ -469,16 +473,19 @@ fun AuthScreen(
           isSubmitting = true
           coroutineScope.launch {
             val result = SupabaseAuthClient.authenticate(
-              email = email.trim(), password = password, signUp = isSignUp,
-              name = fullName.trim(), phone = phone.trim(), role = selectedRole.name,
+              email = email.trim(), password = password, signUp = false,
+              name = "", phone = "", role = Role.CLIENT.name,
               companyName = companyName.trim()
             )
             isSubmitting = false
             result.onSuccess { auth ->
-              val displayName = fullName.trim().ifEmpty { email.substringBefore("@").ifEmpty { "Client" } }
+              val profile = SupabaseRestClient.get("profiles?select=*&id=eq.${auth.id}").getOrNull()
+              val profileJson = profile?.let { runCatching { org.json.JSONArray(it).optJSONObject(0) }.getOrNull() }
+              val displayName = profileJson?.optString("full_name").orEmpty().ifEmpty { email.substringBefore("@").ifEmpty { "User" } }
+              val resolvedRole = runCatching { Role.valueOf(profileJson?.optString("role").orEmpty()) }.getOrDefault(Role.CLIENT)
               onAuthenticated(User(
                 id = auth.id, name = displayName, email = auth.email,
-                phone = phone.trim(), companyName = companyName.trim(), role = selectedRole,
+                phone = profileJson?.optString("phone").orEmpty(), companyName = profileJson?.optString("company_name").orEmpty(), role = resolvedRole,
                 avatarInitials = displayName.split(" ").filter { it.isNotBlank() }.take(2)
                   .joinToString("") { it.first().uppercase() }.ifEmpty { "FG" }
               ))
@@ -498,11 +505,12 @@ fun AuthScreen(
 
       Spacer(modifier = Modifier.height(16.dp))
 
+      if (false) {
       // Toggle between sign in and sign up
       Row(
         modifier = Modifier
           .fillMaxWidth()
-          .clickable { isSignUp = !isSignUp }
+          .clickable { }
           .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.Center
       ) {
@@ -517,6 +525,7 @@ fun AuthScreen(
           fontSize = 13.sp,
           fontWeight = FontWeight.SemiBold
         )
+      }
       }
 
       Spacer(modifier = Modifier.height(20.dp))

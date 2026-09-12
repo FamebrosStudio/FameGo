@@ -82,6 +82,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -389,6 +390,18 @@ fun FameGoLogo(
 }
 
 @Composable
+fun FameGoWordmark(modifier: Modifier = Modifier) {
+  Text(
+    text = "FameGo",
+    color = FameGoWhite,
+    fontFamily = FontFamily.Cursive,
+    fontSize = 20.sp,
+    letterSpacing = 0.4.sp,
+    modifier = modifier
+  )
+}
+
+@Composable
 fun AdaptiveHeader(
   currentRole: Role,
   unreadNotifications: Int = 0,
@@ -405,7 +418,7 @@ fun AdaptiveHeader(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.SpaceBetween
   ) {
-    FameGoLogo(modifier = Modifier.width(92.dp).heightIn(max = 34.dp))
+    FameGoWordmark(modifier = Modifier.width(92.dp))
 
     Row(
       verticalAlignment = Alignment.CenterVertically,
