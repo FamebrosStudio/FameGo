@@ -225,7 +225,21 @@ data class ChatMessage(
   val senderRole: Role,
   val message: String,
   val timeText: String,
-  val isFromMe: Boolean
+  val isFromMe: Boolean,
+  val isRead: Boolean = false
+)
+
+data class CrewRating(
+  val bookingId: String,
+  val crewId: String,
+  val stars: Int,
+  val review: String = ""
+)
+
+data class LiveCrewPoint(
+  val latitude: Double,
+  val longitude: Double,
+  val label: String = ""
 )
 
 data class SavedLocation(

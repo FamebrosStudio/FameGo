@@ -88,6 +88,14 @@ fun BookingChatScreen(
     }
   }
 
+  // Read receipts: once incoming messages are on screen, mark them read.
+  LaunchedEffect(messages) {
+    if (messages.any { !it.isFromMe && !it.isRead }) {
+      kotlinx.coroutines.delay(800)
+      FameGoRepository.markChatRead(bookingId)
+    }
+  }
+
   val quickReplies = listOf(
     "Arriving at set in 15 mins",
     "Parking spot confirmed",
@@ -128,12 +136,19 @@ fun BookingChatScreen(
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
               )
-              Text(
-                text = "Message your crew",
-                color = FameGoGold,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold
-              )
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                com.example.ui.components.LiveOrb(
+                  color = com.example.ui.theme.FameGoSuccessGreen,
+                  size = 6.dp
+                )
+                Spacer(modifier = Modifier.width(5.dp))
+                Text(
+                  text = if (booking?.status == com.example.model.BookingStatus.COMPLETED) "Chat history" else "Online • replies instantly",
+                  color = FameGoGold,
+                  fontSize = 11.sp,
+                  fontWeight = FontWeight.SemiBold
+                )
+              }
             }
 
             Surface(
@@ -324,8 +339,12 @@ fun ChatBubble(message: ChatMessage, isMe: Boolean) {
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
-          text = message.timeText,
-          color = FameGoTextMuted,
+          text = if (alignEnd) {
+            "${message.timeText} • ${if (message.isRead) "Seen" else "Sent"}"
+          } else {
+            message.timeText
+          },
+          color = if (alignEnd && message.isRead) FameGoGold else FameGoTextMuted,
           fontSize = 10.sp,
           modifier = Modifier.align(Alignment.End)
         )

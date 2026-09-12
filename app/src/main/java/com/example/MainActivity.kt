@@ -332,6 +332,7 @@ fun FameGoApp() {
             onBack = { currentScreen = Screen.Main("bookings") },
             onOpenChat = { bId -> currentScreen = Screen.BookingChat(bId) },
             onRebook = { cat -> currentScreen = Screen.ShootPlans(cat) },
+            onBookSameCrew = { booking -> currentScreen = Screen.Payment(booking) },
             onContactSupport = { currentScreen = Screen.CustomerSupport }
           )
         }

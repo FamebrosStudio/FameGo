@@ -308,6 +308,53 @@ fun CrewEvolvingJobCard(
 
       Spacer(modifier = Modifier.height(18.dp))
 
+      // Live location sharing (crew controls what the client sees)
+      if (booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS) {
+        val sharingIds by FameGoRepository.liveSharing.collectAsState()
+        val sharing = booking.id in sharingIds
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 14.dp),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+              imageVector = Icons.Default.LocationOn,
+              contentDescription = null,
+              tint = if (sharing) FameGoSuccessGreen else FameGoTextMuted,
+              modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+              Text(
+                text = "Share live location",
+                color = FameGoWhite,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+              )
+              Text(
+                text = if (sharing) "Client can see you on the map" else "Client sees venue only",
+                color = FameGoTextMuted,
+                fontSize = 11.sp
+              )
+            }
+          }
+          androidx.compose.material3.Switch(
+            checked = sharing,
+            onCheckedChange = { FameGoRepository.setLiveSharing(booking.id, it) },
+            modifier = Modifier.testTag("crew_share_location_toggle"),
+            colors = androidx.compose.material3.SwitchDefaults.colors(
+              checkedThumbColor = FameGoGold,
+              checkedTrackColor = FameGoGoldContainer,
+              uncheckedThumbColor = FameGoTextMuted,
+              uncheckedTrackColor = FameGoSurface
+            )
+          )
+        }
+      }
+
       // Progressive action button based on shoot timeline
       Row(
         modifier = Modifier.fillMaxWidth(),

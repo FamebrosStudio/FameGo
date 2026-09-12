@@ -5,6 +5,8 @@ import com.example.model.Booking
 import com.example.model.BookingStatus
 import com.example.model.ChatMessage
 import com.example.model.CrewProfile
+import com.example.model.CrewRating
+import com.example.model.LiveCrewPoint
 import com.example.model.NotificationItem
 import com.example.model.PaymentStatus
 import com.example.model.Role
@@ -17,10 +19,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.UUID
+import kotlin.math.cos
+import kotlin.math.sin
 
 /** In-memory UI state boundary. Supabase can replace this without screen changes. */
 object FameGoRepository {
@@ -36,6 +43,13 @@ object FameGoRepository {
   val crewProfiles: StateFlow<List<CrewProfile>> = _crewProfiles.asStateFlow()
   private val _favoriteCrewIds = MutableStateFlow<Set<String>>(emptySet())
   val favoriteCrewIds: StateFlow<Set<String>> = _favoriteCrewIds.asStateFlow()
+  private val _ratings = MutableStateFlow<Map<String, CrewRating>>(emptyMap())
+  val ratings: StateFlow<Map<String, CrewRating>> = _ratings.asStateFlow()
+  private val _liveSharing = MutableStateFlow<Set<String>>(emptySet())
+  val liveSharing: StateFlow<Set<String>> = _liveSharing.asStateFlow()
+  private val _livePoints = MutableStateFlow<Map<String, LiveCrewPoint>>(emptyMap())
+  val livePoints: StateFlow<Map<String, LiveCrewPoint>> = _livePoints.asStateFlow()
+  private val liveJobs = mutableMapOf<String, Job>()
   private val _bookings = MutableStateFlow<List<Booking>>(emptyList())
   val bookings: StateFlow<List<Booking>> = _bookings.asStateFlow()
   private val _notifications = MutableStateFlow<List<NotificationItem>>(emptyList())
@@ -75,7 +89,135 @@ object FameGoRepository {
   fun setActiveSearchingBooking(bookingId: String?) { _activeSearchingBookingId.value = bookingId }
 
   fun toggleFavoriteCrew(crewId: String) {
+    if (crewId.isBlank()) return
+    val adding = crewId !in _favoriteCrewIds.value
     _favoriteCrewIds.value = _favoriteCrewIds.value.toMutableSet().apply { if (!add(crewId)) remove(crewId) }
+    val user = _currentUser.value
+    if (user.id.isNotBlank() && SupabaseConfig.isConfigured) {
+      ioScope.launch {
+        runCatching {
+          if (adding) {
+            SupabaseRestClient.post("favorite_crew", JSONObject().apply {
+              put("client_id", user.id)
+              put("crew_id", crewId)
+            }.toString())
+          } else {
+            SupabaseRestClient.delete("favorite_crew?client_id=eq.${user.id}&crew_id=eq.$crewId")
+          }
+        }
+      }
+    }
+  }
+
+  fun ratingFor(bookingId: String, crewId: String): CrewRating? =
+    _ratings.value["$bookingId:$crewId"]
+
+  fun submitRating(bookingId: String, crewId: String, stars: Int, review: String) {
+    if (bookingId.isBlank() || crewId.isBlank()) return
+    val rating = CrewRating(bookingId, crewId, stars.coerceIn(1, 5), review.trim())
+    _ratings.value = _ratings.value + ("$bookingId:$crewId" to rating)
+    addNotification(
+      NotificationItem(
+        title = "Thanks for rating",
+        message = "You rated your crew ${rating.stars} out of 5.",
+        timestampText = "Just now",
+        targetRole = Role.CLIENT,
+        bookingId = bookingId
+      )
+    )
+    val user = _currentUser.value
+    if (user.id.isNotBlank() && SupabaseConfig.isConfigured) {
+      ioScope.launch {
+        runCatching {
+          SupabaseRestClient.post("crew_ratings", JSONObject().apply {
+            put("booking_id", bookingId)
+            put("client_id", user.id)
+            put("crew_id", crewId)
+            put("stars", rating.stars)
+            put("review", rating.review)
+          }.toString())
+        }
+      }
+    }
+  }
+
+  /** Demo live tracking: emits a drifting point near the venue until stopped. */
+  fun setLiveSharing(bookingId: String, enabled: Boolean) {
+    if (bookingId.isBlank()) return
+    if (enabled) {
+      if (bookingId in _liveSharing.value) return
+      _liveSharing.value = _liveSharing.value + bookingId
+      var lat = 19.0596
+      var lng = 72.8295
+      var step = 0
+      _livePoints.value = _livePoints.value + (bookingId to LiveCrewPoint(lat, lng, "Crew is nearby"))
+      liveJobs[bookingId]?.cancel()
+      liveJobs[bookingId] = ioScope.launch {
+        while (true) {
+          delay(4000)
+          step++
+          lat += 0.0004 * cos(step * 0.7)
+          lng += 0.0004 * sin(step * 0.9)
+          _livePoints.value = _livePoints.value + (bookingId to LiveCrewPoint(lat, lng, "Updated just now"))
+        }
+      }
+    } else {
+      liveJobs.remove(bookingId)?.cancel()
+      _liveSharing.value = _liveSharing.value - bookingId
+    }
+  }
+
+  fun markChatRead(bookingId: String) {
+    val current = _chatMessages.value[bookingId] ?: return
+    if (current.none { !it.isFromMe && !it.isRead }) return
+    _chatMessages.value = _chatMessages.value + (bookingId to current.map {
+      if (!it.isFromMe) it.copy(isRead = true) else it
+    })
+    if (SupabaseConfig.isConfigured) {
+      ioScope.launch {
+        runCatching {
+          val stamp = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+          }.format(java.util.Date())
+          SupabaseRestClient.patch(
+            "chat_messages?booking_id=eq.$bookingId&read_at=is.null",
+            "{\"read_at\":\"$stamp\"}"
+          )
+        }
+      }
+    }
+  }
+
+  /** Unpaid copy of a finished shoot that reuses its details (crew re-matched after payment). */
+  fun prepareRebooking(bookingId: String): Booking? {
+    val src = _bookings.value.firstOrNull { it.id == bookingId } ?: return null
+    return src.copy(
+      id = UUID.randomUUID().toString(),
+      bookingCode = "FG-" + (1000..9999).random(),
+      status = BookingStatus.SEARCHING_CREW,
+      paymentStatus = PaymentStatus.PENDING,
+      paymentReference = "",
+      assignedCrew = emptyList(),
+      createdAtMillis = System.currentTimeMillis()
+    )
+  }
+
+  fun completeShoot(bookingId: String) {
+    if (_bookings.value.none { it.id == bookingId }) return
+    _bookings.value = _bookings.value.map { if (it.id == bookingId) it.copy(status = BookingStatus.COMPLETED) else it }
+    liveJobs.remove(bookingId)?.cancel()
+    _liveSharing.value = _liveSharing.value - bookingId
+    refreshIncomingRequests()
+    addNotification(
+      NotificationItem(
+        title = "Shoot completed",
+        message = "Your shoot has wrapped. Rate your crew and book them again.",
+        timestampText = "Just now",
+        targetRole = Role.CLIENT,
+        bookingId = bookingId
+      )
+    )
+    ioScope.launch { SupabaseRestClient.patch("bookings?id=eq.$bookingId", "{\"status\":\"COMPLETED\"}") }
   }
 
   fun toggleCrewAvailability(crewId: String? = null) {
@@ -275,6 +417,10 @@ object FameGoRepository {
 
   fun adminUpdateBookingStatus(bookingId: String, newStatus: BookingStatus) {
     if (_bookings.value.none { it.id == bookingId }) return
+    if (newStatus == BookingStatus.COMPLETED) {
+      completeShoot(bookingId)
+      return
+    }
     _bookings.value = _bookings.value.map { if (it.id == bookingId) it.copy(status = newStatus) else it }
     refreshIncomingRequests()
   }
@@ -332,7 +478,7 @@ object FameGoRepository {
                 val senderName = o.optString("sender_name").ifBlank {
                   if (isMine) _currentUser.value.name.ifBlank { "You" } else "Crew"
                 }
-                add(ChatMessage(o.optString("id"), bookingId, senderName, senderRole, o.optString("message"), o.optString("created_at").take(16).replace("T", " "), isMine))
+                add(ChatMessage(o.optString("id"), bookingId, senderName, senderRole, o.optString("message"), o.optString("created_at").take(16).replace("T", " "), isMine, o.optString("read_at").isNotBlank()))
               }
             }
           }.getOrDefault(emptyList())
@@ -390,6 +536,29 @@ object FameGoRepository {
     }
     SupabaseRestClient.get("notifications?select=*&target_user_id=eq.${user.id}&order=created_at.desc")
       .onSuccess { raw -> _notifications.value = runCatching { parseNotifications(JSONArray(raw), user.role) }.getOrDefault(emptyList()) }
+    SupabaseRestClient.get("favorite_crew?select=crew_id&client_id=eq.${user.id}")
+      .onSuccess { raw ->
+        _favoriteCrewIds.value = runCatching {
+          val array = JSONArray(raw)
+          buildSet { for (i in 0 until array.length()) add(array.getJSONObject(i).optString("crew_id")) }
+        }.getOrDefault(emptySet())
+      }
+    SupabaseRestClient.get("crew_ratings?select=*&client_id=eq.${user.id}")
+      .onSuccess { raw ->
+        _ratings.value = runCatching {
+          val array = JSONArray(raw)
+          buildMap {
+            for (i in 0 until array.length()) {
+              val o = array.getJSONObject(i)
+              val rating = CrewRating(
+                o.optString("booking_id"), o.optString("crew_id"),
+                o.optInt("stars", 5).coerceIn(1, 5), o.optString("review")
+              )
+              put("${rating.bookingId}:${rating.crewId}", rating)
+            }
+          }
+        }.getOrDefault(emptyMap())
+      }
     SupabaseRestClient.get("crew_profiles?select=*&order=rating.desc")
       .onSuccess { raw -> _crewProfiles.value = runCatching { parseCrewProfiles(JSONArray(raw)) }.getOrDefault(emptyList()) }
   }
