@@ -84,6 +84,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.Image
@@ -109,6 +110,18 @@ fun SplashScreen(
     animationSpec = infiniteRepeatable(tween(7000, easing = LinearEasing)),
     label = "splashGradientShift"
   )
+  val logoScale by transition.animateFloat(
+    initialValue = 0.97f,
+    targetValue = 1.0f,
+    animationSpec = infiniteRepeatable(tween(1600, easing = FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse),
+    label = "splashLogoScale"
+  )
+  val logoAlpha by transition.animateFloat(
+    initialValue = 0.88f,
+    targetValue = 1.0f,
+    animationSpec = infiniteRepeatable(tween(1600, easing = FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse),
+    label = "splashLogoAlpha"
+  )
 
   Box(
     modifier = modifier
@@ -129,7 +142,11 @@ fun SplashScreen(
       painter = painterResource(R.drawable.famego_logo),
       contentDescription = "FameGo",
       contentScale = ContentScale.Fit,
-      modifier = Modifier.fillMaxWidth(0.78f).height(180.dp)
+      modifier = Modifier.fillMaxWidth(0.78f).height(180.dp).graphicsLayer {
+        scaleX = logoScale
+        scaleY = logoScale
+        alpha = logoAlpha
+      }
     )
   }
 }

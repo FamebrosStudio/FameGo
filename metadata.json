@@ -1,6 +1,0 @@
-{
-  "name": "FameGo",
-  "description": "Production crew and content shoot booking platform by Famebros Studio",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
