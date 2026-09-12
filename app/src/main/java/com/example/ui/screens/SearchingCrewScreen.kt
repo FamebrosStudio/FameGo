@@ -42,7 +42,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -87,7 +86,6 @@ import com.example.ui.theme.FameGoTextMuted
 import com.example.ui.theme.FameGoTextPrimary
 import com.example.ui.theme.FameGoTextSecondary
 import com.example.ui.theme.FameGoWhite
-import kotlinx.coroutines.delay
 
 @Composable
 fun SearchingCrewScreen(
@@ -102,41 +100,6 @@ fun SearchingCrewScreen(
   // Do not show or mutate an unrelated booking when a notification contains a
   // stale ID.
   val booking = bookings.firstOrNull { it.id == bookingId }
-
-  // Searching status progression
-  val statusStages = listOf(
-    "Checking availability",
-    "Contacting crew nearby",
-    "Confirming gear setup",
-    "Almost done"
-  )
-  var currentStageIndex by remember { mutableIntStateOf(0) }
-
-  // Auto-progress stage and match crew if still searching
-  LaunchedEffect(booking?.status) {
-    if (booking?.status == BookingStatus.SEARCHING_CREW) {
-      while (currentStageIndex < statusStages.size - 1) {
-        delay(2500)
-        currentStageIndex++
-      }
-      // Trigger simulation confirmation if not yet confirmed
-      delay(1500)
-      if (booking.assignedCrew.isEmpty()) {
-        FameGoRepository.assignCrewToBooking(
-          bookingId = booking.id,
-          crew = AssignedCrewMember(
-            crewId = "crew_1",
-            name = "Aarav Mehta",
-            role = CrewRoleType.CINEMATOGRAPHER,
-            phone = "+91 98200 11223",
-            gear = "Sony FX6 Cinema Line & Rig",
-            rating = 4.95,
-            isVerified = true
-          )
-        )
-      }
-    }
-  }
 
   val isConfirmed = booking?.status == BookingStatus.CONFIRMED || (booking?.assignedCrew?.isNotEmpty() == true)
 
@@ -246,7 +209,7 @@ fun SearchingCrewScreen(
             )
 
             Text(
-              text = "This usually takes 1 to 2 minutes",
+              text = "We’ll notify you as soon as a crew member responds",
               color = FameGoTextMuted,
               fontSize = 12.sp,
               modifier = Modifier.padding(top = 4.dp)
@@ -285,52 +248,12 @@ fun SearchingCrewScreen(
               }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Fast Match Simulator Button
-            Surface(
-              shape = RoundedCornerShape(14.dp),
-              color = FameGoGoldContainer,
-              border = androidx.compose.foundation.BorderStroke(1.dp, FameGoGold.copy(alpha = 0.5f)),
-              modifier = Modifier
-                .clickable {
-                  FameGoRepository.assignCrewToBooking(
-                    bookingId = booking?.id ?: bookingId,
-                    crew = AssignedCrewMember(
-                      crewId = "crew_1",
-                      name = "Aarav Mehta",
-                      role = CrewRoleType.CINEMATOGRAPHER,
-                      phone = "+91 98200 11223",
-                      gear = "Sony FX6 Cinema Line & Rig",
-                      rating = 4.95,
-                      isVerified = true
-                    )
-                  )
-                }
-                .testTag("fast_match_now_button")
-            ) {
-              Text(
-                text = "Fast Match Now",
-                color = FameGoGold,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-              )
-            }
           }
         } else {
           // -------------------------------------------------------------
           // 13. CREW CONFIRMATION EXPERIENCE
           // -------------------------------------------------------------
-          val assignedCrew = booking?.assignedCrew?.firstOrNull() ?: AssignedCrewMember(
-            crewId = "crew_1",
-            name = "Aarav Mehta",
-            role = CrewRoleType.CINEMATOGRAPHER,
-            phone = "+91 98200 11223",
-            gear = "Sony FX6 Cinema Line & Rig",
-            rating = 4.95,
-            isVerified = true
-          )
+          val assignedCrew = booking?.assignedCrew?.firstOrNull() ?: return@AnimatedContent
 
           Column(
             horizontalAlignment = Alignment.CenterHorizontally,

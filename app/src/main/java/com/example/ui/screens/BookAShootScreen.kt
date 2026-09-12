@@ -41,6 +41,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -88,6 +89,7 @@ fun BookAShootScreen(
   onCancel: () -> Unit,
   modifier: Modifier = Modifier
 ) {
+  val currentUser by FameGoRepository.currentUser.collectAsState()
   // Conversational 6-step flow (1 question per view)
   var currentStep by remember { mutableStateOf(1) }
 
@@ -95,31 +97,31 @@ fun BookAShootScreen(
   var category by remember { mutableStateOf(preselectedCategory ?: ShootCategory.VIDEO) }
 
   // Step 2: Date, Call Time & Duration
-  var selectedDate by remember { mutableStateOf("FRI 12") }
-  var callTime by remember { mutableStateOf("10:00 AM") }
-  var durationHours by remember { mutableStateOf(4) }
+  var selectedDate by remember { mutableStateOf("") }
+  var callTime by remember { mutableStateOf("") }
+  var durationHours by remember { mutableStateOf(2) }
 
   // Step 3: Location
-  var venueName by remember { mutableStateOf("Veranda Rooftop Cafe") }
-  var venueAddress by remember { mutableStateOf("Hill Road, Bandra West, Mumbai") }
-  var locationNotes by remember { mutableStateOf("2nd floor, service lift available at rear.") }
+  var venueName by remember { mutableStateOf("") }
+  var venueAddress by remember { mutableStateOf("") }
+  var locationNotes by remember { mutableStateOf("") }
 
   // Step 4: Crew
   val crewCounts = remember {
     mutableStateMapOf<CrewRoleType, Int>(
-      CrewRoleType.CINEMATOGRAPHER to 1,
+      CrewRoleType.CINEMATOGRAPHER to 0,
       CrewRoleType.VIDEOGRAPHER to 0,
       CrewRoleType.PHOTOGRAPHER to 0,
       CrewRoleType.DRONE_OPERATOR to 0,
       CrewRoleType.EDITOR to 0,
-      CrewRoleType.ASSISTANT to 1
+      CrewRoleType.ASSISTANT to 0
     )
   }
 
   // Step 5: Brief & Optional details
-  var shootTitle by remember { mutableStateOf("Restaurant launch content") }
+  var shootTitle by remember { mutableStateOf("") }
   var shootBrief by remember {
-    mutableStateOf("Need 4 reels, interior drone-style pans, and founder talk shots.")
+    mutableStateOf("")
   }
   var showReference by remember { mutableStateOf(false) }
   var referenceLink by remember { mutableStateOf("") }
@@ -325,13 +327,16 @@ fun BookAShootScreen(
             FlowPill(
               state = FlowPillState.CUSTOM,
               customText = "Find My Crew",
+              enabled = selectedDate.isNotBlank() && callTime.isNotBlank() &&
+                venueName.isNotBlank() && venueAddress.isNotBlank() &&
+                shootBrief.isNotBlank() && totalCrewCount > 0,
               onClick = {
                 val newBooking = Booking(
                   id = "booking_${System.currentTimeMillis()}",
                   bookingCode = "FG-" + (1000..9999).random(),
                   shootTitle = shootTitle.ifBlank { "${category.title} Shoot - $venueName" },
-                  clientName = "Kabir Sharma",
-                  clientCompany = "Urban Brew Cafe",
+                  clientName = currentUser.name,
+                  clientCompany = currentUser.companyName,
                   category = category,
                   // Preserve the date selected by the user. The old value always
                   // submitted Friday 12, even when another chip was selected.
@@ -346,7 +351,7 @@ fun BookAShootScreen(
                   },
                   shootDescription = shootBrief,
                   specialInstructions = specialInstructions,
-                  brandName = "Urban Brew",
+                  brandName = currentUser.companyName,
                   referenceLink = referenceLink.ifBlank { instagramRef.ifBlank { driveLink } },
                   status = BookingStatus.SEARCHING_CREW
                 )
@@ -719,46 +724,11 @@ private fun StepWhere(
     Spacer(modifier = Modifier.height(24.dp))
 
     Text(
-      text = "Popular locations",
+      text = "Enter the venue and full address above. Saved locations will appear here once connected.",
       color = FameGoTextMuted,
       fontSize = 12.sp,
-      fontWeight = FontWeight.SemiBold
+      lineHeight = 17.sp
     )
-    Spacer(modifier = Modifier.height(10.dp))
-
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-      listOf(
-        "Bandra West" to "Veranda Studio, Hill Road, Bandra West",
-        "BKC Mumbai" to "One BKC, G Block, Bandra Kurla Complex",
-        "Andheri West" to "Laxmi Industrial Estate, Andheri West",
-        "Lower Parel" to "Phoenix Mills Compound, Lower Parel"
-      ).forEach { (hub, fullAddr) ->
-        SoftCard(
-          onClick = {
-            onVenueNameChange(hub)
-            onAddressChange(fullAddr)
-          },
-          testTag = "hub_${hub.lowercase().replace(" ", "_")}"
-        ) {
-          Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            Icon(
-              imageVector = Icons.Default.LocationOn,
-              contentDescription = null,
-              tint = FameGoGold,
-              modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Column {
-              Text(text = hub, color = FameGoWhite, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-              Text(text = fullAddr, color = FameGoTextMuted, fontSize = 12.sp)
-            }
-          }
-        }
-      }
-    }
   }
 }
 

@@ -187,7 +187,7 @@ fun ClientProfileScreen(
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
           ProfileClickableRow("Email", currentUser.email) { activeModal = "email" }
           ProfileClickableRow("Phone", currentUser.phone) { activeModal = "phone" }
-          ProfileClickableRow("Billing details", "GSTIN verified") { activeModal = "billing" }
+          ProfileClickableRow("Billing details", "Not added") { activeModal = "billing" }
         }
       }
 
@@ -204,9 +204,9 @@ fun ClientProfileScreen(
 
       SoftCard {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-          ProfileClickableRow("Saved crew", "3 bookmarked") { activeModal = "crew" }
-          ProfileClickableRow("Saved locations", "Veranda, BKC, Mehboob") { activeModal = "locations" }
-          ProfileClickableRow("Storage folder", "Famebros Media Vault") { activeModal = "storage" }
+          ProfileClickableRow("Saved crew", "No saved crew") { activeModal = "crew" }
+          ProfileClickableRow("Saved locations", "No saved locations") { activeModal = "locations" }
+          ProfileClickableRow("Storage folder", "Connect storage") { activeModal = "storage" }
         }
       }
 
@@ -230,29 +230,6 @@ fun ClientProfileScreen(
       }
 
       Spacer(modifier = Modifier.height(24.dp))
-
-      // Persona Switcher
-      Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = FameGoSurface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorderSubtle),
-        modifier = Modifier
-          .fillMaxWidth()
-          .clickable { onSwitchRole() }
-          .testTag("profile_switch_persona_button")
-      ) {
-        Box(
-          modifier = Modifier.padding(vertical = 14.dp),
-          contentAlignment = Alignment.Center
-        ) {
-          Text(
-            text = "Switch role",
-            color = FameGoGold,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium
-          )
-        }
-      }
 
       Spacer(modifier = Modifier.height(130.dp))
     }
@@ -310,14 +287,14 @@ fun ClientProfileScreen(
                   fontWeight = FontWeight.Medium
                 )
                 Text(
-                  text = "GSTIN: 27AABCF1234F1Z8 (Maharashtra)\nInput Tax Credit enabled. Automated GST tax invoices generated after shoot completion.",
+                  text = "Your billing details will appear here after they are connected.",
                   color = FameGoTextSecondary,
                   fontSize = 12.sp
                 )
               }
               "crew" -> {
                 Text(
-                  text = "• Aarav Mehta (Cinematographer, Sony FX6)\n• Rohan Shah (Videographer, Sony A7S III)\n• Sameer Khan (Photographer, Canon R5)",
+                  text = "Saved crew members will appear here when you bookmark them.",
                   color = FameGoTextSecondary,
                   fontSize = 13.sp,
                   lineHeight = 20.sp
@@ -325,7 +302,7 @@ fun ClientProfileScreen(
               }
               "locations" -> {
                 Text(
-                  text = "1. Veranda Rooftop Studio (Bandra West)\n2. BKC Cyclorama Soundstage (BKC Complex)\n3. Mehboob Studio Stage 3 (Bandra)",
+                  text = "Saved locations will appear here after you add them.",
                   color = FameGoTextSecondary,
                   fontSize = 13.sp,
                   lineHeight = 20.sp
@@ -333,7 +310,7 @@ fun ClientProfileScreen(
               }
               "storage" -> {
                 Text(
-                  text = "High-speed private AWS S3 bucket. All ProRes 422 4K footage and DNG raw assets are archived for 90 days after shoot completion with high-bandwidth direct download links.",
+                  text = "Your connected storage and delivered media will appear here.",
                   color = FameGoTextSecondary,
                   fontSize = 13.sp
                 )

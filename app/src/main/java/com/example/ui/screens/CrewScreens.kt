@@ -120,7 +120,7 @@ fun CrewHomeScreen(
       ) {
         Column {
           Text(
-            text = "Good evening, Arjun",
+            text = "Ready for your next production",
             color = FameGoTextSecondary,
             fontSize = 14.sp
           )
@@ -165,20 +165,7 @@ fun CrewHomeScreen(
           timeText = "${priorityRequest.date} • ${priorityRequest.time}",
           requestedRole = "Cinematographer (Sony FX3)",
           payoutText = "₹${priorityRequest.estimatedBudget}",
-          onAccept = {
-            FameGoRepository.acceptShootRequest(
-              bookingId = priorityRequest.id,
-              crewMember = AssignedCrewMember(
-                crewId = "crew_1",
-                name = "Aarav Mehta",
-                role = CrewRoleType.CINEMATOGRAPHER,
-                phone = "+91 98200 11223",
-                gear = "Sony FX6 Cinema Line & Rig",
-                rating = 4.95,
-                isVerified = true
-              )
-            )
-          },
+          onAccept = { onViewRequestDetail(priorityRequest.id) },
           onDecline = {
             FameGoRepository.declineShootRequest(priorityRequest.id)
           }
@@ -571,7 +558,7 @@ fun CrewJobsScreen(
   modifier: Modifier = Modifier
 ) {
   val bookings by FameGoRepository.bookings.collectAsState()
-  val crewJobs = bookings.filter { it.assignedCrew.any { c -> c.name.contains("Aarav", ignoreCase = true) || c.name.contains("Arjun", ignoreCase = true) } }
+  val crewJobs = bookings.filter { it.assignedCrew.isNotEmpty() }
 
   Column(
     modifier = modifier
@@ -687,14 +674,14 @@ fun CrewProfileScreen(
           .border(1.dp, FameGoGold, CircleShape),
         contentAlignment = Alignment.Center
       ) {
-        Text(text = "AM", color = FameGoGold, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text(text = "CR", color = FameGoGold, fontSize = 20.sp, fontWeight = FontWeight.Bold)
       }
 
       Spacer(modifier = Modifier.width(16.dp))
 
       Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(text = "Arjun Mehta", color = FameGoWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+          Text(text = "Crew profile", color = FameGoWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold)
           Spacer(modifier = Modifier.width(6.dp))
           Box(
             modifier = Modifier
@@ -703,8 +690,7 @@ fun CrewProfileScreen(
               .background(FameGoSuccessGreen)
           )
         }
-        Text(text = "Cinematographer • Mumbai", color = FameGoTextSecondary, fontSize = 13.sp)
-        Text(text = "Verified by Famebros Studio", color = FameGoGold, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+        Text(text = "Complete your profile to receive requests", color = FameGoTextSecondary, fontSize = 13.sp)
       }
     }
 
@@ -716,10 +702,10 @@ fun CrewProfileScreen(
 
     SoftCard {
       Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-        ProfileRowItem(label = "Verified Gear Kit", value = "Sony FX3, DJI RS4")
-        ProfileRowItem(label = "Reputation Score", value = "4.96 ★ (48 Shoots)")
-        ProfileRowItem(label = "Payout Settings", value = "HDFC Bank •••• 4012")
-        ProfileRowItem(label = "Studio Guidelines", value = "Standard NDA Active")
+        ProfileRowItem(label = "Verified gear kit", value = "Not added")
+        ProfileRowItem(label = "Reputation score", value = "No ratings yet")
+        ProfileRowItem(label = "Payout settings", value = "Not configured")
+        ProfileRowItem(label = "Studio guidelines", value = "Available after verification")
       }
     }
 
@@ -730,27 +716,12 @@ fun CrewProfileScreen(
 
     SoftCard {
       Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-        ProfileRowItem(label = "Preferred Shooting Zones", value = "Bandra, BKC, Town")
-        ProfileRowItem(label = "Emergency Support", value = "24/7 Famebros Desk")
+        ProfileRowItem(label = "Preferred shooting zones", value = "Not added")
+        ProfileRowItem(label = "Emergency support", value = "Available from support")
       }
     }
 
     Spacer(modifier = Modifier.height(24.dp))
-
-    // Switch Role Button
-    Surface(
-      shape = RoundedCornerShape(16.dp),
-      color = FameGoSurface,
-      border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorderSubtle),
-      modifier = Modifier
-        .fillMaxWidth()
-        .clickable { onSwitchRole() }
-        .testTag("profile_switch_role_button")
-    ) {
-      Box(modifier = Modifier.padding(vertical = 14.dp), contentAlignment = Alignment.Center) {
-        Text(text = "Switch Persona / Mode", color = FameGoGold, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-      }
-    }
 
     Spacer(modifier = Modifier.height(110.dp))
   }

@@ -105,7 +105,7 @@ fun BookShootLaunchpadScreen(
             letterSpacing = (-0.5).sp
           )
           Text(
-            text = "Verified cinematographers, sound & rigs in 45m",
+            text = "Tell us what you need and we’ll find the right crew",
             color = FameGoTextSecondary,
             fontSize = 12.sp,
             modifier = Modifier.padding(top = 2.dp)
@@ -128,7 +128,7 @@ fun BookShootLaunchpadScreen(
             )
             Spacer(modifier = Modifier.width(5.dp))
             Text(
-              text = "Live Dispatch",
+              text = "Availability checked after booking",
               color = FameGoGold,
               fontSize = 11.sp,
               fontWeight = FontWeight.Bold
@@ -155,13 +155,13 @@ fun BookShootLaunchpadScreen(
           Spacer(modifier = Modifier.width(14.dp))
           Column(modifier = Modifier.weight(1f)) {
             Text(
-              text = "Studio-Grade On Demand",
+              text = "Production support, tailored to your brief",
               color = FameGoWhite,
               fontSize = 15.sp,
               fontWeight = FontWeight.Bold
             )
             Text(
-              text = "Sony FX6 / FX3 kits, prime lenses, and insured crew ready across Mumbai & Delhi.",
+              text = "Share your requirements and receive matching crew options for your production.",
               color = FameGoTextSecondary,
               fontSize = 12.sp,
               lineHeight = 17.sp,
@@ -338,8 +338,8 @@ fun BookShootLaunchpadScreen(
           modifier = Modifier.size(13.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
-        Text(
-          text = "₹15 Lakh Equipment Shield & Verified Operators",
+          Text(
+            text = "Verified operators and equipment matched to your brief",
           color = FameGoTextMuted,
           fontSize = 11.sp
         )

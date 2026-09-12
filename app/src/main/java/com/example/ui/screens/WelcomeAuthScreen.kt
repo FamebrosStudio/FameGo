@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.Role
+import com.example.model.User
 import com.example.ui.components.FameGoButton
 import com.example.ui.components.FameGoOutlinedButton
 import com.example.ui.theme.FameGoAccentCyan
@@ -324,7 +325,7 @@ fun ValuePill(title: String) {
 
 @Composable
 fun AuthScreen(
-  onAuthenticated: (Role) -> Unit,
+  onAuthenticated: (User) -> Unit,
   onBack: () -> Unit,
   initialIsSignUp: Boolean = false,
   modifier: Modifier = Modifier
@@ -332,11 +333,11 @@ fun AuthScreen(
   var isSignUp by remember { mutableStateOf(initialIsSignUp) }
   var selectedRole by remember { mutableStateOf(Role.CLIENT) }
 
-  var fullName by remember { mutableStateOf("Kabir Sharma") }
-  var email by remember { mutableStateOf("kabir@urbanbrew.in") }
-  var phone by remember { mutableStateOf("+91 98201 54321") }
-  var companyName by remember { mutableStateOf("Urban Brew Cafe") }
-  var password by remember { mutableStateOf("••••••••") }
+  var fullName by remember { mutableStateOf("") }
+  var email by remember { mutableStateOf("") }
+  var phone by remember { mutableStateOf("") }
+  var companyName by remember { mutableStateOf("") }
+  var password by remember { mutableStateOf("") }
 
   val scrollState = rememberScrollState()
 
@@ -516,7 +517,23 @@ fun AuthScreen(
       // Primary CTA
       FameGoButton(
         text = if (isSignUp) "Create account" else "Sign in",
-        onClick = { onAuthenticated(selectedRole) },
+        onClick = {
+          onAuthenticated(
+            User(
+              id = "local_user",
+              name = fullName.trim().ifEmpty { email.substringBefore("@").ifEmpty { "Client" } },
+              email = email.trim(),
+              phone = phone.trim(),
+              companyName = companyName.trim(),
+              role = selectedRole,
+              avatarInitials = fullName.trim().split(" ")
+                .filter { it.isNotBlank() }
+                .take(2)
+                .joinToString("") { it.first().uppercase() }
+                .ifEmpty { "FG" }
+            )
+          )
+        },
         enabled = email.trim().isNotEmpty() &&
           password.isNotEmpty() &&
           (!isSignUp || (fullName.trim().isNotEmpty() && phone.trim().isNotEmpty())),
@@ -548,65 +565,6 @@ fun AuthScreen(
       }
 
       Spacer(modifier = Modifier.height(20.dp))
-
-      // Quick Demo Shortcuts
-      Surface(
-        color = FameGoCardElevated,
-        shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorder),
-        modifier = Modifier.fillMaxWidth()
-      ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-          Text(
-            text = "Demo access",
-            color = FameGoTextMuted,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold
-          )
-          Spacer(modifier = Modifier.height(8.dp))
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-          ) {
-            Box(
-              modifier = Modifier
-                .weight(1f)
-                .clip(RoundedCornerShape(8.dp))
-                .background(FameGoCard)
-                .border(1.dp, FameGoBorder, RoundedCornerShape(8.dp))
-                .clickable { onAuthenticated(Role.CLIENT) }
-                .padding(vertical = 8.dp),
-              contentAlignment = Alignment.Center
-            ) {
-              Text("Client", color = FameGoGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
-            Box(
-              modifier = Modifier
-                .weight(1f)
-                .clip(RoundedCornerShape(8.dp))
-                .background(FameGoCard)
-                .border(1.dp, FameGoBorder, RoundedCornerShape(8.dp))
-                .clickable { onAuthenticated(Role.CREW) }
-                .padding(vertical = 8.dp),
-              contentAlignment = Alignment.Center
-            ) {
-              Text("Crew", color = FameGoSuccessGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
-            Box(
-              modifier = Modifier
-                .weight(1f)
-                .clip(RoundedCornerShape(8.dp))
-                .background(FameGoCard)
-                .border(1.dp, FameGoBorder, RoundedCornerShape(8.dp))
-                .clickable { onAuthenticated(Role.ADMIN) }
-                .padding(vertical = 8.dp),
-              contentAlignment = Alignment.Center
-            ) {
-              Text("Admin", color = FameGoAccentCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
-          }
-        }
-      }
 
       Spacer(modifier = Modifier.height(32.dp))
     }

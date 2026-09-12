@@ -378,6 +378,7 @@ fun AdaptiveHeader(
   onRoleClick: () -> Unit,
   onNotificationsClick: () -> Unit,
   onProfileClick: () -> Unit,
+  roleSwitcherEnabled: Boolean = false,
   modifier: Modifier = Modifier
 ) {
   Row(
@@ -415,7 +416,7 @@ fun AdaptiveHeader(
         color = FameGoCard,
         border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorderSubtle),
         modifier = Modifier
-          .clickable { onRoleClick() }
+          .clickable(enabled = roleSwitcherEnabled) { onRoleClick() }
           .testTag("role_switcher_chip")
       ) {
         Row(
@@ -480,6 +481,7 @@ fun FameGoTopBar(
   onRoleClick: () -> Unit,
   onNotificationsClick: () -> Unit,
   onProfileClick: () -> Unit,
+  roleSwitcherEnabled: Boolean = false,
   modifier: Modifier = Modifier
 ) {
   AdaptiveHeader(
@@ -488,6 +490,7 @@ fun FameGoTopBar(
     onRoleClick = onRoleClick,
     onNotificationsClick = onNotificationsClick,
     onProfileClick = onProfileClick,
+    roleSwitcherEnabled = roleSwitcherEnabled,
     modifier = modifier
   )
 }

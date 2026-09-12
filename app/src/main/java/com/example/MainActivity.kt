@@ -172,8 +172,8 @@ fun FameGoApp() {
 
         is Screen.Auth -> {
           AuthScreen(
-            onAuthenticated = { role ->
-              FameGoRepository.switchRole(role)
+            onAuthenticated = { user ->
+              FameGoRepository.setCurrentUser(user)
               currentScreen = Screen.Main(tab = "home")
             },
             onBack = { currentScreen = Screen.Welcome },
@@ -189,7 +189,7 @@ fun FameGoApp() {
                 unreadNotifications = notifications.count {
                   it.targetRole == currentUser.role && !it.isRead
                 },
-                onRoleClick = { showRoleSwitcherDialog = true },
+                onRoleClick = {},
                 onNotificationsClick = { currentScreen = Screen.Main("notifications") },
                 onProfileClick = { currentScreen = Screen.Main("profile") }
               )
@@ -247,7 +247,7 @@ fun FameGoApp() {
                         onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) }
                       )
                       "profile" -> ClientProfileScreen(
-                        onSwitchRole = { showRoleSwitcherDialog = true },
+                        onSwitchRole = {},
                         onOpenSupport = { currentScreen = Screen.CustomerSupport },
                         onLogout = {
                           FameGoRepository.switchRole(Role.CLIENT)
@@ -279,7 +279,7 @@ fun FameGoApp() {
                       onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) }
                     )
                     "profile" -> CrewProfileScreen(
-                      onSwitchRole = { showRoleSwitcherDialog = true }
+                      onSwitchRole = {}
                     )
                     else -> CrewHomeScreen(
                       onViewRequestDetail = { id -> currentScreen = Screen.CrewRequestDetail(id) },
