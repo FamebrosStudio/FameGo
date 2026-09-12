@@ -65,6 +65,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.PI
 
 private val Context.fameGoIntroDataStore by preferencesDataStore(name = "famego_preferences")
 
@@ -193,12 +194,35 @@ private fun CameraIntroScreen(onComplete: () -> Unit, modifier: Modifier = Modif
     ) {
       val center = Offset(size.width / 2f, size.height / 2f)
       val radius = minOf(size.width, size.height) * .39f
-      drawCircle(Color(0xFF111317), radius + 22f)
-      drawCircle(Brush.radialGradient(listOf(Color(0xFF1A1D23), Color(0xFF070809))), radius - 10f)
-      drawCircle(Color(0x553A3F49), radius + 16f, style = Stroke(2f))
-      drawArc(Brush.sweepGradient(listOf(FameGoGold, Color(0xFFFFC857), FameGoGold)), -90f, animatedProgress * 360f, false, center - Offset(radius, radius), androidx.compose.ui.geometry.Size(radius * 2, radius * 2), style = Stroke(7f, cap = StrokeCap.Round))
-      drawCircle(Color(0x66FFFFFF), radius - 20f, style = Stroke(1.5f))
-      drawCircle(Color(0x221FFFFF), radius - 34f)
+      val progressAngle = animatedProgress * 360f
+      // Layered lens housing: restrained metal, glass and a precise gold focus arc.
+      drawCircle(Color(0xFF0D0F12), radius + 25f)
+      drawCircle(Color(0xFF1A1E24), radius + 21f, style = Stroke(2f))
+      drawCircle(Color(0xFF08090B), radius + 12f, style = Stroke(1f))
+      drawCircle(Brush.radialGradient(listOf(Color(0xFF20252C), Color(0xFF070809))), radius - 9f)
+      drawCircle(Color(0x663B424C), radius + 7f, style = Stroke(2f))
+      drawArc(Color(0xFF323943), -132f, 264f, false, center - Offset(radius + 4f, radius + 4f), androidx.compose.ui.geometry.Size((radius + 4f) * 2, (radius + 4f) * 2), style = Stroke(1.5f))
+      drawArc(Color(0xFF050608), -90f, 360f, false, center - Offset(radius, radius), androidx.compose.ui.geometry.Size(radius * 2, radius * 2), style = Stroke(13f))
+      if (animatedProgress > 0f) {
+        drawArc(Brush.sweepGradient(0f to FameGoGold, .45f to Color(0xFFFFE0A0), 1f to FameGoGold), -90f, progressAngle, false, center - Offset(radius, radius), androidx.compose.ui.geometry.Size(radius * 2, radius * 2), style = Stroke(9f, cap = StrokeCap.Round))
+        drawArc(Color.White.copy(alpha = .18f), -90f, progressAngle, false, center - Offset(radius - 2f, radius - 2f), androidx.compose.ui.geometry.Size((radius - 2f) * 2, (radius - 2f) * 2), style = Stroke(1.5f, cap = StrokeCap.Round))
+      }
+      // Professional dial markings make the rotation path legible without clutter.
+      for (index in 0 until 36) {
+        val angle = (index * 10f - 90f) * (PI.toFloat() / 180f)
+        val outer = radius + 17f
+        val inner = outer - if (index % 3 == 0) 8f else 4f
+        val tickColor = if (index * 10f <= progressAngle) FameGoGold.copy(alpha = .8f) else Color(0x66727A86)
+        drawLine(tickColor, center + Offset(cos(angle) * inner, sin(angle) * inner), center + Offset(cos(angle) * outer, sin(angle) * outer), strokeWidth = if (index % 3 == 0) 2f else 1f, cap = StrokeCap.Round)
+      }
+      drawCircle(Color(0xFF050608), radius - 21f)
+      drawCircle(Color(0x443B424C), radius - 21f, style = Stroke(1.5f))
+      drawCircle(Brush.radialGradient(listOf(Color(0xFF171B21), Color(0xFF050608))), radius - 35f)
+      // Subtle aperture blades and a moving reflection communicate a real lens.
+      for (index in 0 until 6) {
+        val angle = (index * 60f + progressAngle * .16f) * (PI.toFloat() / 180f)
+        drawLine(Color(0x335E6875), center + Offset(cos(angle) * (radius - 45f), sin(angle) * (radius - 45f)), center + Offset(cos(angle) * (radius - 29f), sin(angle) * (radius - 29f)), strokeWidth = 2f, cap = StrokeCap.Round)
+      }
       if (captured) drawCircle(Color.White.copy(alpha = if (showBrand) .06f else .2f), radius - 8f)
     }
     AnimatedVisibility(showBrand, enter = fadeIn(tween(300)), exit = fadeOut()) {
