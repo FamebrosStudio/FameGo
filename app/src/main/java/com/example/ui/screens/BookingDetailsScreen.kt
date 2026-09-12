@@ -22,7 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
@@ -120,7 +120,7 @@ fun BookingDetailsScreen(
           modifier = Modifier.testTag("call_sheet_chat_icon")
         ) {
           Icon(
-            imageVector = Icons.Default.Chat,
+            imageVector = Icons.AutoMirrored.Filled.Chat,
             contentDescription = "Message",
             tint = FameGoGold
           )
@@ -344,7 +344,7 @@ fun BookingDetailsScreen(
         FlowPill(
           state = FlowPillState.CUSTOM,
           customText = "Message crew",
-          customIcon = Icons.Default.Chat,
+          customIcon = Icons.AutoMirrored.Filled.Chat,
           onClick = { booking?.id?.let(onOpenChat) },
           testTag = "call_sheet_chat_pill"
         )

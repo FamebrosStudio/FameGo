@@ -1,8 +1,6 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,13 +21,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -59,18 +53,13 @@ import com.example.model.User
 import com.example.data.SupabaseAuthClient
 import com.example.data.SupabaseRestClient
 import com.example.ui.components.FameGoButton
-import com.example.ui.components.FameGoLogo
 import com.example.ui.components.FameGoWordmark
 import com.example.ui.components.FameGoOutlinedButton
-import com.example.ui.theme.FameGoAccentCyan
 import com.example.ui.theme.FameGoBg
 import com.example.ui.theme.FameGoBorder
-import com.example.ui.theme.FameGoSuccessGreen
 import com.example.ui.theme.FameGoCard
 import com.example.ui.theme.FameGoCardElevated
-import com.example.ui.theme.FameGoDarkerGold
 import com.example.ui.theme.FameGoGold
-import com.example.ui.theme.FameGoGoldContainer
 import com.example.ui.theme.FameGoSurface
 import com.example.ui.theme.FameGoTextMuted
 import com.example.ui.theme.FameGoTextPrimary
@@ -79,6 +68,7 @@ import com.example.ui.theme.FameGoWhite
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -255,7 +245,7 @@ fun WelcomeScreen(
         FameGoButton(
           text = "Get started",
           onClick = onGetStarted,
-          icon = Icons.Default.ArrowForward,
+          icon = Icons.AutoMirrored.Filled.ArrowForward,
           modifier = Modifier.fillMaxWidth(),
           testTag = "welcome_get_started"
         )
@@ -304,15 +294,9 @@ fun ValuePill(title: String) {
 fun AuthScreen(
   onAuthenticated: (User) -> Unit,
   onBack: () -> Unit,
-  initialIsSignUp: Boolean = false,
   modifier: Modifier = Modifier
 ) {
-  val isSignUp = false
-
-  var fullName by remember { mutableStateOf("") }
   var email by remember { mutableStateOf("") }
-  var phone by remember { mutableStateOf("") }
-  var companyName by remember { mutableStateOf("") }
   var password by remember { mutableStateOf("") }
   var isSubmitting by remember { mutableStateOf(false) }
   var authError by remember { mutableStateOf<String?>(null) }
@@ -360,107 +344,22 @@ fun AuthScreen(
 
       // Heading
       Text(
-        text = if (isSignUp) "Create an account" else "Sign in",
+        text = "Sign in",
         color = FameGoWhite,
         fontSize = 26.sp,
         fontWeight = FontWeight.Bold
       )
 
       Text(
-        text = if (isSignUp) "Sign up to book crew or accept shoots." else "Welcome back. Sign in to your account.",
+        text = "Welcome back. Sign in to your account.",
         color = FameGoTextSecondary,
         fontSize = 13.sp,
         modifier = Modifier.padding(top = 4.dp, bottom = 20.dp)
       )
 
-      if (false) {
-      // Role Selection Pills (Client / Crew)
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .clip(RoundedCornerShape(12.dp))
-          .background(FameGoCard)
-          .border(1.dp, FameGoBorder, RoundedCornerShape(12.dp))
-          .padding(4.dp)
-      ) {
-        Box(
-          modifier = Modifier
-            .weight(1f)
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (Role.CLIENT == Role.CLIENT) FameGoGoldContainer else Color.Transparent)
-            .border(
-              1.dp,
-              if (Role.CLIENT == Role.CLIENT) FameGoGold else Color.Transparent,
-              RoundedCornerShape(8.dp)
-            )
-            .clickable { }
-            .padding(vertical = 10.dp),
-          contentAlignment = Alignment.Center
-        ) {
-          Text(
-            text = "Client",
-            color = if (Role.CLIENT == Role.CLIENT) FameGoGold else FameGoTextMuted,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold
-          )
-        }
-
-        Box(
-          modifier = Modifier
-            .weight(1f)
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color.Transparent)
-            .border(
-              1.dp,
-              Color.Transparent,
-              RoundedCornerShape(8.dp)
-            )
-            .clickable { }
-            .padding(vertical = 10.dp),
-          contentAlignment = Alignment.Center
-        ) {
-          Text(
-            text = "Crew",
-            color = FameGoTextMuted,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold
-          )
-        }
-      }
-
-      }
-
       Spacer(modifier = Modifier.height(20.dp))
 
       // Input Fields
-      if (isSignUp) {
-        FameGoTextField(
-          value = fullName,
-          onValueChange = { fullName = it },
-          label = "Full name",
-          icon = Icons.Default.Person
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        if (Role.CLIENT == Role.CLIENT) {
-          FameGoTextField(
-            value = companyName,
-            onValueChange = { companyName = it },
-            label = "Company name",
-            icon = Icons.Default.Business
-          )
-          Spacer(modifier = Modifier.height(12.dp))
-        }
-
-        FameGoTextField(
-          value = phone,
-          onValueChange = { phone = it },
-          label = "Mobile number",
-          icon = Icons.Default.Phone,
-          keyboardType = KeyboardType.Phone
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-      }
 
       FameGoTextField(
         value = email,
@@ -484,7 +383,7 @@ fun AuthScreen(
 
       // Primary CTA
       FameGoButton(
-        text = if (isSignUp) "Create account" else "Sign in",
+        text = "Sign in",
         onClick = {
           authError = null
           isSubmitting = true
@@ -492,7 +391,7 @@ fun AuthScreen(
             val result = SupabaseAuthClient.authenticate(
               email = email.trim(), password = password, signUp = false,
               name = "", phone = "", role = Role.CLIENT.name,
-              companyName = companyName.trim()
+              companyName = ""
             )
             isSubmitting = false
             result.onSuccess { auth ->
@@ -509,9 +408,7 @@ fun AuthScreen(
             }.onFailure { authError = it.message ?: "Authentication failed" }
           }
         },
-        enabled = !isSubmitting && email.trim().isNotEmpty() &&
-          password.isNotEmpty() &&
-          (!isSignUp || (fullName.trim().isNotEmpty() && phone.trim().isNotEmpty())),
+        enabled = !isSubmitting && email.trim().isNotEmpty() && password.isNotEmpty(),
         modifier = Modifier.fillMaxWidth(),
         testTag = "auth_submit_button"
       )
@@ -521,29 +418,6 @@ fun AuthScreen(
       }
 
       Spacer(modifier = Modifier.height(16.dp))
-
-      if (false) {
-      // Toggle between sign in and sign up
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .clickable { }
-          .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.Center
-      ) {
-        Text(
-          text = if (isSignUp) "Already have an account? " else "Don't have an account? ",
-          color = FameGoTextSecondary,
-          fontSize = 13.sp
-        )
-        Text(
-          text = if (isSignUp) "Sign in" else "Create account",
-          color = FameGoGold,
-          fontSize = 13.sp,
-          fontWeight = FontWeight.SemiBold
-        )
-      }
-      }
 
       Spacer(modifier = Modifier.height(20.dp))
 

@@ -25,10 +25,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -117,7 +115,7 @@ fun BookingChatScreen(
             verticalAlignment = Alignment.CenterVertically
           ) {
             IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
-              Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = FameGoTextPrimary)
+              Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = FameGoTextPrimary)
             }
 
             Spacer(modifier = Modifier.width(8.dp))

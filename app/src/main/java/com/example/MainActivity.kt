@@ -98,7 +98,7 @@ import com.example.ui.theme.FameGoWhite
 sealed class Screen {
   object Splash : Screen()
   object Welcome : Screen()
-  data class Auth(val isSignUp: Boolean = false) : Screen()
+  object Auth : Screen()
   data class Main(val tab: String = "home") : Screen()
   data class BookAShoot(val preselectedCategory: ShootCategory? = null) : Screen()
   data class SearchingCrew(val bookingId: String) : Screen()
@@ -166,8 +166,8 @@ fun FameGoApp() {
 
         is Screen.Welcome -> {
           WelcomeScreen(
-            onGetStarted = { currentScreen = Screen.Auth(isSignUp = false) },
-            onSignIn = { currentScreen = Screen.Auth(isSignUp = false) }
+            onGetStarted = { currentScreen = Screen.Auth },
+            onSignIn = { currentScreen = Screen.Auth }
           )
         }
 
@@ -178,7 +178,6 @@ fun FameGoApp() {
               currentScreen = Screen.Main(tab = "home")
             },
             onBack = { currentScreen = Screen.Welcome },
-            initialIsSignUp = screen.isSignUp
           )
         }
 

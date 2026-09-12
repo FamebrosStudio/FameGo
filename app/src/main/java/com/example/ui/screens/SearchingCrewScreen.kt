@@ -32,7 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Phone
@@ -403,7 +403,7 @@ fun SearchingCrewScreen(
                     border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorderSubtle),
                     modifier = Modifier
                       .weight(1f)
-                  .clickable(enabled = booking != null) { booking?.id?.let(onOpenChat) }
+                  .clickable { onOpenChat(bookingId) }
                       .testTag("confirmed_message_crew_button")
                   ) {
                     Row(
@@ -412,7 +412,7 @@ fun SearchingCrewScreen(
                       verticalAlignment = Alignment.CenterVertically
                     ) {
                       Icon(
-                        imageVector = Icons.Default.Chat,
+                        imageVector = Icons.AutoMirrored.Filled.Chat,
                         contentDescription = null,
                         tint = FameGoTextSecondary,
                         modifier = Modifier.size(16.dp)
@@ -433,7 +433,7 @@ fun SearchingCrewScreen(
                     border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorderSubtle),
                     modifier = Modifier
                       .weight(1f)
-                      .clickable(enabled = booking != null) { booking?.id?.let(onOpenDetails) }
+                      .clickable { onOpenDetails(bookingId) }
                       .testTag("confirmed_view_details_button")
                   ) {
                     Box(

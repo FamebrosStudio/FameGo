@@ -22,14 +22,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.ReportProblem
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -105,7 +105,7 @@ fun CustomerSupportScreen(
         verticalAlignment = Alignment.CenterVertically
       ) {
         IconButton(onClick = onBack) {
-          Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = FameGoTextPrimary)
+          Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = FameGoTextPrimary)
         }
         Text(
           text = "Support",
@@ -142,7 +142,7 @@ fun CustomerSupportScreen(
         )
 
         SupportChannelCard(
-          icon = Icons.Default.Chat,
+          icon = Icons.AutoMirrored.Filled.Chat,
           title = "Chat on WhatsApp",
           subtitle = "Fast crew coordination and shoot updates",
           accentColor = FameGoSuccessGreen,
@@ -279,7 +279,7 @@ fun CustomerSupportScreen(
             FameGoButton(
               text = "Send message",
               onClick = { isSubmitted = true },
-              icon = Icons.Default.Send,
+              icon = Icons.AutoMirrored.Filled.Send,
               modifier = Modifier.fillMaxWidth(),
               testTag = "submit_support_ticket"
             )

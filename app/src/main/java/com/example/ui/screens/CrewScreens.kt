@@ -27,7 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
@@ -327,7 +327,7 @@ fun CrewEvolvingJobCard(
             contentAlignment = Alignment.Center
           ) {
             Icon(
-              imageVector = Icons.Default.Chat,
+              imageVector = Icons.AutoMirrored.Filled.Chat,
               contentDescription = "Message",
               tint = FameGoTextSecondary,
               modifier = Modifier.size(16.dp)
