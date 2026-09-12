@@ -67,19 +67,7 @@ import com.example.ui.theme.FameGoTextSecondary
 import com.example.ui.theme.FameGoWhite
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.foundation.Image
-import com.example.R
-import androidx.compose.ui.res.painterResource
 
 @Composable
 fun SplashScreen(
@@ -93,51 +81,13 @@ fun SplashScreen(
     onFinishSplash()
   }
 
-  val transition = rememberInfiniteTransition(label = "splashGradient")
-  val gradientShift by transition.animateFloat(
-    initialValue = -1f,
-    targetValue = 1f,
-    animationSpec = infiniteRepeatable(tween(7000, easing = LinearEasing)),
-    label = "splashGradientShift"
-  )
-  val logoScale by transition.animateFloat(
-    initialValue = 0.97f,
-    targetValue = 1.0f,
-    animationSpec = infiniteRepeatable(tween(1600, easing = FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse),
-    label = "splashLogoScale"
-  )
-  val logoAlpha by transition.animateFloat(
-    initialValue = 0.88f,
-    targetValue = 1.0f,
-    animationSpec = infiniteRepeatable(tween(1600, easing = FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse),
-    label = "splashLogoAlpha"
-  )
-
   Box(
     modifier = modifier
       .fillMaxSize()
-      .drawBehind {
-        val shift = size.width * gradientShift
-        drawRect(
-          Brush.linearGradient(
-            colors = listOf(Color(0xFF2B0600), Color(0xFF763807), Color(0xFF511F03), Color(0xFF2B0600)),
-            start = Offset(shift, 0f),
-            end = Offset(size.width + shift, size.height)
-          )
-        )
-      },
+      .background(FameGoBg),
     contentAlignment = Alignment.Center
   ) {
-    Image(
-      painter = painterResource(R.drawable.famego_logo),
-      contentDescription = "FameGo",
-      contentScale = ContentScale.Fit,
-      modifier = Modifier.fillMaxWidth(0.78f).height(180.dp).graphicsLayer {
-        scaleX = logoScale
-        scaleY = logoScale
-        alpha = logoAlpha
-      }
-    )
+    FameGoWordmark(modifier = Modifier.width(190.dp))
   }
 }
 

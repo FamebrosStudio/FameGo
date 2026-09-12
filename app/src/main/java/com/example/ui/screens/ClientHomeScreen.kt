@@ -341,8 +341,7 @@ fun ClientHomeScreen(
         }
       }
 
-      // Generous bottom clearance for the FameGo Half Ring
-      Spacer(modifier = Modifier.height(130.dp))
+      Spacer(modifier = Modifier.height(24.dp))
     }
   }
 }

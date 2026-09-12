@@ -61,7 +61,6 @@ import com.example.model.Role
 import com.example.model.ShootCategory
 import com.example.ui.components.FameGoBottomNav
 import com.example.ui.components.FameGoTopBar
-import com.example.ui.components.FameGoWheelNavigation
 import com.example.ui.screens.AdminDashboardScreen
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.BookAShootScreen
@@ -298,15 +297,12 @@ fun FameGoApp() {
                 }
               }
 
-              // FameGo Rotating Half-Circle Navigation Wheel
+              // Standard bottom navigation
               if (currentUser.role == Role.CLIENT) {
-                FameGoWheelNavigation(
-                  currentTab = screen.tab,
+                FameGoBottomNav(
+                  currentRoute = screen.tab,
                   onNavigate = { destination ->
                     currentScreen = Screen.Main(tab = destination)
-                  },
-                  onOpenBookingFlow = {
-                    currentScreen = Screen.BookAShoot(null)
                   },
                   modifier = Modifier.align(Alignment.BottomCenter)
                 )

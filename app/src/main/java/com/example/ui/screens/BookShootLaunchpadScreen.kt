@@ -64,7 +64,7 @@ import com.example.ui.theme.fameGoBreathe
 import com.example.ui.theme.fameGoRise
 
 /**
- * Launchpad screen displayed when "✦ book shoot" is active on the rotating wheel.
+ * Launchpad screen displayed when the client opens the booking tab.
  * Allows clients to browse production categories, inspect instant day rates,
  * and immediately enter the comprehensive 6-step booking flow.
  */
@@ -345,8 +345,7 @@ fun BookShootLaunchpadScreen(
         )
       }
 
-      // Clearance for the FameGo rotating wheel
-      Spacer(modifier = Modifier.height(145.dp))
+      Spacer(modifier = Modifier.height(24.dp))
     }
   }
 }
