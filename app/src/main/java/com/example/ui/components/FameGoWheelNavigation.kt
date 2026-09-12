@@ -186,8 +186,8 @@ fun FameGoWheelNavigation(
   // 1. Map current tab to initial active section
   val activeSection = remember(currentTab) { WheelSection.fromTab(currentTab) }
 
-  // Step angle in degrees between sections (28 degrees creates an ideal ergonomic span)
-  val stepDegrees = 28f
+  // Smaller steps and a damped drag make the dial easier to control on phones.
+  val stepDegrees = 24f
 
   // Wheel rotation angle state in degrees.
   // Center (Section 2: Book Shoot) has rotation angle 0°.
@@ -346,8 +346,8 @@ fun FameGoWheelNavigation(
                 velocityTracker.addPosition(change.uptimeMillis, change.position)
 
                 // Sensitivity factor converting horizontal drag pixels to wheel angular rotation
-                // ~72 pixels of drag rotates by one full section (stepDegrees)
-                val sensitivity = stepDegrees / 72f
+                // Require a longer, calmer gesture before changing sections.
+                val sensitivity = stepDegrees / 110f
                 val newAngle = rotationAngle.value + (dragAmount.x * sensitivity)
 
                 // Coerce angle to prevent spinning uncontrollably beyond end positions
@@ -363,7 +363,7 @@ fun FameGoWheelNavigation(
                 val velocityX = velocityTracker.calculateVelocity().x
 
                 // Compute momentum projection: flick velocity carries rotation further
-                val flingAngleDelta = (velocityX * 0.007f).coerceIn(-stepDegrees * 1.5f, stepDegrees * 1.5f)
+                val flingAngleDelta = (velocityX * 0.0035f).coerceIn(-stepDegrees * 0.8f, stepDegrees * 0.8f)
                 val projectedAngle = rotationAngle.value + flingAngleDelta
 
                 // Find nearest snap section

@@ -298,7 +298,7 @@ fun FameGoApp() {
               }
 
               // FameGo Rotating Half-Circle Navigation Wheel
-              if (currentUser.role != Role.ADMIN) {
+              if (currentUser.role == Role.CLIENT) {
                 FameGoWheelNavigation(
                   currentTab = screen.tab,
                   onNavigate = { destination ->
@@ -315,13 +315,17 @@ fun FameGoApp() {
         }
 
         is Screen.BookAShoot -> {
-          BookAShootScreen(
-            preselectedCategory = screen.preselectedCategory,
-            onBookingSubmitted = { bookingId ->
-              currentScreen = Screen.SearchingCrew(bookingId)
-            },
-            onCancel = { currentScreen = Screen.Main("home") }
-          )
+          if (currentUser.role == Role.CLIENT) {
+            BookAShootScreen(
+              preselectedCategory = screen.preselectedCategory,
+              onBookingSubmitted = { bookingId ->
+                currentScreen = Screen.SearchingCrew(bookingId)
+              },
+              onCancel = { currentScreen = Screen.Main("home") }
+            )
+          } else {
+            currentScreen = Screen.Main("home")
+          }
         }
 
         is Screen.SearchingCrew -> {

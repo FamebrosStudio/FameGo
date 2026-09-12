@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -77,6 +78,8 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -111,6 +114,7 @@ import com.example.ui.theme.FameGoTextMuted
 import com.example.ui.theme.FameGoTextPrimary
 import com.example.ui.theme.FameGoTextSecondary
 import com.example.ui.theme.FameGoWhite
+import com.example.R
 import kotlin.math.roundToInt
 
 // =============================================================================
@@ -372,6 +376,19 @@ fun FameGoBottomNav(
 // =============================================================================
 
 @Composable
+fun FameGoLogo(
+  modifier: Modifier = Modifier,
+  contentDescription: String = "FameGo"
+) {
+  androidx.compose.foundation.Image(
+    painter = painterResource(R.drawable.famego_logo),
+    contentDescription = contentDescription,
+    contentScale = ContentScale.Fit,
+    modifier = modifier.heightIn(min = 28.dp)
+  )
+}
+
+@Composable
 fun AdaptiveHeader(
   currentRole: Role,
   unreadNotifications: Int = 0,
@@ -388,23 +405,7 @@ fun AdaptiveHeader(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.SpaceBetween
   ) {
-    // Minimal Wordmark
-    Row(verticalAlignment = Alignment.CenterVertically) {
-      Text(
-        text = "famego",
-        color = FameGoWhite,
-        fontSize = 20.sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = (-0.5).sp
-      )
-      Spacer(modifier = Modifier.width(3.dp))
-      Box(
-        modifier = Modifier
-          .size(4.dp)
-          .clip(CircleShape)
-          .background(FameGoGold)
-      )
-    }
+    FameGoLogo(modifier = Modifier.width(92.dp).heightIn(max = 34.dp))
 
     Row(
       verticalAlignment = Alignment.CenterVertically,

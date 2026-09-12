@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,7 +56,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.Role
 import com.example.model.User
+import com.example.data.SupabaseAuthClient
 import com.example.ui.components.FameGoButton
+import com.example.ui.components.FameGoLogo
 import com.example.ui.components.FameGoOutlinedButton
 import com.example.ui.theme.FameGoAccentCyan
 import com.example.ui.theme.FameGoBg
@@ -72,6 +75,18 @@ import com.example.ui.theme.FameGoTextPrimary
 import com.example.ui.theme.FameGoTextSecondary
 import com.example.ui.theme.FameGoWhite
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.Image
+import com.example.R
+import androidx.compose.ui.res.painterResource
 
 @Composable
 fun SplashScreen(
@@ -85,77 +100,34 @@ fun SplashScreen(
     onFinishSplash()
   }
 
+  val transition = rememberInfiniteTransition(label = "splashGradient")
+  val gradientShift by transition.animateFloat(
+    initialValue = -1f,
+    targetValue = 1f,
+    animationSpec = infiniteRepeatable(tween(7000, easing = LinearEasing)),
+    label = "splashGradientShift"
+  )
+
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg),
+      .drawBehind {
+        val shift = size.width * gradientShift
+        drawRect(
+          Brush.linearGradient(
+            colors = listOf(FameGoBg, Color(0xFF171019), Color(0xFF10212A), FameGoBg),
+            start = Offset(shift, 0f),
+            end = Offset(size.width + shift, size.height)
+          )
+        )
+      },
     contentAlignment = Alignment.Center
   ) {
-    Column(
-      horizontalAlignment = Alignment.CenterHorizontally,
-      verticalArrangement = Arrangement.Center
-    ) {
-      // Cinematic Gold Emblem
-      Box(
-        modifier = Modifier
-          .size(88.dp)
-          .clip(CircleShape)
-          .background(
-            Brush.radialGradient(
-              listOf(FameGoGold, FameGoDarkerGold, FameGoGoldContainer)
-            )
-          )
-          .border(2.dp, FameGoGold, CircleShape),
-        contentAlignment = Alignment.Center
-      ) {
-        Icon(
-          imageVector = Icons.Default.Videocam,
-          contentDescription = null,
-          tint = FameGoBg,
-          modifier = Modifier.size(44.dp)
-        )
-      }
-
-      Spacer(modifier = Modifier.height(24.dp))
-
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-          text = "FameGo",
-          color = FameGoWhite,
-          fontSize = 36.sp,
-          fontWeight = FontWeight.ExtraBold,
-          letterSpacing = 1.sp
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Box(
-          modifier = Modifier
-            .size(8.dp)
-            .clip(CircleShape)
-            .background(FameGoGold)
-        )
-      }
-
-      Spacer(modifier = Modifier.height(8.dp))
-
-      Text(
-        text = "by Famebros Studio",
-        color = FameGoTextMuted,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = 1.sp
-      )
-    }
-
-    // Bottom branding
-    Text(
-      text = "Production crew on demand",
-      color = FameGoGold.copy(alpha = 0.7f),
-      fontSize = 12.sp,
-      fontWeight = FontWeight.Medium,
-      letterSpacing = 0.5.sp,
-      modifier = Modifier
-        .align(Alignment.BottomCenter)
-        .padding(bottom = 36.dp)
+    Image(
+      painter = painterResource(R.drawable.famego_logo),
+      contentDescription = "FameGo",
+      contentScale = ContentScale.Fit,
+      modifier = Modifier.fillMaxWidth(0.78f).height(180.dp)
     )
   }
 }
@@ -187,21 +159,7 @@ fun WelcomeScreen(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(
-            text = "FameGo",
-            color = FameGoWhite,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
-          )
-          Spacer(modifier = Modifier.width(4.dp))
-          Box(
-            modifier = Modifier
-              .size(6.dp)
-              .clip(CircleShape)
-              .background(FameGoGold)
-          )
-        }
+        FameGoLogo(modifier = Modifier.width(108.dp).height(38.dp))
         Text(
           text = "by Famebros Studio",
           color = FameGoTextMuted,
@@ -338,6 +296,9 @@ fun AuthScreen(
   var phone by remember { mutableStateOf("") }
   var companyName by remember { mutableStateOf("") }
   var password by remember { mutableStateOf("") }
+  var isSubmitting by remember { mutableStateOf(false) }
+  var authError by remember { mutableStateOf<String?>(null) }
+  val coroutineScope = rememberCoroutineScope()
 
   val scrollState = rememberScrollState()
 
@@ -374,21 +335,7 @@ fun AuthScreen(
           )
         }
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(
-            text = "FameGo",
-            color = FameGoWhite,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold
-          )
-          Spacer(modifier = Modifier.width(4.dp))
-          Box(
-            modifier = Modifier
-              .size(5.dp)
-              .clip(CircleShape)
-              .background(FameGoGold)
-          )
-        }
+        FameGoLogo(modifier = Modifier.width(96.dp).height(34.dp))
       }
 
       Spacer(modifier = Modifier.height(28.dp))
@@ -518,28 +465,36 @@ fun AuthScreen(
       FameGoButton(
         text = if (isSignUp) "Create account" else "Sign in",
         onClick = {
-          onAuthenticated(
-            User(
-              id = "local_user",
-              name = fullName.trim().ifEmpty { email.substringBefore("@").ifEmpty { "Client" } },
-              email = email.trim(),
-              phone = phone.trim(),
-              companyName = companyName.trim(),
-              role = selectedRole,
-              avatarInitials = fullName.trim().split(" ")
-                .filter { it.isNotBlank() }
-                .take(2)
-                .joinToString("") { it.first().uppercase() }
-                .ifEmpty { "FG" }
+          authError = null
+          isSubmitting = true
+          coroutineScope.launch {
+            val result = SupabaseAuthClient.authenticate(
+              email = email.trim(), password = password, signUp = isSignUp,
+              name = fullName.trim(), phone = phone.trim(), role = selectedRole.name,
+              companyName = companyName.trim()
             )
-          )
+            isSubmitting = false
+            result.onSuccess { auth ->
+              val displayName = fullName.trim().ifEmpty { email.substringBefore("@").ifEmpty { "Client" } }
+              onAuthenticated(User(
+                id = auth.id, name = displayName, email = auth.email,
+                phone = phone.trim(), companyName = companyName.trim(), role = selectedRole,
+                avatarInitials = displayName.split(" ").filter { it.isNotBlank() }.take(2)
+                  .joinToString("") { it.first().uppercase() }.ifEmpty { "FG" }
+              ))
+            }.onFailure { authError = it.message ?: "Authentication failed" }
+          }
         },
-        enabled = email.trim().isNotEmpty() &&
+        enabled = !isSubmitting && email.trim().isNotEmpty() &&
           password.isNotEmpty() &&
           (!isSignUp || (fullName.trim().isNotEmpty() && phone.trim().isNotEmpty())),
         modifier = Modifier.fillMaxWidth(),
         testTag = "auth_submit_button"
       )
+
+      authError?.let { message ->
+        Text(message, color = Color(0xFFFF7B84), fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+      }
 
       Spacer(modifier = Modifier.height(16.dp))
 

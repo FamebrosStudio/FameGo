@@ -1,4 +1,15 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.util.Properties
+
+val fameGoLocalProperties = Properties()
+val fameGoLocalPropertiesFile = rootProject.file("local.properties")
+if (fameGoLocalPropertiesFile.exists()) {
+  fameGoLocalPropertiesFile.inputStream().use { fameGoLocalProperties.load(it) }
+}
+fun fameGoConfig(name: String): String =
+  fameGoLocalProperties.getProperty(name) ?: System.getenv(name) ?: ""
+fun fameGoGradleString(value: String): String =
+  value.replace("\\", "\\\\").replace("\"", "\\\"")
 
 plugins {
   alias(libs.plugins.android.application)
@@ -19,6 +30,9 @@ android {
     targetSdk = 36
     versionCode = 1
     versionName = "1.0"
+
+    buildConfigField("String", "SUPABASE_URL", "\"${fameGoGradleString(fameGoConfig("SUPABASE_URL"))}\"")
+    buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${fameGoGradleString(fameGoConfig("SUPABASE_PUBLISHABLE_KEY"))}\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
