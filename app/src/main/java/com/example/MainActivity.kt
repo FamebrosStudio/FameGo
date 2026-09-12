@@ -200,7 +200,7 @@ fun FameGoApp() {
                 .fillMaxSize()
                 .padding(top = innerPadding.calculateTopPadding())
             ) {
-              // BackHandler for smooth wheel and router synchronization
+              // Keep back navigation synchronized with the current app screen.
               BackHandler(enabled = screen.tab != "home" && screen.tab != "dashboard") {
                 currentScreen = Screen.Main("home")
               }
