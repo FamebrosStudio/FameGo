@@ -55,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.FameGoRepository
+import com.example.data.SupabaseSession
 import com.example.model.BookingStatus
 import com.example.model.Role
 import com.example.model.ShootCategory
@@ -250,6 +251,7 @@ fun FameGoApp() {
                         onSwitchRole = {},
                         onOpenSupport = { currentScreen = Screen.CustomerSupport },
                         onLogout = {
+                          SupabaseSession.clear()
                           FameGoRepository.switchRole(Role.CLIENT)
                           currentScreen = Screen.Welcome
                         }
