@@ -78,7 +78,9 @@ fun SplashScreen(
   modifier: Modifier = Modifier
 ) {
   LaunchedEffect(Unit) {
-    delay(1500)
+    // Keep the brand moment brief; a fixed 1.5s pause made every cold launch
+    // feel slow even though there is no startup work to wait for.
+    delay(600)
     onFinishSplash()
   }
 
