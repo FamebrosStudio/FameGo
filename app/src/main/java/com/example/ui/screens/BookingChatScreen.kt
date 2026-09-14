@@ -35,6 +35,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,7 +78,13 @@ fun BookingChatScreen(
   val booking = bookings.find { it.id == bookingId }
   val messages = allMessages[bookingId] ?: emptyList()
 
-  LaunchedEffect(bookingId) { FameGoRepository.loadChatMessages(bookingId) }
+  LaunchedEffect(bookingId) {
+    FameGoRepository.loadChatMessages(bookingId)
+    FameGoRepository.startChatRealtime(bookingId)
+  }
+  DisposableEffect(bookingId) {
+    onDispose { FameGoRepository.stopChatRealtime(bookingId) }
+  }
 
   var messageInput by remember { mutableStateOf("") }
   val listState = rememberLazyListState()

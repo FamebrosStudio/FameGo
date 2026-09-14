@@ -19,15 +19,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
-import kotlin.math.cos
-import kotlin.math.sin
 
 /** In-memory UI state boundary. Supabase can replace this without screen changes. */
 object FameGoRepository {
@@ -49,7 +45,6 @@ object FameGoRepository {
   val liveSharing: StateFlow<Set<String>> = _liveSharing.asStateFlow()
   private val _livePoints = MutableStateFlow<Map<String, LiveCrewPoint>>(emptyMap())
   val livePoints: StateFlow<Map<String, LiveCrewPoint>> = _livePoints.asStateFlow()
-  private val liveJobs = mutableMapOf<String, Job>()
   private val _bookings = MutableStateFlow<List<Booking>>(emptyList())
   val bookings: StateFlow<List<Booking>> = _bookings.asStateFlow()
   private val _notifications = MutableStateFlow<List<NotificationItem>>(emptyList())
@@ -141,29 +136,28 @@ object FameGoRepository {
     }
   }
 
-  /** Demo live tracking: emits a drifting point near the venue until stopped. */
   fun setLiveSharing(bookingId: String, enabled: Boolean) {
     if (bookingId.isBlank()) return
-    if (enabled) {
-      if (bookingId in _liveSharing.value) return
-      _liveSharing.value = _liveSharing.value + bookingId
-      var lat = 19.0596
-      var lng = 72.8295
-      var step = 0
-      _livePoints.value = _livePoints.value + (bookingId to LiveCrewPoint(lat, lng, "Crew is nearby"))
-      liveJobs[bookingId]?.cancel()
-      liveJobs[bookingId] = ioScope.launch {
-        while (true) {
-          delay(4000)
-          step++
-          lat += 0.0004 * cos(step * 0.7)
-          lng += 0.0004 * sin(step * 0.9)
-          _livePoints.value = _livePoints.value + (bookingId to LiveCrewPoint(lat, lng, "Updated just now"))
-        }
-      }
-    } else {
-      liveJobs.remove(bookingId)?.cancel()
-      _liveSharing.value = _liveSharing.value - bookingId
+    if (enabled) _liveSharing.value = _liveSharing.value + bookingId
+    else _liveSharing.value = _liveSharing.value - bookingId
+    val crewId = _crewProfiles.value.firstOrNull { it.userId == _currentUser.value.id }?.id ?: return
+    if (SupabaseConfig.isConfigured) ioScope.launch {
+      SupabaseRestClient.patch(
+        "crew_live_locations?crew_id=eq.$crewId&booking_id=eq.$bookingId",
+        JSONObject().put("sharing_enabled", enabled).toString()
+      )
+    }
+  }
+
+  /** Called by the future location collector; location values always come from the device. */
+  fun updateCrewLocation(bookingId: String, latitude: Double, longitude: Double) {
+    val crewId = _crewProfiles.value.firstOrNull { it.userId == _currentUser.value.id }?.id ?: return
+    if (!SupabaseConfig.isConfigured) return
+    ioScope.launch {
+      SupabaseRestClient.upsert("crew_live_locations?on_conflict=crew_id", JSONObject().apply {
+        put("crew_id", crewId); put("booking_id", bookingId)
+        put("latitude", latitude); put("longitude", longitude); put("sharing_enabled", true)
+      }.toString())
     }
   }
 
@@ -205,7 +199,6 @@ object FameGoRepository {
   fun completeShoot(bookingId: String) {
     if (_bookings.value.none { it.id == bookingId }) return
     _bookings.value = _bookings.value.map { if (it.id == bookingId) it.copy(status = BookingStatus.COMPLETED) else it }
-    liveJobs.remove(bookingId)?.cancel()
     _liveSharing.value = _liveSharing.value - bookingId
     refreshIncomingRequests()
     addNotification(
@@ -492,6 +485,14 @@ object FameGoRepository {
         }
     }
   }
+
+  fun startChatRealtime(bookingId: String) {
+    SupabaseRealtimeClient.subscribeToChat(bookingId) { loadChatMessages(bookingId) }
+  }
+
+  fun stopChatRealtime(bookingId: String) {
+    SupabaseRealtimeClient.unsubscribeFromChat(bookingId)
+  }
   private fun refreshIncomingRequests() {
     _incomingShootRequests.value = _bookings.value.filter {
       it.status == BookingStatus.SEARCHING_CREW && it.id !in declinedRequestIds.value
@@ -559,6 +560,26 @@ object FameGoRepository {
           }
         }.getOrDefault(emptyMap())
       }
+    val bookingIds = _bookings.value.map { it.id }.filter { it.isNotBlank() }
+    if (bookingIds.isNotEmpty()) {
+      val filter = bookingIds.joinToString(",", prefix = "(", postfix = ")")
+      SupabaseRestClient.get("crew_live_locations?select=*&booking_id=in.$filter&sharing_enabled=eq.true")
+        .onSuccess { raw ->
+          runCatching {
+            val array = JSONArray(raw)
+            val points = buildMap {
+              for (i in 0 until array.length()) {
+                val point = array.getJSONObject(i)
+                put(point.optString("booking_id"), LiveCrewPoint(
+                  point.optDouble("latitude"), point.optDouble("longitude"), "Updated just now"
+                ))
+              }
+            }
+            _livePoints.value = points
+            _liveSharing.value = points.keys
+          }
+        }
+    }
     SupabaseRestClient.get("crew_profiles?select=*&order=rating.desc")
       .onSuccess { raw -> _crewProfiles.value = runCatching { parseCrewProfiles(JSONArray(raw)) }.getOrDefault(emptyList()) }
   }

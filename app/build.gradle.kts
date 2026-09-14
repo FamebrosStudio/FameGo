@@ -30,6 +30,7 @@ android {
 
     buildConfigField("String", "SUPABASE_URL", "\"${fameGoGradleString(fameGoConfig("SUPABASE_URL"))}\"")
     buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${fameGoGradleString(fameGoConfig("SUPABASE_PUBLISHABLE_KEY"))}\"")
+    buildConfigField("String", "MAPTILER_KEY", "\"${fameGoGradleString(fameGoConfig("MAPTILER_KEY"))}\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -95,7 +96,6 @@ dependencies {
   // implementation(libs.androidx.navigation.compose)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
-  // implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)

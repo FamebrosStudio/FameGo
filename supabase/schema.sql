@@ -174,6 +174,21 @@ create index if not exists ratings_crew_idx on public.crew_ratings(crew_id, crea
 create index if not exists live_locations_booking_idx on public.crew_live_locations(booking_id) where sharing_enabled;
 create index if not exists device_tokens_user_idx on public.device_tokens(user_id);
 
+-- Enable the tables consumed by the Android channel adapter. The guard keeps this
+-- file safe to run again on an existing project.
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'chat_messages') then
+    alter publication supabase_realtime add table public.chat_messages;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'bookings') then
+    alter publication supabase_realtime add table public.bookings;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'crew_live_locations') then
+    alter publication supabase_realtime add table public.crew_live_locations;
+  end if;
+end $$;
+
 drop trigger if exists profiles_updated_at on public.profiles;
 create trigger profiles_updated_at before update on public.profiles
 for each row execute function public.set_updated_at();

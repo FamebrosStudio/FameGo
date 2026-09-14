@@ -67,11 +67,11 @@ class ClientAftercareTest {
   }
 
   @Test
-  fun `live sharing starts with a point and stops cleanly`() {
+  fun `live sharing does not invent a point before the device reports one`() {
     val booking = testBooking()
     FameGoRepository.setLiveSharing(booking.id, true)
     assertTrue(booking.id in FameGoRepository.liveSharing.value)
-    assertNotNull(FameGoRepository.livePoints.value[booking.id])
+    assertNull(FameGoRepository.livePoints.value[booking.id])
     FameGoRepository.setLiveSharing(booking.id, false)
     assertTrue(booking.id !in FameGoRepository.liveSharing.value)
   }

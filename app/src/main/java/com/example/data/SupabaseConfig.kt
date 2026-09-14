@@ -7,6 +7,7 @@ import com.example.BuildConfig
 object SupabaseConfig {
   val baseUrl: String = BuildConfig.SUPABASE_URL.trimEnd('/')
   val publishableKey: String = BuildConfig.SUPABASE_PUBLISHABLE_KEY
+  val mapTilerKey: String = BuildConfig.MAPTILER_KEY
 
   val isConfigured: Boolean
     get() = baseUrl.startsWith("https://") &&

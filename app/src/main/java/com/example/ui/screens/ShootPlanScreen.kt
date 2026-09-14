@@ -113,7 +113,9 @@ fun ShootPlanScreen(
             val message = URLEncoder.encode(
               "Hi Famebros Studio, I want a custom FameGo shoot plan.", StandardCharsets.UTF_8.toString()
             )
-            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/919892384424?text=$message")))
+            runCatching {
+              context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/919892384424?text=$message")))
+            }
           },
           modifier = Modifier.fillMaxWidth(), testTag = "custom_plan_whatsapp"
         )

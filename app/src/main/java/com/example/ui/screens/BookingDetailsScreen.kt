@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -46,15 +45,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.FameGoRepository
+import com.example.data.SupabaseConfig
 import com.example.model.Booking
 import com.example.model.BookingStatus
 import com.example.model.ShootCategory
@@ -77,6 +76,8 @@ import com.example.ui.theme.FameGoTextMuted
 import com.example.ui.theme.FameGoTextPrimary
 import com.example.ui.theme.FameGoTextSecondary
 import com.example.ui.theme.FameGoWhite
+import android.webkit.WebView
+import android.webkit.WebViewClient
 
 @Composable
 fun BookingDetailsScreen(
@@ -598,57 +599,25 @@ private fun LiveLocationMap(
           .background(Color(0xFF101216)),
         contentAlignment = Alignment.Center
       ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-          val w = size.width
-          val h = size.height
-          // Street grid
-          for (i in 1..6) {
-            val y = h * i / 7f
-            drawLine(
-              color = Color(0xFFF5B942).copy(alpha = 0.08f),
-              start = Offset(0f, y),
-              end = Offset(w, y),
-              strokeWidth = 1.5f
+        if (sharing && latitude != null && longitude != null && SupabaseConfig.mapTilerKey.isNotBlank() &&
+          !SupabaseConfig.mapTilerKey.startsWith("your-")) {
+          AndroidView(
+            factory = { context -> WebView(context).apply {
+              webViewClient = WebViewClient()
+              settings.javaScriptEnabled = false
+              settings.domStorageEnabled = false
+              loadUrl("https://api.maptiler.com/maps/streets-v2/static/$longitude,$latitude,14/900x500.png?key=${SupabaseConfig.mapTilerKey}")
+            } },
+            update = { view -> view.loadUrl("https://api.maptiler.com/maps/streets-v2/static/$longitude,$latitude,14/900x500.png?key=${SupabaseConfig.mapTilerKey}") },
+            modifier = Modifier.fillMaxSize()
+          )
+        } else {
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.LocationOn, null, tint = FameGoGold, modifier = Modifier.size(28.dp))
+            Text(
+              if (sharing) "Waiting for the crew's location" else "Location sharing off",
+              color = FameGoTextSecondary, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp)
             )
-          }
-          for (i in 1..4) {
-            val x = w * i / 5f
-            drawLine(
-              color = Color(0xFFF5B942).copy(alpha = 0.08f),
-              start = Offset(x, 0f),
-              end = Offset(x, h),
-              strokeWidth = 1.5f
-            )
-          }
-          // Main roads
-          drawLine(
-            color = Color(0xFFF5B942).copy(alpha = 0.22f),
-            start = Offset(0f, h * 0.62f),
-            end = Offset(w, h * 0.42f),
-            strokeWidth = 5f
-          )
-          drawLine(
-            color = Color(0xFFF5B942).copy(alpha = 0.22f),
-            start = Offset(w * 0.68f, 0f),
-            end = Offset(w * 0.42f, h),
-            strokeWidth = 5f
-          )
-          // Venue pin
-          drawCircle(color = FameGoGold, radius = 7f, center = Offset(w * 0.5f, h * 0.52f))
-          drawCircle(
-            color = FameGoGold.copy(alpha = 0.35f),
-            radius = 16f,
-            center = Offset(w * 0.5f, h * 0.52f),
-            style = Stroke(width = 3f)
-          )
-          if (sharing && latitude != null && longitude != null) {
-            // Crew dot drifts around the venue in demo mode
-            val dx = ((longitude - 72.8295) * 22000f).toFloat().coerceIn(-w * 0.32f, w * 0.32f)
-            val dy = ((19.0596 - latitude) * 22000f).toFloat().coerceIn(-h * 0.3f, h * 0.3f)
-            val crewAt = Offset(w * 0.5f + dx, h * 0.52f + dy)
-            drawCircle(color = FameGoSuccessGreen.copy(alpha = 0.3f), radius = 22f, center = crewAt)
-            drawCircle(color = FameGoSuccessGreen, radius = 9f, center = crewAt)
-            drawCircle(color = Color.White, radius = 3.5f, center = crewAt)
           }
         }
         if (!sharing) {

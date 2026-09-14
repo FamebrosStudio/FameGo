@@ -196,9 +196,9 @@ fun FameGoApp() {
           Scaffold(
             topBar = {
               FameGoTopBar(
-                currentRole = Role.CLIENT,
+                currentRole = currentUser.role,
                 unreadNotifications = notifications.count {
-                  it.targetRole == Role.CLIENT && !it.isRead
+                  it.targetRole == currentUser.role && !it.isRead
                 },
                 onRoleClick = {},
                 onNotificationsClick = { currentScreen = Screen.Main("notifications") },
@@ -240,7 +240,8 @@ fun FameGoApp() {
                 },
                 label = "clientScreenTransition"
               ) { tab ->
-                when (tab) {
+                if (currentUser.role == Role.CLIENT) {
+                  when (tab) {
                   "home", "dashboard" -> ClientHomeScreen(
                     onBookAShoot = { cat -> currentScreen = Screen.ShootPlans(cat) },
                     onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
@@ -273,11 +274,32 @@ fun FameGoApp() {
                     onOpenChat = { id -> currentScreen = Screen.BookingChat(id) },
                     onViewAllBookings = { currentScreen = Screen.Main("bookings") }
                   )
+                  }
+                } else if (currentUser.role == Role.CREW) {
+                  when (tab) {
+                    "home" -> CrewHomeScreen(
+                      onViewRequestDetail = { id -> currentScreen = Screen.CrewRequestDetail(id) },
+                      onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
+                      onOpenChat = { id -> currentScreen = Screen.BookingChat(id) }
+                    )
+                    "bookings" -> CrewJobsScreen(onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) })
+                    "profile" -> CrewProfileScreen(onSwitchRole = { })
+                    else -> CrewHomeScreen(
+                      onViewRequestDetail = { id -> currentScreen = Screen.CrewRequestDetail(id) },
+                      onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
+                      onOpenChat = { id -> currentScreen = Screen.BookingChat(id) }
+                    )
+                  }
+                } else {
+                  AdminDashboardScreen(
+                    onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
+                    onOpenSupport = { currentScreen = Screen.CustomerSupport }
+                  )
                 }
               }
 
               // FameGo rotating wheel navigation (swipe left/right to switch tabs)
-              FameGoWheelNavigation(
+              if (currentUser.role == Role.CLIENT) FameGoWheelNavigation(
                 currentTab = screen.tab,
                 onNavigate = { destination ->
                   currentScreen = Screen.Main(tab = destination)

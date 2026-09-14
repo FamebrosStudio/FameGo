@@ -322,20 +322,6 @@ fun AuthScreen(
     password == confirmPassword
   val canSubmit = !isSubmitting && emailValid && passwordValid && (!isSignUp || signUpValid)
 
-  fun demoUser(): User {
-    val name = fullName.trim().ifEmpty { email.substringBefore("@").ifEmpty { "Demo Producer" } }
-    return User(
-      id = "demo_${email.trim().lowercase().hashCode()}",
-      name = name,
-      email = email.trim(),
-      phone = phone.trim(),
-      companyName = companyName.trim(),
-      role = Role.CLIENT,
-      avatarInitials = name.split(" ").filter { it.isNotBlank() }.take(2)
-        .joinToString("") { it.first().uppercase() }.ifEmpty { "FG" }
-    )
-  }
-
   fun submit() {
     authError = null
     authNotice = null
@@ -367,7 +353,6 @@ fun AuthScreen(
           .ifEmpty { email.substringBefore("@").ifEmpty { "User" } }
         val resolvedRole = runCatching { Role.valueOf(profileJson?.optString("role").orEmpty()) }
           .getOrDefault(Role.CLIENT)
-          .let { if (it == Role.CLIENT) it else Role.CLIENT }
         onAuthenticated(User(
           id = auth.id, name = displayName, email = auth.email,
           phone = profileJson?.optString("phone").orEmpty().ifEmpty { phone.trim() },
