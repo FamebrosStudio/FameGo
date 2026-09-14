@@ -310,6 +310,7 @@ fun AuthScreen(
   var fullName by remember { mutableStateOf("") }
   var phone by remember { mutableStateOf("") }
   var companyName by remember { mutableStateOf("") }
+  var selectedRole by remember { mutableStateOf(Role.CLIENT) }
   var isSubmitting by remember { mutableStateOf(false) }
   var authError by remember { mutableStateOf<String?>(null) }
   var authNotice by remember { mutableStateOf<String?>(null) }
@@ -341,7 +342,7 @@ fun AuthScreen(
     coroutineScope.launch {
       val result = SupabaseAuthClient.authenticate(
         email = email.trim(), password = password, signUp = isSignUp,
-        name = fullName.trim(), phone = phone.trim(), role = Role.CLIENT.name,
+        name = fullName.trim(), phone = phone.trim(), role = selectedRole.name,
         companyName = companyName.trim()
       )
       isSubmitting = false
@@ -363,8 +364,8 @@ fun AuthScreen(
         ))
       }.onFailure { e ->
         val msg = e.message ?: "Authentication failed"
-        if (msg.contains("confirm your email", ignoreCase = true)) {
-          authNotice = "Account created. Check your email to confirm it, then sign in."
+        if (msg.contains("CHECK_EMAIL") || msg.contains("confirm your email", ignoreCase = true)) {
+          authNotice = "Account created. Open your email and tap \"Yes, it's me\" — the FameGo app will confirm you automatically, then sign in."
           isSignUp = false
         } else {
           authError = SupabaseAuthClient.friendlyMessage(e, signingUp = isSignUp)
@@ -432,6 +433,33 @@ fun AuthScreen(
 
       // Input Fields
       if (isSignUp) {
+        // Role picker: client books shoots, crew receives work.
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+          listOf(Role.CLIENT to "Client", Role.CREW to "Crew").forEach { (role, label) ->
+            val selected = selectedRole == role
+            Surface(
+              shape = RoundedCornerShape(12.dp),
+              color = if (selected) FameGoGold else FameGoCard,
+              border = androidx.compose.foundation.BorderStroke(
+                1.dp, if (selected) FameGoGold else FameGoBorder
+              ),
+              modifier = Modifier.weight(1f).clickable { selectedRole = role }.testTag("role_${label.lowercase()}")
+            ) {
+              Text(
+                text = if (role == Role.CLIENT) "Book shoots" else "Crew work",
+                color = if (selected) Color(0xFF1A1408) else FameGoTextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(vertical = 10.dp)
+              )
+            }
+          }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
         FameGoTextField(
           value = fullName,
           onValueChange = { fullName = it },

@@ -58,10 +58,34 @@ object FameGoRepository {
   private val declinedRequestIds = MutableStateFlow<Set<String>>(emptySet())
 
   fun setCurrentUser(user: User) {
+    val previousId = _currentUser.value.id
     _currentUser.value = user
     _activeRole.value = user.role
-    declinedRequestIds.value = emptySet()
+    if (previousId.isNotBlank() && previousId != user.id) clearLocalState()
+    else declinedRequestIds.value = emptySet()
     ioScope.launch { refreshFromSupabase(user) }
+  }
+
+  /** Drops all cached per-user state so a logout/login never leaks data. */
+  fun clearLocalState() {
+    _bookings.value = emptyList()
+    _notifications.value = emptyList()
+    _chatMessages.value = emptyMap()
+    _favoriteCrewIds.value = emptySet()
+    _ratings.value = emptyMap()
+    _liveSharing.value = emptySet()
+    _livePoints.value = emptyMap()
+    _incomingShootRequests.value = emptyList()
+    _activeSearchingBookingId.value = null
+    declinedRequestIds.value = emptySet()
+    _isCrewAvailable.value = true
+  }
+
+  fun logout() {
+    SupabaseSession.clear()
+    _currentUser.value = User(id = "", name = "", email = "", phone = "")
+    _activeRole.value = Role.CLIENT
+    clearLocalState()
   }
 
   suspend fun restoreSignedInUser(): User? {
@@ -173,10 +197,12 @@ object FameGoRepository {
           val stamp = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply {
             timeZone = java.util.TimeZone.getTimeZone("UTC")
           }.format(java.util.Date())
-          SupabaseRestClient.patch(
-            "chat_messages?booking_id=eq.$bookingId&read_at=is.null",
-            "{\"read_at\":\"$stamp\"}"
-          )
+          val me = _currentUser.value.id
+          val filter = buildString {
+            append("chat_messages?booking_id=eq.$bookingId&read_at=is.null")
+            if (me.isNotBlank()) append("&sender_id=neq.$me")
+          }
+          SupabaseRestClient.patch(filter, "{\"read_at\":\"$stamp\"}")
         }
       }
     }
@@ -227,16 +253,18 @@ object FameGoRepository {
   }
 
   fun createBooking(newBooking: Booking): Booking {
-    _bookings.value = listOf(newBooking) + _bookings.value
-    _activeSearchingBookingId.value = newBooking.id
+    // Keep the local booking even if the network sync fails (offline-first).
+    val withPlan = newBooking.copy(priceRupees = newBooking.plan.priceRupees)
+    _bookings.value = listOf(withPlan) + _bookings.value
+    _activeSearchingBookingId.value = withPlan.id
     refreshIncomingRequests()
     addNotification(
       NotificationItem(
         title = "Finding your crew",
-        message = "${newBooking.shootTitle} • ${newBooking.venueName}. We'll notify you as soon as crew responds.",
+        message = "${withPlan.shootTitle} • ${withPlan.venueName}. We'll notify you as soon as crew responds.",
         timestampText = "Just now",
         targetRole = Role.CLIENT,
-        bookingId = newBooking.id
+        bookingId = withPlan.id
       )
     )
     val user = _currentUser.value
@@ -244,26 +272,12 @@ object FameGoRepository {
     // The UI must keep working offline and reconcile on next refresh.
     if (user.id.isNotBlank() && SupabaseConfig.isConfigured) {
       ioScope.launch {
-        val payload = JSONObject().apply {
-          put("client_id", user.id)
-          put("shoot_title", newBooking.shootTitle)
-          put("category", newBooking.category.name)
-          put("shoot_date", toSupabaseDate(newBooking.dateText))
-          put("shoot_time", toSupabaseTime(newBooking.timeText))
-          put("duration_hours", newBooking.durationHours)
-          put("venue_name", newBooking.venueName)
-          put("full_address", newBooking.fullAddress)
-          put("location_instructions", newBooking.locationInstructions)
-          put("crew_requirements", JSONArray(newBooking.crewRequirements.map { JSONObject().apply { put("role", it.role.name); put("quantity", it.quantity) } }))
-          put("shoot_description", newBooking.shootDescription)
-          put("special_instructions", newBooking.specialInstructions)
-          put("brand_name", newBooking.brandName)
-          put("reference_link", newBooking.referenceLink)
-        }.toString()
-        SupabaseRestClient.post("bookings?select=id,booking_code", payload)
+        // Reuse the canonical payload so plan/price/payment stay consistent
+        // with the paid-booking path.
+        SupabaseRestClient.post("bookings?select=id,booking_code", bookingPayload(withPlan, user.id))
       }
     }
-    return newBooking
+    return withPlan
   }
 
   /** Creates the authoritative paid booking before exposing it to crew search. */
@@ -477,8 +491,13 @@ object FameGoRepository {
           }.getOrDefault(emptyList())
           if (messages.isNotEmpty()) {
             // Merge: keep optimistic local messages that the server hasn't echoed yet.
+            // Match by stable id first; fall back to text match for just-sent rows
+            // that have no server id yet.
+            val remoteIds = messages.map { it.id }.toSet()
             val localOnly = (_chatMessages.value[bookingId] ?: emptyList()).filter { local ->
-              messages.none { remote -> remote.message == local.message && remote.isFromMe == local.isFromMe }
+              local.id !in remoteIds && messages.none { remote ->
+                remote.message == local.message && remote.isFromMe == local.isFromMe
+              }
             }
             _chatMessages.value = _chatMessages.value + (bookingId to (messages + localOnly))
           }

@@ -217,8 +217,12 @@ $$;
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
-  requested_role text := 'CLIENT';
+  requested_role text := coalesce(nullif(new.raw_user_meta_data ->> 'role', ''), 'CLIENT');
 begin
+  -- Only CLIENT/CREW can self-register; ADMIN is granted manually.
+  if requested_role not in ('CLIENT', 'CREW') then
+    requested_role := 'CLIENT';
+  end if;
   insert into public.profiles (id, full_name, email, phone, company_name, role, avatar_initials)
   values (
     new.id,
@@ -229,6 +233,16 @@ begin
     requested_role,
     upper(left(regexp_replace(coalesce(new.raw_user_meta_data ->> 'full_name', 'FG'), '[^A-Za-z]', '', 'g'), 2))
   ) on conflict (id) do update set email = excluded.email;
+  if requested_role = 'CREW' then
+    begin
+      insert into public.crew_profiles (user_id, primary_role)
+      values (new.id, 'ASSISTANT')
+      on conflict (user_id) do nothing;
+    exception when others then
+      -- Never block signup if the crew stub fails; user can complete it later.
+      null;
+    end;
+  end if;
   return new;
 end;
 $$;
@@ -301,6 +315,20 @@ create policy chat_insert on public.chat_messages for insert to authenticated wi
       where a.booking_id = chat_messages.booking_id and c.user_id = (select auth.uid())
     )
   )
+);
+-- Participants may mark incoming messages read; they can never edit the text.
+create policy chat_mark_read on public.chat_messages for update to authenticated using (
+  sender_id <> (select auth.uid()) and (
+    public.is_admin() or
+    exists (select 1 from public.bookings b where b.id = booking_id and b.client_id = (select auth.uid())) or
+    exists (
+      select 1 from public.booking_assignments a
+      join public.crew_profiles c on c.id = a.crew_id
+      where a.booking_id = chat_messages.booking_id and c.user_id = (select auth.uid())
+    )
+  )
+) with check (
+  sender_id <> (select auth.uid())
 );
 
 create policy support_owner on public.support_messages for select to authenticated using (user_id = auth.uid() or public.is_admin());

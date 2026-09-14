@@ -1,5 +1,7 @@
 package com.example
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -42,10 +44,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +59,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.FameGoRepository
+import com.example.data.SupabaseAuthClient
+import com.example.data.SupabaseRestClient
 import com.example.data.SupabaseSession
 import com.example.model.BookingStatus
 import com.example.model.Booking
@@ -98,6 +104,7 @@ import com.example.ui.theme.FameGoTextPrimary
 import com.example.ui.theme.FameGoTextSecondary
 import com.example.ui.theme.FameGoTheme
 import com.example.ui.theme.FameGoWhite
+import kotlinx.coroutines.launch
 
 sealed class Screen {
   object Splash : Screen()
@@ -108,16 +115,17 @@ sealed class Screen {
   data class BookAShoot(val plan: ShootPlan, val preselectedCategory: ShootCategory? = null) : Screen()
   data class Payment(val booking: Booking) : Screen()
   data class SearchingCrew(val bookingId: String) : Screen()
-  data class BookingDetails(val bookingId: String) : Screen()
+  data class BookingDetails(val bookingId: String, val returnTab: String = "bookings") : Screen()
   data class CrewRequestDetail(val bookingId: String) : Screen()
-  data class BookingChat(val bookingId: String) : Screen()
-  object CustomerSupport : Screen()
+  data class BookingChat(val bookingId: String, val returnTo: Screen? = null) : Screen()
+  data class CustomerSupport(val returnTo: Screen = Main("profile")) : Screen()
 }
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     SupabaseSession.initialize(applicationContext)
+    handleAuthDeepLink(intent)
     enableEdgeToEdge()
     setContent {
       FameGoTheme {
@@ -125,13 +133,130 @@ class MainActivity : ComponentActivity() {
       }
     }
   }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    handleAuthDeepLink(intent)
+  }
+
+  private fun handleAuthDeepLink(intent: Intent?) {
+    val uri: Uri = intent?.data ?: return
+    // Only claim our own callback; everything else falls through.
+    if (uri.scheme == "famego" && uri.host == "auth") {
+      AuthDeepLinkInbox.post(uri.toString())
+    }
+  }
+}
+
+/** Holds the latest email-confirmation link until the Compose tree consumes it. */
+object AuthDeepLinkInbox {
+  private val _link = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+  val link: kotlinx.coroutines.flow.StateFlow<String?> = _link
+
+  fun post(uri: String) { _link.value = uri }
+  fun consume() { _link.value = null }
+
+  fun splitParams(uriString: String): Pair<Map<String, String>, Map<String, String>> {
+    val uri = Uri.parse(uriString)
+    val query = mutableMapOf<String, String>()
+    uri.queryParameterNames?.forEach { name ->
+      uri.getQueryParameter(name)?.let { query[name] = it }
+    }
+    val fragment = mutableMapOf<String, String>()
+    uri.fragment?.split("&")?.forEach { pair ->
+      val idx = pair.indexOf('=')
+      if (idx > 0) {
+        val key = pair.substring(0, idx)
+        val value = pair.substring(idx + 1)
+        fragment[key] = value
+      }
+    }
+    // Supabase may nest the real params after the deep-link prefix.
+    val nested = query["redirect_to"].orEmpty().ifBlank { query["redirectTo"].orEmpty() }
+    if (nested.isNotBlank() && (query["token_hash"].isNullOrBlank() && fragment["access_token"].isNullOrBlank())) {
+      return splitParams(nested)
+    }
+    return query to fragment
+  }
 }
 
 @Composable
 fun FameGoApp() {
   var currentScreen by remember { mutableStateOf<Screen>(Screen.Splash) }
+  var screenHistory by remember { mutableStateOf(listOf<Screen>()) }
   val currentUser by FameGoRepository.currentUser.collectAsState()
   val notifications by FameGoRepository.notifications.collectAsState()
+  val pendingLink by AuthDeepLinkInbox.link.collectAsState()
+  var linkStatus by remember { mutableStateOf<String?>(null) }
+  val appScope = rememberCoroutineScope()
+
+  fun navigateTo(next: Screen, from: Screen = currentScreen) {
+    // Main tabs + auth roots reset history; detail screens push.
+    val resetsHistory = next is Screen.Welcome || next is Screen.Auth || next is Screen.Main ||
+      next is Screen.Splash
+    screenHistory = if (resetsHistory) emptyList()
+    else (screenHistory + from).takeLast(20)
+    currentScreen = next
+  }
+  fun goBack(fallback: Screen = Screen.Main("home")) {
+    val previous = screenHistory.lastOrNull()
+    if (previous != null) {
+      screenHistory = screenHistory.dropLast(1)
+      currentScreen = previous
+    } else {
+      currentScreen = fallback
+    }
+  }
+
+  // "Yes, it's me" — user tapped the email link, app opens and confirms automatically.
+  LaunchedEffect(pendingLink) {
+    val uriString = pendingLink ?: return@LaunchedEffect
+    AuthDeepLinkInbox.consume()
+    linkStatus = "Confirming your email…"
+    val (query, fragment) = AuthDeepLinkInbox.splitParams(uriString)
+    val result = SupabaseAuthClient.confirmEmailLink(query, fragment)
+    result.onSuccess { auth ->
+      // Pull profile so role/name resolve correctly, then drop the user home.
+      val raw = SupabaseRestClient.get("profiles?select=*&id=eq.${auth.id}").getOrNull()
+      val profile = raw?.let { runCatching { org.json.JSONArray(it).optJSONObject(0) }.getOrNull() }
+      val role = runCatching {
+        com.example.model.Role.valueOf(profile?.optString("role").orEmpty())
+      }.getOrDefault(com.example.model.Role.CLIENT)
+      val displayName = profile?.optString("full_name").orEmpty()
+        .ifBlank { auth.email.substringBefore('@').ifBlank { "User" } }
+      FameGoRepository.setCurrentUser(
+        com.example.model.User(
+          id = auth.id,
+          name = displayName,
+          email = auth.email,
+          phone = profile?.optString("phone").orEmpty(),
+          companyName = profile?.optString("company_name").orEmpty(),
+          role = role,
+          avatarInitials = displayName.split(" ").filter { it.isNotBlank() }.take(2)
+            .joinToString("") { it.first().uppercase() }.ifEmpty { "FG" }
+        )
+      )
+      linkStatus = null
+      screenHistory = emptyList()
+      currentScreen = Screen.Main("home")
+      linkStatus = "Email verified — welcome to FameGo. You can continue booking."
+      appScope.launch {
+        kotlinx.coroutines.delay(5000)
+        linkStatus = null
+      }
+    }.onFailure { e ->
+      linkStatus = e.message ?: "That link didn't work. Please sign in again."
+      // Surface the error on the auth screen so the user can retry.
+      if (currentScreen is Screen.Welcome || currentScreen is Screen.Splash) {
+        currentScreen = Screen.Auth(startInSignUp = false)
+      }
+      appScope.launch {
+        kotlinx.coroutines.delay(6000)
+        linkStatus = null
+      }
+    }
+  }
 
   // Handle Android system back button
   BackHandler(
@@ -142,14 +267,18 @@ fun FameGoApp() {
     when (val current = currentScreen) {
       is Screen.Welcome -> { /* exit or stay */ }
       is Screen.Auth -> currentScreen = Screen.Welcome
-      is Screen.ShootPlans -> currentScreen = Screen.Main("home")
+      is Screen.ShootPlans -> goBack(Screen.Main("home"))
       is Screen.BookAShoot -> currentScreen = Screen.ShootPlans(current.preselectedCategory)
       is Screen.Payment -> currentScreen = Screen.BookAShoot(current.booking.plan, current.booking.category)
-      is Screen.SearchingCrew -> currentScreen = Screen.Main("home")
-      is Screen.BookingDetails -> currentScreen = Screen.Main("bookings")
-      is Screen.CrewRequestDetail -> currentScreen = Screen.Main("home")
-      is Screen.BookingChat -> currentScreen = Screen.Main("home")
-      is Screen.CustomerSupport -> currentScreen = Screen.Main("home")
+      is Screen.SearchingCrew -> goBack(Screen.Main("home"))
+      is Screen.BookingDetails -> goBack(Screen.Main(current.returnTab))
+      is Screen.CrewRequestDetail -> goBack(Screen.Main("home"))
+      is Screen.BookingChat -> {
+        val dest = current.returnTo
+        if (dest != null) { screenHistory = screenHistory.dropLast(1); currentScreen = dest }
+        else goBack(Screen.Main("home"))
+      }
+      is Screen.CustomerSupport -> goBack(current.returnTo)
       is Screen.Main -> { /* handled by tab */ }
       Screen.Splash -> {}
     }
@@ -243,70 +372,80 @@ fun FameGoApp() {
                 if (currentUser.role == Role.CLIENT) {
                   when (tab) {
                   "home", "dashboard" -> ClientHomeScreen(
-                    onBookAShoot = { cat -> currentScreen = Screen.ShootPlans(cat) },
-                    onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
-                    onOpenLiveSearch = { id -> currentScreen = Screen.SearchingCrew(id) },
-                    onOpenChat = { id -> currentScreen = Screen.BookingChat(id) },
+                    onBookAShoot = { cat -> navigateTo(Screen.ShootPlans(cat)) },
+                    onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "home")) },
+                    onOpenLiveSearch = { id -> navigateTo(Screen.SearchingCrew(id)) },
+                    onOpenChat = { id -> navigateTo(Screen.BookingChat(id, Screen.Main(tab))) },
                     onViewAllBookings = { currentScreen = Screen.Main("bookings") }
                   )
                   "bookings" -> ClientBookingsScreen(
-                    onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
-                    onBookAgain = { cat -> currentScreen = Screen.ShootPlans(cat) },
-                    onNewBooking = { currentScreen = Screen.ShootPlans(null) }
+                    onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "bookings")) },
+                    onBookAgain = { cat -> navigateTo(Screen.ShootPlans(cat)) },
+                    onNewBooking = { navigateTo(Screen.ShootPlans(null)) }
                   )
                   "book" -> BookShootLaunchpadScreen(
-                    onStartBooking = { cat -> currentScreen = Screen.ShootPlans(cat) }
+                    onStartBooking = { cat -> navigateTo(Screen.ShootPlans(cat)) }
                   )
                   "notifications", "alerts" -> NotificationsScreen(
-                    onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) }
+                    onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "notifications")) }
                   )
                   "profile" -> ClientProfileScreen(
-                    onOpenSupport = { currentScreen = Screen.CustomerSupport },
+                    onOpenSupport = { navigateTo(Screen.CustomerSupport(Screen.Main("profile"))) },
                     onLogout = {
-                      SupabaseSession.clear()
+                      FameGoRepository.logout()
+                      screenHistory = emptyList()
                       currentScreen = Screen.Welcome
                     }
                   )
                   else -> ClientHomeScreen(
-                    onBookAShoot = { cat -> currentScreen = Screen.ShootPlans(cat) },
-                    onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
-                    onOpenLiveSearch = { id -> currentScreen = Screen.SearchingCrew(id) },
-                    onOpenChat = { id -> currentScreen = Screen.BookingChat(id) },
+                    onBookAShoot = { cat -> navigateTo(Screen.ShootPlans(cat)) },
+                    onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "home")) },
+                    onOpenLiveSearch = { id -> navigateTo(Screen.SearchingCrew(id)) },
+                    onOpenChat = { id -> navigateTo(Screen.BookingChat(id, Screen.Main(tab))) },
                     onViewAllBookings = { currentScreen = Screen.Main("bookings") }
                   )
                   }
                 } else if (currentUser.role == Role.CREW) {
                   when (tab) {
                     "home" -> CrewHomeScreen(
-                      onViewRequestDetail = { id -> currentScreen = Screen.CrewRequestDetail(id) },
-                      onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
-                      onOpenChat = { id -> currentScreen = Screen.BookingChat(id) }
+                      onViewRequestDetail = { id -> navigateTo(Screen.CrewRequestDetail(id)) },
+                      onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "home")) },
+                      onOpenChat = { id -> navigateTo(Screen.BookingChat(id, Screen.Main(tab))) }
                     )
-                    "bookings" -> CrewJobsScreen(onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) })
+                    "bookings" -> CrewJobsScreen(onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "bookings")) })
                     "profile" -> CrewProfileScreen(onSwitchRole = { })
+                    "notifications" -> NotificationsScreen(
+                      onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "notifications")) }
+                    )
                     else -> CrewHomeScreen(
-                      onViewRequestDetail = { id -> currentScreen = Screen.CrewRequestDetail(id) },
-                      onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
-                      onOpenChat = { id -> currentScreen = Screen.BookingChat(id) }
+                      onViewRequestDetail = { id -> navigateTo(Screen.CrewRequestDetail(id)) },
+                      onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "home")) },
+                      onOpenChat = { id -> navigateTo(Screen.BookingChat(id, Screen.Main(tab))) }
                     )
                   }
                 } else {
                   AdminDashboardScreen(
-                    onOpenBooking = { id -> currentScreen = Screen.BookingDetails(id) },
-                    onOpenSupport = { currentScreen = Screen.CustomerSupport }
+                    onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "home")) },
+                    onOpenSupport = { navigateTo(Screen.CustomerSupport(Screen.Main("home"))) }
                   )
                 }
               }
 
               // FameGo rotating wheel navigation (swipe left/right to switch tabs)
+              // Crew gets a compact dock so Jobs + Profile are reachable.
               if (currentUser.role == Role.CLIENT) FameGoWheelNavigation(
                 currentTab = screen.tab,
                 onNavigate = { destination ->
                   currentScreen = Screen.Main(tab = destination)
                 },
                 onOpenBookingFlow = {
-                  currentScreen = Screen.ShootPlans(null)
+                  navigateTo(Screen.ShootPlans(null))
                 },
+                modifier = Modifier.align(Alignment.BottomCenter)
+              )
+              if (currentUser.role == Role.CREW) com.example.ui.components.FlowDock(
+                currentRoute = screen.tab,
+                onNavigate = { destination -> currentScreen = Screen.Main(tab = destination) },
                 modifier = Modifier.align(Alignment.BottomCenter)
               )
             }
@@ -316,8 +455,8 @@ fun FameGoApp() {
         is Screen.ShootPlans -> {
           ShootPlanScreen(
             preselectedCategory = screen.preselectedCategory,
-            onContinue = { plan, category -> currentScreen = Screen.BookAShoot(plan, category) },
-            onBack = { currentScreen = Screen.Main("home") }
+            onContinue = { plan, category -> navigateTo(Screen.BookAShoot(plan, category)) },
+            onBack = { goBack(Screen.Main("home")) }
           )
         }
 
@@ -325,37 +464,37 @@ fun FameGoApp() {
           BookAShootScreen(
             plan = screen.plan,
             preselectedCategory = screen.preselectedCategory,
-            onBookingReadyForPayment = { booking -> currentScreen = Screen.Payment(booking) },
-            onCancel = { currentScreen = Screen.ShootPlans(screen.preselectedCategory) }
+            onBookingReadyForPayment = { booking -> navigateTo(Screen.Payment(booking)) },
+            onCancel = { goBack(Screen.ShootPlans(screen.preselectedCategory)) }
           )
         }
 
         is Screen.Payment -> {
           PaymentDemoScreen(
             booking = screen.booking,
-            onPaid = { bookingId -> currentScreen = Screen.SearchingCrew(bookingId) },
-            onBack = { currentScreen = Screen.BookAShoot(screen.booking.plan, screen.booking.category) }
+            onPaid = { bookingId -> navigateTo(Screen.SearchingCrew(bookingId)) },
+            onBack = { goBack(Screen.BookAShoot(screen.booking.plan, screen.booking.category)) }
           )
         }
 
         is Screen.SearchingCrew -> {
           SearchingCrewScreen(
             bookingId = screen.bookingId,
-            onConfirmed = { currentScreen = Screen.BookingDetails(screen.bookingId) },
-            onCancelSearch = { currentScreen = Screen.Main("home") },
-            onOpenChat = { bId -> currentScreen = Screen.BookingChat(bId) },
-            onOpenDetails = { bId -> currentScreen = Screen.BookingDetails(bId) }
+            onConfirmed = { navigateTo(Screen.BookingDetails(screen.bookingId, "home")) },
+            onCancelSearch = { goBack(Screen.Main("home")) },
+            onOpenChat = { bId -> navigateTo(Screen.BookingChat(bId, Screen.SearchingCrew(screen.bookingId))) },
+            onOpenDetails = { bId -> navigateTo(Screen.BookingDetails(bId, "home")) }
           )
         }
 
         is Screen.BookingDetails -> {
           BookingDetailsScreen(
             bookingId = screen.bookingId,
-            onBack = { currentScreen = Screen.Main("bookings") },
-            onOpenChat = { bId -> currentScreen = Screen.BookingChat(bId) },
-            onRebook = { cat -> currentScreen = Screen.ShootPlans(cat) },
-            onBookSameCrew = { booking -> currentScreen = Screen.Payment(booking) },
-            onContactSupport = { currentScreen = Screen.CustomerSupport }
+            onBack = { goBack(Screen.Main(screen.returnTab)) },
+            onOpenChat = { bId -> navigateTo(Screen.BookingChat(bId, Screen.BookingDetails(screen.bookingId, screen.returnTab))) },
+            onRebook = { cat -> navigateTo(Screen.ShootPlans(cat)) },
+            onBookSameCrew = { booking -> navigateTo(Screen.Payment(booking)) },
+            onContactSupport = { navigateTo(Screen.CustomerSupport(Screen.BookingDetails(screen.bookingId, screen.returnTab))) }
           )
         }
 
@@ -363,40 +502,74 @@ fun FameGoApp() {
           CrewRequestDetailScreen(
             requestId = screen.bookingId,
             onAccept = {
-              FameGoRepository.acceptShootRequest(
-                bookingId = screen.bookingId,
-                crewMember = com.example.model.AssignedCrewMember(
-                  crewId = "crew_1",
-                  name = "Aarav Mehta",
-                  role = com.example.model.CrewRoleType.CINEMATOGRAPHER,
-                  phone = "+91 98200 11223",
-                  gear = "Sony FX6 Cinema Line & Rig",
-                  rating = 4.95,
-                  isVerified = true
+              val me = currentUser
+              val profile = FameGoRepository.crewProfiles.value.firstOrNull { it.userId == me.id }
+              val crewMember = if (profile != null) {
+                com.example.model.AssignedCrewMember(
+                  crewId = profile.id,
+                  name = profile.fullName.ifBlank { me.name.ifBlank { "FameGo Crew" } },
+                  role = profile.primaryRole,
+                  phone = profile.phone.ifBlank { me.phone },
+                  gear = profile.gearSummary.ifBlank { profile.primaryRole.gearDescription },
+                  rating = profile.rating,
+                  isVerified = profile.verificationStatus == com.example.model.VerificationStatus.VERIFIED
                 )
-              )
-              currentScreen = Screen.BookingDetails(screen.bookingId)
+              } else {
+                com.example.model.AssignedCrewMember(
+                  crewId = me.id.ifBlank { "crew_${System.currentTimeMillis()}" },
+                  name = me.name.ifBlank { "FameGo Crew" },
+                  role = com.example.model.CrewRoleType.CINEMATOGRAPHER,
+                  phone = me.phone,
+                  gear = com.example.model.CrewRoleType.CINEMATOGRAPHER.gearDescription,
+                  rating = 4.9,
+                  isVerified = false
+                )
+              }
+              FameGoRepository.acceptShootRequest(bookingId = screen.bookingId, crewMember = crewMember)
+              navigateTo(Screen.BookingDetails(screen.bookingId, "home"))
             },
             onDecline = {
               FameGoRepository.declineShootRequest(screen.bookingId)
-              currentScreen = Screen.Main("home")
+              goBack(Screen.Main("home"))
             },
-            onBack = { currentScreen = Screen.Main("home") }
+            onBack = { goBack(Screen.Main("home")) }
           )
         }
 
         is Screen.BookingChat -> {
           BookingChatScreen(
             bookingId = screen.bookingId,
-            onBack = { currentScreen = Screen.Main("home") }
+            onBack = {
+              val dest = screen.returnTo
+              if (dest != null) { screenHistory = screenHistory.dropLast(1); currentScreen = dest }
+              else goBack(Screen.Main("home"))
+            }
           )
         }
 
         is Screen.CustomerSupport -> {
           CustomerSupportScreen(
-            onBack = { currentScreen = Screen.Main("home") }
+            onBack = { goBack(screen.returnTo) }
           )
         }
+      }
+    }
+    // Email-link status pill ("Confirming your email…" / errors).
+    linkStatus?.let { status ->
+      Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xFF1E1A10).copy(alpha = 0.96f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, FameGoGold.copy(alpha = 0.5f)),
+        shadowElevation = 8.dp,
+        modifier = Modifier.align(Alignment.TopCenter).padding(top = 48.dp).padding(horizontal = 24.dp)
+      ) {
+        Text(
+          text = status,
+          color = FameGoWhite,
+          fontSize = 12.sp,
+          fontWeight = FontWeight.Medium,
+          modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+        )
       }
     }
   }

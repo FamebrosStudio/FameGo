@@ -280,9 +280,9 @@ fun CustomerSupportScreen(
               text = "Send message",
               onClick = {
                 if (disputeText.isNotBlank()) {
-                  com.example.data.FameGoRepository.submitSupportMessage("[$disputeReason] $disputeText")
+                  val ok = com.example.data.FameGoRepository.submitSupportMessage("[$disputeReason] ${disputeText.trim()}")
+                  if (ok) isSubmitted = true
                 }
-                isSubmitted = true
               },
               icon = Icons.AutoMirrored.Filled.Send,
               modifier = Modifier.fillMaxWidth(),
