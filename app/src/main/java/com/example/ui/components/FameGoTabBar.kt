@@ -96,10 +96,10 @@ fun fameGoClientTabs() = listOf(
 )
 
 fun fameGoCrewTabs() = listOf(
-  FameGoTab("home", "Home", Icons.Outlined.Home, Icons.Filled.Home, testTag = "tab_home"),
+  FameGoTab("requests", "Requests", Icons.Outlined.ConfirmationNumber, Icons.Filled.ConfirmationNumber, testTag = "tab_requests"),
   FameGoTab(
     "bookings", "Shoots",
-    Icons.Outlined.ConfirmationNumber, Icons.Filled.ConfirmationNumber,
+    Icons.Outlined.Home, Icons.Filled.Home,
     testTag = "tab_bookings"
   ),
   FameGoTab(
@@ -110,6 +110,25 @@ fun fameGoCrewTabs() = listOf(
   FameGoTab(
     "profile", "Profile",
     Icons.Outlined.Person, Icons.Filled.Person,
+    testTag = "tab_profile"
+  )
+)
+
+fun fameGoAdminTabs() = listOf(
+  FameGoTab("dashboard", "Dashboard", Icons.Outlined.Home, Icons.Filled.Home, testTag = "tab_dashboard"),
+  FameGoTab(
+    "users", "People",
+    Icons.Outlined.Person, Icons.Filled.Person,
+    testTag = "tab_users"
+  ),
+  FameGoTab(
+    "notifications", "Alerts",
+    Icons.Outlined.Notifications, Icons.Filled.Notifications,
+    testTag = "tab_notifications"
+  ),
+  FameGoTab(
+    "profile", "Profile",
+    Icons.Outlined.Person, Icons.Outlined.Person,
     testTag = "tab_profile"
   )
 )

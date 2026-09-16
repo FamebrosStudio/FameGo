@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -34,19 +36,24 @@ import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -58,8 +65,10 @@ import com.example.model.BookingStatus
 import com.example.model.CrewRoleType
 import com.example.ui.components.FlowPill
 import com.example.ui.components.FlowPillState
+import com.example.ui.components.FameGoHaptics
 import com.example.ui.components.GestureRequestCard
 import com.example.ui.components.LiveOrb
+import com.example.ui.components.rubberBand
 import com.example.ui.components.SoftCard
 import com.example.ui.components.StatusCapsule
 import com.example.ui.components.swipeToGoBack
@@ -78,158 +87,130 @@ import com.example.ui.theme.FameGoTextMuted
 import com.example.ui.theme.FameGoTextPrimary
 import com.example.ui.theme.FameGoTextSecondary
 import com.example.ui.theme.FameGoWhite
+import kotlinx.coroutines.launch
 
 // =============================================================================
-// 15 & 16. CREW HOME SCREEN (Ultra-clean, Status Capsule & Priority Request)
+// CREW REQUESTS TAB — the shooter's inbox. Duty pill on top, every open
+// paid request below with Accept / Decline. Pull down to refresh.
 // =============================================================================
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CrewHomeScreen(
+fun CrewRequestsScreen(
   onViewRequestDetail: (String) -> Unit,
-  onOpenBooking: (String) -> Unit,
-  onOpenChat: (String) -> Unit,
   modifier: Modifier = Modifier
 ) {
   val isAvailable by FameGoRepository.isCrewAvailable.collectAsState()
   val incomingRequests by FameGoRepository.incomingShootRequests.collectAsState()
-  val bookings by FameGoRepository.bookings.collectAsState()
-
-  // Find active shoot for this crew
-  val activeShoot = bookings.firstOrNull {
-    it.status == BookingStatus.IN_PROGRESS || it.status == BookingStatus.CONFIRMED
-  }
-
-  val scrollState = rememberScrollState()
+  var isRefreshing by remember { mutableStateOf(false) }
+  val scope = rememberCoroutineScope()
+  val haptic = LocalHapticFeedback.current
 
   Box(
     modifier = modifier
       .fillMaxSize()
       .background(Color.Transparent)
   ) {
-    Column(
-      modifier = Modifier
-        .fillMaxSize()
-        .verticalScroll(scrollState)
-        .padding(horizontal = 20.dp)
+    PullToRefreshBox(
+      isRefreshing = isRefreshing,
+      onRefresh = {
+        isRefreshing = true
+        scope.launch {
+          FameGoRepository.refreshNow()
+          isRefreshing = false
+        }
+      },
+      modifier = Modifier.fillMaxSize()
     ) {
-      Spacer(modifier = Modifier.height(16.dp))
-
-      // Top: Availability capsule & Crew greeting
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+      LazyColumn(
+        modifier = Modifier
+          .fillMaxSize()
+          .rubberBand()
+          .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
       ) {
-        Column {
-          Text(
-            text = "Ready for your next production",
-            color = FameGoTextSecondary,
-            fontSize = 14.sp
-          )
-          Text(
-            text = "Cinematographer",
-            color = FameGoWhite,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold
-          )
-        }
-
-        // Interactive Status Capsule (OFF DUTY <-> READY FOR SHOOTS)
-        StatusCapsule(
-          isAvailable = isAvailable,
-          onToggle = { FameGoRepository.toggleCrewAvailability() }
-        )
-      }
-
-      Text(
-        text = "You will get notified when clients near you need crew.",
-        color = FameGoTextMuted,
-        fontSize = 12.sp,
-        modifier = Modifier.padding(top = 6.dp)
-      )
-
-      Spacer(modifier = Modifier.height(24.dp))
-
-      // 16. CREW NEW REQUEST (Floating Priority Card)
-      if (incomingRequests.isNotEmpty()) {
-        val priorityRequest = incomingRequests.first()
-        Text(
-          text = "New shoot request",
-          color = FameGoWhite,
-          fontSize = 16.sp,
-          fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-
-        GestureRequestCard(
-          title = priorityRequest.title,
-          subtitle = "${priorityRequest.location.venueName}, ${priorityRequest.location.address.substringBefore(",")}",
-          timeText = "${priorityRequest.date} • ${priorityRequest.time}",
-          requestedRole = "Cinematographer (Sony FX3)",
-          payoutText = "₹${priorityRequest.estimatedBudget}",
-          onAccept = { onViewRequestDetail(priorityRequest.id) },
-          onDecline = {
-            FameGoRepository.declineShootRequest(priorityRequest.id)
-          }
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-      }
-
-      // 17. CREW JOB TIMELINE / ACTIVE SHOOT CARD
-      if (activeShoot != null) {
-        Text(
-          text = "Active shoot",
-          color = FameGoWhite,
-          fontSize = 16.sp,
-          fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-
-        CrewEvolvingJobCard(
-          booking = activeShoot,
-          onOpenBooking = { onOpenBooking(activeShoot.id) },
-          onOpenChat = { onOpenChat(activeShoot.id) },
-          onAdvanceStatus = { nextStatus ->
-            FameGoRepository.updateBookingStatus(activeShoot.id, nextStatus)
-          }
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-      }
-
-      // If nothing scheduled
-      if (incomingRequests.isEmpty() && activeShoot == null) {
-        Spacer(modifier = Modifier.height(40.dp))
-        Column(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-          LiveOrb(
-            color = if (isAvailable) FameGoSuccessGreen else FameGoTextMuted,
-            size = 12.dp
-          )
+        item {
           Spacer(modifier = Modifier.height(16.dp))
-          Text(
-            text = "No shoot requests right now",
-            color = FameGoWhite,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold
-          )
-          Text(
-            text = if (isAvailable)
-              "We'll notify you when shoots open up nearby."
-            else
-              "Tap the capsule above to make yourself discoverable to producers.",
-            color = FameGoTextMuted,
-            fontSize = 13.sp,
-            modifier = Modifier.padding(top = 4.dp, start = 20.dp, end = 20.dp)
-          )
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                text = "Shoot requests",
+                color = FameGoWhite,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = (-0.5).sp
+              )
+              Text(
+                text = if (incomingRequests.isEmpty()) "New paid shoots land here"
+                else "${incomingRequests.size} waiting for a crew",
+                color = FameGoTextMuted,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 2.dp)
+              )
+            }
+            StatusCapsule(
+              isAvailable = isAvailable,
+              onToggle = { FameGoRepository.toggleCrewAvailability() }
+            )
+          }
+          Spacer(modifier = Modifier.height(6.dp))
+        }
+
+        if (incomingRequests.isEmpty()) {
+          item {
+            Column(
+              modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 48.dp),
+              horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+              LiveOrb(
+                color = if (isAvailable) FameGoSuccessGreen else FameGoTextMuted,
+                size = 12.dp
+              )
+              Spacer(modifier = Modifier.height(16.dp))
+              Text(
+                text = "No shoot requests right now",
+                color = FameGoWhite,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold
+              )
+              Text(
+                text = if (isAvailable)
+                  "Stay on duty — paid requests pop up fullscreen."
+                else
+                  "Go on duty with the capsule above to receive requests.",
+                color = FameGoTextMuted,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 4.dp, start = 20.dp, end = 20.dp)
+              )
+            }
+          }
+        } else {
+          items(incomingRequests, key = { it.id }) { request ->
+            GestureRequestCard(
+              title = request.title,
+              subtitle = "${request.location.venueName}, ${request.location.address.substringBefore(",")}",
+              timeText = "${request.date} • ${request.time}",
+              requestedRole = request.requiredCrew.firstOrNull()?.role?.title ?: "Crew call sheet",
+              payoutText = "₹${request.estimatedBudget}",
+              onAccept = { onViewRequestDetail(request.id) },
+              onDecline = {
+                FameGoHaptics.micro(haptic)
+                FameGoRepository.declineShootRequest(request.id)
+              }
+            )
+          }
+        }
+
+        item {
+          Spacer(modifier = Modifier.height(110.dp))
         }
       }
-
-      // Generous bottom spacing
-      Spacer(modifier = Modifier.height(110.dp))
     }
   }
 }

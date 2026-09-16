@@ -71,17 +71,14 @@ import kotlinx.coroutines.launch
 fun AdminDashboardScreen(
   onOpenBooking: (String) -> Unit,
   onOpenSupport: () -> Unit,
-  onLogout: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   val bookings by FameGoRepository.bookings.collectAsState()
   val crewProfiles by FameGoRepository.crewProfiles.collectAsState()
-  val crewApplications by FameGoRepository.crewApplications.collectAsState()
 
   val activeSearches = bookings.filter { it.status == BookingStatus.SEARCHING_CREW }
   val activeShoots = bookings.filter { it.status == BookingStatus.IN_PROGRESS || it.status == BookingStatus.CONFIRMED }
   val availableCrewCount = crewProfiles.count { it.isAvailable }
-  val pendingApplications = crewApplications.filter { it.status == CrewApplicationStatus.UNDER_REVIEW }
 
   val scrollState = rememberScrollState()
 
@@ -257,162 +254,6 @@ fun AdminDashboardScreen(
         Spacer(modifier = Modifier.height(24.dp))
       }
 
-      // Section 1b: Crew applications — new forms ping the admin inbox.
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Text(
-          text = "Crew applications",
-          color = FameGoWhite,
-          fontSize = 16.sp,
-          fontWeight = FontWeight.Bold
-        )
-        if (pendingApplications.isNotEmpty()) {
-          Box(
-            modifier = Modifier
-              .clip(CircleShape)
-              .background(FameGoGold)
-              .padding(horizontal = 10.dp, vertical = 3.dp),
-            contentAlignment = Alignment.Center
-          ) {
-            Text(
-              text = "${pendingApplications.size} new",
-              color = FameGoBg,
-              fontSize = 11.sp,
-              fontWeight = FontWeight.Bold
-            )
-          }
-        }
-      }
-      Spacer(modifier = Modifier.height(10.dp))
-
-      if (pendingApplications.isEmpty()) {
-        SoftCard {
-          Text(
-            text = "No applications under review. New crew forms appear here instantly.",
-            color = FameGoTextMuted,
-            fontSize = 13.sp,
-            modifier = Modifier.padding(16.dp)
-          )
-        }
-      } else {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-          pendingApplications.forEach { app ->
-            SoftCard(
-              isElevated = true,
-              testTag = "admin_application_${app.id}"
-            ) {
-              Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                  modifier = Modifier.fillMaxWidth(),
-                  horizontalArrangement = Arrangement.SpaceBetween,
-                  verticalAlignment = Alignment.CenterVertically
-                ) {
-                  Row(verticalAlignment = Alignment.CenterVertically) {
-                    LiveOrb(color = FameGoGold, size = 7.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                      text = "Under review",
-                      color = FameGoGold,
-                      fontSize = 12.sp,
-                      fontWeight = FontWeight.SemiBold
-                    )
-                  }
-                  Text(
-                    text = "${app.experienceYears} yrs",
-                    color = FameGoTextMuted,
-                    fontSize = 11.sp
-                  )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(text = app.fullName.ifBlank { "Unnamed" }, color = FameGoWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text(
-                  text = "${app.city} • ${app.iphoneModel}",
-                  color = FameGoTextSecondary,
-                  fontSize = 12.sp,
-                  modifier = Modifier.padding(top = 2.dp)
-                )
-                Text(
-                  text = "${app.phone} • ${app.email}",
-                  color = FameGoTextMuted,
-                  fontSize = 12.sp,
-                  modifier = Modifier.padding(top = 2.dp)
-                )
-                if (app.portfolioUrl.isNotBlank()) {
-                  Text(
-                    text = "Work: ${app.portfolioUrl}",
-                    color = FameGoGold,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 2.dp)
-                  )
-                }
-                if (app.instagramHandle.isNotBlank()) {
-                  Text(
-                    text = "IG: ${app.instagramHandle}",
-                    color = FameGoTextMuted,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 2.dp)
-                  )
-                }
-                if (app.bestShoot.isNotBlank()) {
-                  Text(
-                    text = "Best: ${app.bestShoot}",
-                    color = FameGoTextSecondary,
-                    fontSize = 12.sp,
-                    lineHeight = 17.sp,
-                    modifier = Modifier.padding(top = 6.dp)
-                  )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                  modifier = Modifier.fillMaxWidth(),
-                  horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                  Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = FameGoSuccessGreen,
-                    modifier = Modifier
-                      .weight(1f)
-                      .clickable { FameGoRepository.reviewCrewApplication(app.id, approve = true) }
-                      .testTag("admin_approve_${app.id}")
-                  ) {
-                    Box(modifier = Modifier.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
-                      Text(text = "Approve", color = FameGoBg, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
-                  }
-                  Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = FameGoCardElevated,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, FameGoLiveRed.copy(alpha = 0.5f)),
-                    modifier = Modifier
-                      .weight(1f)
-                      .clickable { FameGoRepository.reviewCrewApplication(app.id, approve = false) }
-                      .testTag("admin_reject_${app.id}")
-                  ) {
-                    Box(modifier = Modifier.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
-                      Text(text = "Reject", color = FameGoLiveRed, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-
-      Spacer(modifier = Modifier.height(24.dp))
-
-      // Section 1c: Users — search by name, switch roles in place.
-      AdminUsersSection()
-
-      Spacer(modifier = Modifier.height(24.dp))
-
       // Section 2: Recent bookings
       Text(
         text = "Recent bookings",
@@ -487,7 +328,301 @@ fun AdminDashboardScreen(
 
       Spacer(modifier = Modifier.height(24.dp))
 
-      // Sign out — asks for confirmation in MainActivity.
+      Spacer(modifier = Modifier.height(110.dp))
+    }
+  }
+}
+
+// =============================================================================
+// PEOPLE TAB — crew applications to review + every user with role switching.
+// =============================================================================
+
+@Composable
+private fun AdminApplicationCard(
+  app: com.example.model.CrewApplication,
+  modifier: Modifier = Modifier
+) {
+  SoftCard(
+    isElevated = true,
+    testTag = "admin_application_${app.id}",
+    modifier = modifier
+  ) {
+    Column(modifier = Modifier.padding(16.dp)) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          LiveOrb(color = FameGoGold, size = 7.dp)
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(
+            text = "Under review",
+            color = FameGoGold,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
+          )
+        }
+        Text(
+          text = "${app.experienceYears} yrs",
+          color = FameGoTextMuted,
+          fontSize = 11.sp
+        )
+      }
+
+      Spacer(modifier = Modifier.height(8.dp))
+
+      Text(text = app.fullName.ifBlank { "Unnamed" }, color = FameGoWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+      Text(
+        text = "${app.city} • ${app.iphoneModel}",
+        color = FameGoTextSecondary,
+        fontSize = 12.sp,
+        modifier = Modifier.padding(top = 2.dp)
+      )
+      Text(
+        text = "${app.phone} • ${app.email}",
+        color = FameGoTextMuted,
+        fontSize = 12.sp,
+        modifier = Modifier.padding(top = 2.dp)
+      )
+      if (app.portfolioUrl.isNotBlank()) {
+        Text(
+          text = "Work: ${app.portfolioUrl}",
+          color = FameGoGold,
+          fontSize = 12.sp,
+          modifier = Modifier.padding(top = 2.dp)
+        )
+      }
+      if (app.instagramHandle.isNotBlank()) {
+        Text(
+          text = "IG: ${app.instagramHandle}",
+          color = FameGoTextMuted,
+          fontSize = 12.sp,
+          modifier = Modifier.padding(top = 2.dp)
+        )
+      }
+      if (app.bestShoot.isNotBlank()) {
+        Text(
+          text = "Best: ${app.bestShoot}",
+          color = FameGoTextSecondary,
+          fontSize = 12.sp,
+          lineHeight = 17.sp,
+          modifier = Modifier.padding(top = 6.dp)
+        )
+      }
+
+      Spacer(modifier = Modifier.height(12.dp))
+
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+      ) {
+        com.example.ui.components.FameGoPressable(
+          onClick = { FameGoRepository.reviewCrewApplication(app.id, approve = true) },
+          shape = RoundedCornerShape(12.dp),
+          color = FameGoSuccessGreen,
+          modifier = Modifier.weight(1f),
+          testTag = "admin_approve_${app.id}"
+        ) {
+          Text(
+            text = "Approve",
+            color = FameGoBg,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(vertical = 10.dp)
+          )
+        }
+        com.example.ui.components.FameGoPressable(
+          onClick = { FameGoRepository.reviewCrewApplication(app.id, approve = false) },
+          shape = RoundedCornerShape(12.dp),
+          color = FameGoCardElevated,
+          border = androidx.compose.foundation.BorderStroke(1.dp, FameGoLiveRed.copy(alpha = 0.5f)),
+          modifier = Modifier.weight(1f),
+          testTag = "admin_reject_${app.id}"
+        ) {
+          Text(
+            text = "Reject",
+            color = FameGoLiveRed,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(vertical = 10.dp)
+          )
+        }
+      }
+    }
+  }
+}
+
+@Composable
+fun AdminPeopleScreen(modifier: Modifier = Modifier) {
+  val crewApplications by FameGoRepository.crewApplications.collectAsState()
+  val pendingApplications = crewApplications.filter { it.status == CrewApplicationStatus.UNDER_REVIEW }
+  val scrollState = rememberScrollState()
+
+  LaunchedEffect(Unit) { FameGoRepository.loadAllUsers() }
+
+  Box(
+    modifier = modifier
+      .fillMaxSize()
+      .background(Color.Transparent)
+  ) {
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .verticalScroll(scrollState)
+        .padding(horizontal = 20.dp)
+        .fameGoRise()
+    ) {
+      Spacer(modifier = Modifier.height(16.dp))
+
+      Text(
+        text = "People",
+        color = FameGoWhite,
+        fontSize = 24.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = (-0.5).sp
+      )
+      Text(
+        text = "Applications and user roles",
+        color = FameGoTextMuted,
+        fontSize = 13.sp,
+        modifier = Modifier.padding(top = 2.dp, bottom = 20.dp)
+      )
+
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Text(
+          text = "Crew applications",
+          color = FameGoWhite,
+          fontSize = 16.sp,
+          fontWeight = FontWeight.Bold
+        )
+        if (pendingApplications.isNotEmpty()) {
+          Box(
+            modifier = Modifier
+              .clip(CircleShape)
+              .background(FameGoGold)
+              .padding(horizontal = 10.dp, vertical = 3.dp),
+            contentAlignment = Alignment.Center
+          ) {
+            Text(
+              text = "${pendingApplications.size} new",
+              color = FameGoBg,
+              fontSize = 11.sp,
+              fontWeight = FontWeight.Bold
+            )
+          }
+        }
+      }
+      Spacer(modifier = Modifier.height(10.dp))
+
+      if (pendingApplications.isEmpty()) {
+        SoftCard {
+          Text(
+            text = "No applications under review. New crew forms appear here instantly.",
+            color = FameGoTextMuted,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(16.dp)
+          )
+        }
+      } else {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+          pendingApplications.forEach { app ->
+            AdminApplicationCard(app = app)
+          }
+        }
+      }
+
+      Spacer(modifier = Modifier.height(24.dp))
+
+      AdminUsersSection()
+
+      Spacer(modifier = Modifier.height(110.dp))
+    }
+  }
+}
+
+// =============================================================================
+// ADMIN PROFILE TAB — studio identity, sign out, credits.
+// =============================================================================
+
+@Composable
+fun AdminProfileScreen(
+  onLogout: () -> Unit,
+  modifier: Modifier = Modifier
+) {
+  val currentUser by FameGoRepository.currentUser.collectAsState()
+  val scrollState = rememberScrollState()
+
+  Box(
+    modifier = modifier
+      .fillMaxSize()
+      .background(Color.Transparent)
+  ) {
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .verticalScroll(scrollState)
+        .padding(horizontal = 20.dp)
+        .fameGoRise()
+    ) {
+      Spacer(modifier = Modifier.height(16.dp))
+
+      Text(
+        text = "Studio Admin",
+        color = FameGoWhite,
+        fontSize = 22.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = (-0.5).sp
+      )
+
+      Spacer(modifier = Modifier.height(20.dp))
+
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+      ) {
+        Box(
+          modifier = Modifier
+            .size(60.dp)
+            .clip(CircleShape)
+            .background(FameGoCard)
+            .border(1.5.dp, FameGoGold.copy(alpha = 0.6f), CircleShape),
+          contentAlignment = Alignment.Center
+        ) {
+          Text(
+            text = currentUser.avatarInitials.ifBlank { "AD" },
+            color = FameGoGold,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold
+          )
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+          Text(
+            text = currentUser.name.ifBlank { "Studio Admin" },
+            color = FameGoWhite,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold
+          )
+          Text(
+            text = currentUser.email.ifBlank { "Famebros Studio" },
+            color = FameGoTextSecondary,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(top = 2.dp)
+          )
+        }
+      }
+
+      Spacer(modifier = Modifier.height(20.dp))
+
+      com.example.ui.components.CreditsCard()
+
+      Spacer(modifier = Modifier.height(20.dp))
+
       Surface(
         shape = RoundedCornerShape(16.dp),
         color = FameGoCard,

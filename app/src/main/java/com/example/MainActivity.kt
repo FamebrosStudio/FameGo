@@ -93,8 +93,11 @@ import com.example.ui.components.swipeToSwitchTabs
 import com.example.ui.components.FameGoButton
 import com.example.ui.components.fameGoClientTabs
 import com.example.ui.components.fameGoCrewTabs
+import com.example.ui.components.fameGoAdminTabs
 import com.example.ui.components.FameGoAmbientBackground
 import com.example.ui.screens.AdminDashboardScreen
+import com.example.ui.screens.AdminPeopleScreen
+import com.example.ui.screens.AdminProfileScreen
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.BookAShootScreen
 import com.example.ui.screens.BookShootLaunchpadScreen
@@ -106,9 +109,9 @@ import com.example.ui.screens.BookingDetailsScreen
 import com.example.ui.screens.ClientBookingsScreen
 import com.example.ui.screens.ClientHomeScreen
 import com.example.ui.screens.ClientProfileScreen
-import com.example.ui.screens.CrewHomeScreen
 import com.example.ui.screens.CrewJobsScreen
 import com.example.ui.screens.CrewProfileScreen
+import com.example.ui.screens.CrewRequestsScreen
 import com.example.ui.screens.CrewRequestDetailScreen
 import com.example.ui.screens.CustomerSupportScreen
 import com.example.ui.screens.NotificationsScreen
@@ -410,7 +413,7 @@ fun FameGoApp() {
       is Screen.PaymentSuccess -> goBack(Screen.Main("home"))
       is Screen.SearchingCrew -> goBack(Screen.Main("home"))
       is Screen.BookingDetails -> goBack(Screen.Main(current.returnTab))
-      is Screen.CrewRequestDetail -> goBack(Screen.Main("home"))
+      is Screen.CrewRequestDetail -> goBack(Screen.Main("requests"))
       is Screen.BookingChat -> {
         val dest = current.returnTo
         if (dest != null) { screenHistory = screenHistory.dropLast(1); currentScreen = dest }
@@ -475,20 +478,23 @@ fun FameGoApp() {
                   .fillMaxSize()
                 .padding(top = innerPadding.calculateTopPadding())
             ) {
-              // Keep back navigation synchronized with the current app screen.
-              BackHandler(enabled = screen.tab != "home" && screen.tab != "dashboard") {
-                navigateTo(Screen.Main("home"))
+              // Role home: first tab of each shell. System back on any other
+              // tab returns here.
+              val tabOrder = when (currentUser.role) {
+                Role.CLIENT -> listOf("home", "bookings", "book", "notifications", "profile")
+                Role.CREW -> listOf("requests", "bookings", "notifications", "profile")
+                Role.ADMIN -> listOf("dashboard", "users", "notifications", "profile")
+              }
+              fun roleHome(): Screen = Screen.Main(tabOrder.first())
+              BackHandler(enabled = screen.tab != tabOrder.first()) {
+                navigateTo(roleHome())
               }
 
-              val clientTabOrder = listOf("home", "bookings", "book", "notifications", "profile")
               // Swipe anywhere on the tab content to move between tabs.
-              val swipeOrder = if (currentUser.role == Role.CREW)
-                listOf("home", "bookings", "notifications", "profile")
-              else clientTabOrder
               fun stepTab(delta: Int) {
-                val idx = swipeOrder.indexOf(screen.tab).let { if (it == -1) 0 else it }
-                val next = (idx + delta).coerceIn(0, swipeOrder.lastIndex)
-                if (next != idx) navigateTo(Screen.Main(tab = swipeOrder[next]))
+                val idx = tabOrder.indexOf(screen.tab).let { if (it == -1) 0 else it }
+                val next = (idx + delta).coerceIn(0, tabOrder.lastIndex)
+                if (next != idx) navigateTo(Screen.Main(tab = tabOrder[next]))
               }
 
               AnimatedContent(
@@ -501,8 +507,8 @@ fun FameGoApp() {
                     onSwipeRight = { stepTab(-1) }
                   ),
                 transitionSpec = {
-                  val initialIdx = clientTabOrder.indexOf(initialState).let { if (it == -1) 0 else it }
-                  val targetIdx = clientTabOrder.indexOf(targetState).let { if (it == -1) 0 else it }
+                  val initialIdx = tabOrder.indexOf(initialState).let { if (it == -1) 0 else it }
+                  val targetIdx = tabOrder.indexOf(targetState).let { if (it == -1) 0 else it }
                   val direction = if (targetIdx >= initialIdx) 1 else -1
                   (slideInHorizontally(
                     animationSpec = tween(280, easing = FastOutSlowInEasing)
@@ -553,34 +559,42 @@ fun FameGoApp() {
                   )
                   }
                 } else if (currentUser.role == Role.CREW) {
+                  // Crew shell: Requests inbox, assigned Shoots, Alerts, Profile.
+                  // No booking-creation flows anywhere in this shell.
                   when (tab) {
-                    "home" -> CrewHomeScreen(
-                      onViewRequestDetail = { id -> navigateTo(Screen.CrewRequestDetail(id)) },
-                      onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "home")) },
-                      onOpenChat = { id -> navigateTo(Screen.BookingChat(id, Screen.Main(tab))) }
+                    "requests" -> CrewRequestsScreen(
+                      onViewRequestDetail = { id -> navigateTo(Screen.CrewRequestDetail(id)) }
                     )
                     "bookings" -> CrewJobsScreen(onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "bookings")) })
                     "profile" -> CrewProfileScreen(onLogout = { showSignOutDialog = true })
                     "notifications" -> NotificationsScreen(
                       onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "notifications")) }
                     )
-                    else -> CrewHomeScreen(
-                      onViewRequestDetail = { id -> navigateTo(Screen.CrewRequestDetail(id)) },
-                      onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "home")) },
-                      onOpenChat = { id -> navigateTo(Screen.BookingChat(id, Screen.Main(tab))) }
+                    else -> CrewRequestsScreen(
+                      onViewRequestDetail = { id -> navigateTo(Screen.CrewRequestDetail(id)) }
                     )
                   }
                 } else {
-                  AdminDashboardScreen(
-                    onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "home")) },
-                    onOpenSupport = { navigateTo(Screen.CustomerSupport(Screen.Main("home"))) },
-                    onLogout = { showSignOutDialog = true }
-                  )
+                  // Admin shell: live overview, people management, alerts, profile.
+                  when (tab) {
+                    "dashboard" -> AdminDashboardScreen(
+                      onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "dashboard")) },
+                      onOpenSupport = { navigateTo(Screen.CustomerSupport(Screen.Main("dashboard"))) }
+                    )
+                    "users" -> AdminPeopleScreen()
+                    "notifications" -> NotificationsScreen(
+                      onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "notifications")) }
+                    )
+                    "profile" -> AdminProfileScreen(onLogout = { showSignOutDialog = true })
+                    else -> AdminDashboardScreen(
+                      onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "dashboard")) },
+                      onOpenSupport = { navigateTo(Screen.CustomerSupport(Screen.Main("dashboard"))) }
+                    )
+                  }
                 }
               }
 
-              // Minimal bottom tab bar (Home / Bookings / Book / Alerts / Profile).
-              // Crew gets the same bar with a Jobs tab instead of Book.
+              // Bottom tab bar per role shell.
               if (currentUser.role == Role.CLIENT) FameGoTabBar(
                 tabs = fameGoClientTabs(),
                 selectedRoute = screen.tab,
@@ -589,6 +603,12 @@ fun FameGoApp() {
               )
               if (currentUser.role == Role.CREW) FameGoTabBar(
                 tabs = fameGoCrewTabs(),
+                selectedRoute = screen.tab,
+                onSelect = { destination -> navigateTo(Screen.Main(tab = destination)) },
+                modifier = Modifier.align(Alignment.BottomCenter)
+              )
+              if (currentUser.role == Role.ADMIN) FameGoTabBar(
+                tabs = fameGoAdminTabs(),
                 selectedRoute = screen.tab,
                 onSelect = { destination -> navigateTo(Screen.Main(tab = destination)) },
                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -702,14 +722,14 @@ fun FameGoApp() {
                 )
               }
               FameGoRepository.acceptShootRequest(bookingId = screen.bookingId, crewMember = crewMember)
-              navigateTo(Screen.BookingDetails(screen.bookingId, "home"))
+              navigateTo(Screen.BookingDetails(screen.bookingId, "requests"))
             },
             onDecline = {
               FameGoHaptics.micro(appHaptic)
               FameGoRepository.declineShootRequest(screen.bookingId)
-              goBack(Screen.Main("home"))
+              goBack(Screen.Main("requests"))
             },
-            onBack = { goBack(Screen.Main("home")) }
+            onBack = { goBack(Screen.Main("requests")) }
           )
         }
 
