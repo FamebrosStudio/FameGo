@@ -24,13 +24,15 @@ object MapTilerGeocoding {
   suspend fun suggest(query: String, limit: Int = 6): Result<List<MapPlace>> =
     withContext(Dispatchers.IO) {
       if (query.trim().length < 3) return@withContext Result.success(emptyList())
-      // 1. MapTiler (fast, needs a valid key).
+      // 1. Free OpenStreetMap Nominatim first (no key, always available).
+      val osm = runCatching { queryNominatim(query.trim(), limit) }.getOrNull()
+      if (!osm.isNullOrEmpty()) return@withContext Result.success(osm)
+      // 2. MapTiler backup when a valid key is configured.
       val key = BuildConfig.MAPTILER_KEY
       if (key.isNotBlank()) {
-        val mt = runCatching { queryMapTiler(query.trim(), key, limit) }.getOrNull()
-        if (!mt.isNullOrEmpty()) return@withContext Result.success(mt)
+        runCatching { queryMapTiler(query.trim(), key, limit) }
+          .onSuccess { if (it.isNotEmpty()) return@withContext Result.success(it) }
       }
-      // 2. Free fallback: OpenStreetMap Nominatim, no key needed.
       runCatching { queryNominatim(query.trim(), limit) }
     }
 

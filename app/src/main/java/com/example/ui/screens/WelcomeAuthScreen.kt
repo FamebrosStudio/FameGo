@@ -74,7 +74,6 @@ import com.example.data.SupabaseRestClient
 import com.example.data.FameGoRepository
 import com.example.ui.components.FameGoButton
 import com.example.ui.components.FameGoWordmark
-import com.example.ui.components.VengeanceTransitionOverlay
 import com.example.ui.components.FameGoOutlinedButton
 import com.example.ui.theme.FameGoBg
 import com.example.ui.theme.FameGoBorder
@@ -153,11 +152,6 @@ fun SplashScreen(
       Spacer(modifier = Modifier.height(14.dp))
       Text("FAMEBROS STUDIO", color = FameGoTextSecondary,
         fontSize = 9.sp, letterSpacing = 3.sp)
-      Spacer(modifier = Modifier.height(26.dp))
-      // Signature snake loader while the session restores.
-      com.example.ui.components.FameGoSnakeLoader(
-        modifier = Modifier.size(width = 150.dp, height = 88.dp)
-      )
     }
   }
 }
@@ -579,6 +573,29 @@ fun AuthScreen(
         testTag = "auth_submit_button"
       )
 
+      // Quiet inline progress — no full-screen loader on sign-in.
+      if (isSubmitting) {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp),
+          horizontalArrangement = Arrangement.Center,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          androidx.compose.material3.CircularProgressIndicator(
+            color = FameGoGold,
+            strokeWidth = 2.dp,
+            modifier = Modifier.size(14.dp)
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(
+            text = if (isSignUp) "Creating your account…" else "Signing you in…",
+            color = FameGoTextSecondary,
+            fontSize = 12.sp
+          )
+        }
+      }
+
       authError?.let { message ->
         Text(message, color = Color(0xFFFF7B84), fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
       }
@@ -612,13 +629,6 @@ fun AuthScreen(
 
       Spacer(modifier = Modifier.height(32.dp))
     }
-
-    // Kinetic mid-page transition while signing in / creating the account.
-    VengeanceTransitionOverlay(
-      visible = isSubmitting,
-      text = if (isSignUp) "Creating" else "Signing in",
-      subText = if (isSignUp) "Setting up your FameGo account…" else "Welcome back…"
-    )
   }
 }
 

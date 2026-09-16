@@ -47,9 +47,9 @@ import com.example.ui.theme.FameGoWhite
 import kotlinx.coroutines.delay
 
 /**
- * Address options powered by MapTiler: as the address query changes,
- * matching places appear here so one tap fills the full address.
- * Renders nothing while idle (short query / no key / no results).
+ * Address options powered by free OpenStreetMap search (no API key): as the
+ * address query changes, matching places appear here so one tap fills it.
+ * Renders nothing while idle (short query / offline / no results).
  */
 @Composable
 fun AddressSuggestList(
@@ -154,7 +154,7 @@ fun AddressSuggestList(
       }
       if (!failed) {
         Text(
-          text = "Suggestions by MapTiler",
+          text = "Suggestions by OpenStreetMap",
           color = FameGoTextMuted.copy(alpha = 0.7f),
           fontSize = 10.sp,
           modifier = Modifier.padding(top = 6.dp)

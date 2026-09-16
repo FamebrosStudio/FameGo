@@ -48,7 +48,7 @@ import com.example.ui.theme.FameGoTextMuted
 import com.example.ui.theme.FameGoWhite
 import kotlinx.coroutines.launch
 import org.osmdroid.events.MapEventsReceiver
-import org.osmdroid.tileprovider.tilesource.XYTileSource
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
@@ -62,7 +62,7 @@ private val PopularLocalities = listOf(
 )
 
 /**
- * Real movable map (osmdroid + free CARTO dark tiles, no API key):
+ * Real movable map (osmdroid + free OpenStreetMap tiles, no API key):
  * drag to pan, pinch to zoom, tap to drop a pin, "Use this spot" fills
  * the address via free reverse-geocoding. Recenters on search picks.
  */
@@ -96,16 +96,9 @@ fun MapPreviewCard(
     AndroidView(
       factory = { ctx ->
         MapView(ctx).apply {
-          setTileSource(
-            XYTileSource(
-              "CartoDark", 0, 19, 256, ".png",
-              arrayOf(
-                "https://a.basemaps.cartocdn.com/dark_all/",
-                "https://b.basemaps.cartocdn.com/dark_all/",
-                "https://c.basemaps.cartocdn.com/dark_all/"
-              )
-            )
-          )
+          // OSM Mapnik: key-free, reliable everywhere. CARTO's free
+          // endpoint renders "API key required" tiles on some networks.
+          setTileSource(TileSourceFactory.MAPNIK)
           setMultiTouchControls(true)
           zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
           controller.setZoom(zoom.toDouble())
@@ -235,12 +228,13 @@ fun MapPreviewCard(
     }
 
     Text(
-      text = "© OpenStreetMap © CARTO",
-      color = Color.White.copy(alpha = 0.65f),
+      text = "© OpenStreetMap contributors",
+      color = Color.Black.copy(alpha = 0.7f),
       fontSize = 9.sp,
       modifier = Modifier
         .align(Alignment.BottomStart)
-        .padding(start = 8.dp, bottom = 6.dp)
+        .background(Color.White.copy(alpha = 0.7f))
+        .padding(start = 8.dp, bottom = 6.dp, end = 4.dp)
     )
   }
 }

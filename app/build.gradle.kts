@@ -25,8 +25,8 @@ android {
     applicationId = "com.famebros.famego"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 2
+    versionName = "OSEM A.1.1"
 
     buildConfigField("String", "SUPABASE_URL", "\"${fameGoGradleString(fameGoConfig("SUPABASE_URL"))}\"")
     buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${fameGoGradleString(fameGoConfig("SUPABASE_PUBLISHABLE_KEY"))}\"")

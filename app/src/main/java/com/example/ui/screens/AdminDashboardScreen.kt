@@ -71,6 +71,7 @@ import kotlinx.coroutines.launch
 fun AdminDashboardScreen(
   onOpenBooking: (String) -> Unit,
   onOpenSupport: () -> Unit,
+  onLogout: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   val bookings by FameGoRepository.bookings.collectAsState()
@@ -481,6 +482,28 @@ fun AdminDashboardScreen(
               }
             }
           }
+        }
+      }
+
+      Spacer(modifier = Modifier.height(24.dp))
+
+      // Sign out — asks for confirmation in MainActivity.
+      Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = FameGoCard,
+        border = androidx.compose.foundation.BorderStroke(1.dp, FameGoLiveRed.copy(alpha = 0.4f)),
+        modifier = Modifier
+          .fillMaxWidth()
+          .clickable { onLogout() }
+          .testTag("admin_logout_button")
+      ) {
+        Box(modifier = Modifier.padding(vertical = 15.dp), contentAlignment = Alignment.Center) {
+          Text(
+            text = "Sign out",
+            color = FameGoLiveRed,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold
+          )
         }
       }
 

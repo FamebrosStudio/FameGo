@@ -85,6 +85,14 @@ fun BookingChatScreen(
   DisposableEffect(bookingId) {
     onDispose { FameGoRepository.stopChatRealtime(bookingId) }
   }
+  // Safety net: realtime sockets can silently drop (expired token, doze).
+  // A light poll guarantees messages land even when the socket is dead.
+  LaunchedEffect(bookingId) {
+    while (true) {
+      kotlinx.coroutines.delay(6000)
+      FameGoRepository.loadChatMessages(bookingId)
+    }
+  }
 
   var messageInput by remember { mutableStateOf("") }
   val listState = rememberLazyListState()

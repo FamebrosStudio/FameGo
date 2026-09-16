@@ -543,6 +543,7 @@ fun SoftCard(
 ) {
   val interactionSource = remember { MutableInteractionSource() }
   val isPressed by interactionSource.collectIsPressedAsState()
+  val cardHaptic = LocalHapticFeedback.current
   val scale by animateFloatAsState(
     targetValue = if (isPressed && onClick != null) 0.985f else 1.0f,
     animationSpec = spring(stiffness = 500f),
@@ -558,7 +559,10 @@ fun SoftCard(
           Modifier.clickable(
             interactionSource = interactionSource,
             indication = null,
-            onClick = onClick
+            onClick = {
+              FameGoHaptics.micro(cardHaptic)
+              onClick()
+            }
           )
         } else Modifier
       )
@@ -1291,6 +1295,7 @@ fun FameGoPressable(
 ) {
   val interaction = remember { MutableInteractionSource() }
   val pressed by interaction.collectIsPressedAsState()
+  val pressHaptic = LocalHapticFeedback.current
   val scale by animateFloatAsState(
     targetValue = if (pressed && enabled) 0.96f else 1f,
     animationSpec = FameGoSprings.press(),
@@ -1304,7 +1309,10 @@ fun FameGoPressable(
         interactionSource = interaction,
         indication = null,
         enabled = enabled,
-        onClick = onClick
+        onClick = {
+          FameGoHaptics.micro(pressHaptic)
+          onClick()
+        }
       )
       .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
     shape = shape,
@@ -1379,9 +1387,78 @@ fun FameGoSheet(
   }
 }
 
+/**
+ * Credits & inspiration: the open motion studies and data sources this
+ * app's interface is built on, restyled into the FameGo black-and-gold
+ * language.
+ */
 @Composable
-fun SectionHeader(
-  title: String,
+fun CreditsCard(modifier: Modifier = Modifier) {
+  val credits = remember {
+    listOf(
+      "Snake loader" to "CSS loading-spinner study, rebuilt in gold",
+      "Kinetic type loader" to "Letter-wave page transition study",
+      "Spring button" to "Shine-sweep + border-beam button study",
+      "Glow border card" to "Rotating conic-glow card study",
+      "Gooey search" to "Morphing search-pill study",
+      "Ambient aura" to "Aurora-rays canvas study, calmed down",
+      "Fluid motion" to "Spring physics, haptics, rubber-band, sheets",
+      "Maps & places" to "OpenStreetMap tiles + Nominatim search",
+    )
+  }
+  SoftCard(modifier = modifier.fillMaxWidth()) {
+    Column(modifier = Modifier.padding(16.dp)) {
+      Text(
+        text = "CREDITS & INSPIRATION",
+        color = FameGoTextMuted,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.sp
+      )
+      Spacer(modifier = Modifier.height(10.dp))
+      credits.forEach { (title, subtitle) ->
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Box(
+            modifier = Modifier
+              .size(6.dp)
+              .clip(CircleShape)
+              .background(FameGoGold)
+          )
+          Spacer(modifier = Modifier.width(10.dp))
+          Column(modifier = Modifier.weight(1f)) {
+            Text(
+              text = title,
+              color = FameGoWhite,
+              fontSize = 13.sp,
+              fontWeight = FontWeight.SemiBold
+            )
+            Text(
+              text = subtitle,
+              color = FameGoTextMuted,
+              fontSize = 11.sp
+            )
+          }
+        }
+      }
+      Spacer(modifier = Modifier.height(4.dp))
+      Text(
+        text = "OSEM A.1.1 • Famebros Studio",
+        color = FameGoTextMuted,
+        fontSize = 11.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
+      )
+    }
+  }
+}
+
+@Composable
+fun SectionHeader(  title: String,
   subtitle: String? = null,
   modifier: Modifier = Modifier
 ) {

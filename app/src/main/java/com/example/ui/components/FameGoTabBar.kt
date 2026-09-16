@@ -98,7 +98,7 @@ fun fameGoClientTabs() = listOf(
 fun fameGoCrewTabs() = listOf(
   FameGoTab("home", "Home", Icons.Outlined.Home, Icons.Filled.Home, testTag = "tab_home"),
   FameGoTab(
-    "bookings", "Jobs",
+    "bookings", "Shoots",
     Icons.Outlined.ConfirmationNumber, Icons.Filled.ConfirmationNumber,
     testTag = "tab_bookings"
   ),
@@ -117,7 +117,8 @@ fun fameGoCrewTabs() = listOf(
 /**
  * FameGo bottom tab bar — dark floating glass pill with a hairline top
  * highlight. Unselected tabs are muted outline icons; the active tab is a
- * filled gold icon with a bold white label. One tap, one tab, no gestures.
+ * filled gold icon with a bold white label. Tap a tab, or swipe left/right
+ * anywhere on the tab content to move between tabs.
  */
 @Composable
 fun FameGoTabBar(

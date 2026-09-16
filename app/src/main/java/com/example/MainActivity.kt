@@ -86,6 +86,7 @@ import com.example.model.ShootPlan
 import com.example.ui.components.FameGoTabBar
 import com.example.ui.components.FameGoTopBar
 import com.example.ui.components.FameGoHaptics
+import com.example.ui.components.FameGoSnakeLoader
 import com.example.ui.components.FameGoSprings
 import com.example.ui.components.swipeDownToDismiss
 import com.example.ui.components.swipeToSwitchTabs
@@ -241,6 +242,9 @@ fun FameGoApp() {
   var showSignOutDialog by remember { mutableStateOf(false) }
   var lastLocalAlertId by remember { mutableStateOf<String?>(null) }
   val isCrewAvailable by FameGoRepository.isCrewAvailable.collectAsState()
+  // Brief inter-page shimmer on tab switches only: visible long enough to
+  // feel responsive, gone before it can annoy. Never on splash/auth.
+  var tabFlash by remember { mutableStateOf(false) }
   val appScope = rememberCoroutineScope()
   val appContext = LocalContext.current
   val appHaptic = LocalHapticFeedback.current
@@ -377,6 +381,18 @@ fun FameGoApp() {
     if (lastLocalAlertId == alert.id) return@LaunchedEffect
     lastLocalAlertId = alert.id
     runCatching { FameGoPush.notifyLocalIncoming(appContext, alert) }
+  }
+
+  // Inter-page shimmer: Main tab switches flash the mini snake for one beat.
+  // Pass-through touches, hard-capped at ~400ms, never on splash/auth flows.
+  LaunchedEffect(currentScreen) {
+    if (currentScreen is Screen.Main) {
+      tabFlash = true
+      kotlinx.coroutines.delay(380)
+      tabFlash = false
+    } else {
+      tabFlash = false
+    }
   }
 
   // Handle Android system back button
@@ -544,7 +560,7 @@ fun FameGoApp() {
                       onOpenChat = { id -> navigateTo(Screen.BookingChat(id, Screen.Main(tab))) }
                     )
                     "bookings" -> CrewJobsScreen(onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "bookings")) })
-                    "profile" -> CrewProfileScreen()
+                    "profile" -> CrewProfileScreen(onLogout = { showSignOutDialog = true })
                     "notifications" -> NotificationsScreen(
                       onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "notifications")) }
                     )
@@ -557,7 +573,8 @@ fun FameGoApp() {
                 } else {
                   AdminDashboardScreen(
                     onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "home")) },
-                    onOpenSupport = { navigateTo(Screen.CustomerSupport(Screen.Main("home"))) }
+                    onOpenSupport = { navigateTo(Screen.CustomerSupport(Screen.Main("home"))) },
+                    onLogout = { showSignOutDialog = true }
                   )
                 }
               }
@@ -581,23 +598,35 @@ fun FameGoApp() {
         }
 
         is Screen.ShootPlans -> {
+          // Booking flows are client-only: crew/admin land back home.
+          if (currentUser.role != Role.CLIENT) {
+            LaunchedEffect(Unit) { navigateTo(Screen.Main("home")) }
+          } else {
           ShootPlanScreen(
             preselectedCategory = screen.preselectedCategory,
             onContinue = { plan, category -> navigateTo(Screen.BookAShoot(plan, category)) },
             onBack = { goBack(Screen.Main("home")) }
           )
+          }
         }
 
         is Screen.BookAShoot -> {
+          if (currentUser.role != Role.CLIENT) {
+            LaunchedEffect(Unit) { navigateTo(Screen.Main("home")) }
+          } else {
           BookAShootScreen(
             plan = screen.plan,
             preselectedCategory = screen.preselectedCategory,
             onBookingReadyForPayment = { booking -> navigateTo(Screen.Payment(booking)) },
             onCancel = { goBack(Screen.ShootPlans(screen.preselectedCategory)) }
           )
+          }
         }
 
         is Screen.Payment -> {
+          if (currentUser.role != Role.CLIENT) {
+            LaunchedEffect(Unit) { navigateTo(Screen.Main("home")) }
+          } else {
           PaymentDemoScreen(
             booking = screen.booking,
             onPaid = { paid ->
@@ -611,6 +640,7 @@ fun FameGoApp() {
             },
             onBack = { goBack(Screen.BookAShoot(screen.booking.plan, screen.booking.category)) }
           )
+          }
         }
 
         is Screen.PaymentSuccess -> {
@@ -698,6 +728,25 @@ fun FameGoApp() {
           CustomerSupportScreen(
             onBack = { goBack(screen.returnTo) }
           )
+        }
+      }
+    }
+    // Inter-page shimmer: mini snake, pass-through touches, auto-gone.
+    if (tabFlash && currentScreen is Screen.Main) {
+      Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+      ) {
+        Surface(
+          shape = RoundedCornerShape(18.dp),
+          color = Color.Black.copy(alpha = 0.45f),
+          modifier = Modifier.size(width = 116.dp, height = 72.dp)
+        ) {
+          Box(contentAlignment = Alignment.Center) {
+            FameGoSnakeLoader(
+              modifier = Modifier.size(width = 96.dp, height = 56.dp)
+            )
+          }
         }
       }
     }

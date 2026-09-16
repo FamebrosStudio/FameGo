@@ -90,8 +90,27 @@ class FameGoDispatchService : Service() {
           return START_NOT_STICKY
         }
         val notification = FameGoPush.buildDispatchForegroundNotification(this, crewName)
+        // Explicit service type: on Android 14+ the 2-arg startForeground
+        // throws when the type is only in the manifest, killing dispatch.
+        var foregrounded = false
         runCatching {
-          startForeground(FameGoPush.NOTIF_DISPATCH_SERVICE, notification)
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            androidx.core.app.ServiceCompat.startForeground(
+              this,
+              FameGoPush.NOTIF_DISPATCH_SERVICE,
+              notification,
+              android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            )
+          } else {
+            startForeground(FameGoPush.NOTIF_DISPATCH_SERVICE, notification)
+          }
+          foregrounded = true
+        }
+        // A denied foreground start (e.g. cold boot on Android 12+) must
+        // stop, not limp along unforegrounded until the system kills us.
+        if (!foregrounded) {
+          stopSelf()
+          return START_NOT_STICKY
         }
         startPolling()
       }
@@ -183,10 +202,20 @@ class FameGoDispatchService : Service() {
       val restart = Intent(this, FameGoDispatchService::class.java).apply {
         action = ACTION_START
       }
-      val pending = PendingIntent.getService(
-        this, 0, restart,
-        PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
-      )
+      // Foreground-service intent: a plain getService() restart is denied a
+      // background FGS start on Android 12+, which silently kills dispatch.
+      // getForegroundService needs API 26; older devices use getService.
+      val pending = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        PendingIntent.getForegroundService(
+          this, 0, restart,
+          PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+        )
+      } else {
+        PendingIntent.getService(
+          this, 0, restart,
+          PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+        )
+      }
       runCatching {
         val alarm = getSystemService(ALARM_SERVICE) as AlarmManager
         alarm.set(

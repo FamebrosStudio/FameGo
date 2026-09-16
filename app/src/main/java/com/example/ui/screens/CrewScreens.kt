@@ -46,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -622,6 +623,11 @@ fun CrewJobsScreen(
 ) {
   val bookings by FameGoRepository.bookings.collectAsState()
   val crewJobs = bookings.filter { it.assignedCrew.isNotEmpty() }
+  val activeJobs = crewJobs.filter {
+    it.status == BookingStatus.CONFIRMED || it.status == BookingStatus.IN_PROGRESS ||
+      it.status == BookingStatus.UPCOMING
+  }
+  val completedJobs = crewJobs.filter { it.status == BookingStatus.COMPLETED }
 
   Column(
     modifier = modifier
@@ -664,37 +670,29 @@ fun CrewJobsScreen(
         )
       }
     } else {
+      if (activeJobs.isNotEmpty()) {
+        Text(
+          text = "Active shoots",
+          color = FameGoWhite,
+          fontSize = 15.sp,
+          fontWeight = FontWeight.Bold,
+          modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+        )
+      }
       Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        crewJobs.forEach { job ->
-          SoftCard(
-            onClick = { onOpenBooking(job.id) },
-            testTag = "crew_job_item_${job.id}"
-          ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-              ) {
-                Text(
-                  text = job.title,
-                  color = FameGoWhite,
-                  fontSize = 15.sp,
-                  fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                  text = "₹${job.estimatedBudget}",
-                  color = FameGoGold,
-                  fontSize = 14.sp,
-                  fontWeight = FontWeight.Bold
-                )
-              }
-              Text(
-                text = "${job.date} • ${job.time} • ${job.location.venueName}",
-                color = FameGoTextMuted,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 4.dp)
-              )
-            }
+        activeJobs.forEach { job ->
+          CrewJobRow(job = job, onOpenBooking = onOpenBooking)
+        }
+        if (completedJobs.isNotEmpty()) {
+          Text(
+            text = "Completed",
+            color = FameGoWhite,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 12.dp, bottom = 2.dp)
+          )
+          completedJobs.forEach { job ->
+            CrewJobRow(job = job, onOpenBooking = onOpenBooking)
           }
         }
       }
@@ -704,15 +702,72 @@ fun CrewJobsScreen(
   }
 }
 
+@Composable
+private fun CrewJobRow(
+  job: Booking,
+  onOpenBooking: (String) -> Unit,
+  modifier: Modifier = Modifier
+) {
+  SoftCard(
+    onClick = { onOpenBooking(job.id) },
+    testTag = "crew_job_item_${job.id}",
+    modifier = modifier
+  ) {
+    Column(modifier = Modifier.padding(16.dp)) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+      ) {
+        Text(
+          text = job.title,
+          color = FameGoWhite,
+          fontSize = 15.sp,
+          fontWeight = FontWeight.SemiBold
+        )
+        Text(
+          text = "₹${job.estimatedBudget}",
+          color = FameGoGold,
+          fontSize = 14.sp,
+          fontWeight = FontWeight.Bold
+        )
+      }
+      Text(
+        text = "${job.date} • ${job.time} • ${job.location.venueName}",
+        color = FameGoTextMuted,
+        fontSize = 12.sp,
+        modifier = Modifier.padding(top = 4.dp)
+      )
+    }
+  }
+}
+
 // =============================================================================
 // 18. CREW PROFILE SCREEN (Grouped Floating Sections)
 // =============================================================================
 
 @Composable
 fun CrewProfileScreen(
+  onLogout: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
+  val currentUser by FameGoRepository.currentUser.collectAsState()
+  val crewProfiles by FameGoRepository.crewProfiles.collectAsState()
+  val bookings by FameGoRepository.bookings.collectAsState()
+  val isAvailable by FameGoRepository.isCrewAvailable.collectAsState()
+  val appContext = LocalContext.current
   val scrollState = rememberScrollState()
+
+  val me = crewProfiles.firstOrNull { it.userId == currentUser.id }
+  val myJobs = bookings.filter { b -> me != null && b.assignedCrew.any { it.crewId == me.id } }
+  val completedCount = myJobs.count { it.status == BookingStatus.COMPLETED }
+  val activeCount = myJobs.count {
+    it.status == BookingStatus.CONFIRMED || it.status == BookingStatus.IN_PROGRESS
+  }
+  val displayName = me?.fullName?.ifBlank { null }
+    ?: currentUser.name.ifBlank { "FameGo Crew" }
+  val initials = displayName.split(" ").filter { it.isNotBlank() }.take(2)
+    .joinToString("") { it.first().uppercase() }.ifEmpty { "CR" }
+  val dispatchOn = com.example.data.FameGoDispatchStore(appContext).isDispatchOn()
 
   Column(
     modifier = modifier
@@ -736,58 +791,136 @@ fun CrewProfileScreen(
           .border(1.dp, FameGoGold, CircleShape),
         contentAlignment = Alignment.Center
       ) {
-        Text(text = "CR", color = FameGoGold, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text(text = initials, color = FameGoGold, fontSize = 20.sp, fontWeight = FontWeight.Bold)
       }
 
       Spacer(modifier = Modifier.width(16.dp))
 
-      Column {
+      Column(modifier = Modifier.weight(1f)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(text = "Crew profile", color = FameGoWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+          Text(text = displayName, color = FameGoWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold)
           Spacer(modifier = Modifier.width(6.dp))
           Box(
             modifier = Modifier
               .size(6.dp)
               .clip(CircleShape)
-              .background(FameGoSuccessGreen)
+              .background(if (isAvailable) FameGoSuccessGreen else FameGoTextMuted)
           )
         }
-        Text(text = "Complete your profile to receive requests", color = FameGoTextSecondary, fontSize = 13.sp)
-      }
-    }
-
-    Spacer(modifier = Modifier.height(28.dp))
-
-    // Grouped Floating Sections
-    Text(text = "OPERATOR SUITE", color = FameGoTextMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-    Spacer(modifier = Modifier.height(8.dp))
-
-    SoftCard {
-      Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-        ProfileRowItem(label = "Verified gear kit", value = "Not added")
-        ProfileRowItem(label = "Reputation score", value = "No ratings yet")
-        ProfileRowItem(label = "Payout settings", value = "Not configured")
-        ProfileRowItem(label = "Studio guidelines", value = "Available after verification")
+        Text(
+          text = (me?.primaryRole?.title ?: "Shooter") +
+            (if (me?.verificationStatus == com.example.model.VerificationStatus.VERIFIED) " • Verified" else ""),
+          color = FameGoTextSecondary, fontSize = 13.sp
+        )
       }
     }
 
     Spacer(modifier = Modifier.height(20.dp))
 
-    Text(text = "PREFERENCES", color = FameGoTextMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+    // Real stats strip
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+      CrewStatCard(value = "$completedCount", label = "Completed", modifier = Modifier.weight(1f))
+      CrewStatCard(
+        value = if (me != null && me.rating > 0) "%.1f".format(me.rating) else "—",
+        label = "Rating",
+        modifier = Modifier.weight(1f)
+      )
+      CrewStatCard(value = "$activeCount", label = "Active", modifier = Modifier.weight(1f))
+    }
+
+    Spacer(modifier = Modifier.height(20.dp))
+
+    Text(text = "DUTY", color = FameGoTextMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
     Spacer(modifier = Modifier.height(8.dp))
 
     SoftCard {
       Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-        ProfileRowItem(label = "Preferred shooting zones", value = "Not added")
-        ProfileRowItem(label = "Emergency support", value = "Available from support")
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clickable { FameGoRepository.toggleCrewAvailability() }
+            .padding(vertical = 12.dp)
+            .testTag("crew_profile_duty_row"),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Text(text = "Availability", color = FameGoWhite, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+          Text(
+            text = if (isAvailable) "Ready for shoots" else "Off duty",
+            color = if (isAvailable) FameGoSuccessGreen else FameGoTextMuted,
+            fontSize = 13.sp
+          )
+        }
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+              // Shoot alerts need background running: point at battery settings.
+              runCatching {
+                appContext.startActivity(
+                  android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+              }
+            }
+            .padding(vertical = 12.dp)
+            .testTag("crew_profile_battery_row"),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Column(modifier = Modifier.weight(1f)) {
+            Text(text = "Shoot alerts", color = FameGoWhite, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(
+              text = if (dispatchOn) "Listening — keep battery unrestricted" else "Tap to keep alerts alive",
+              color = FameGoTextMuted, fontSize = 12.sp
+            )
+          }
+          Text(
+            text = if (dispatchOn) "ON" else "OFF",
+            color = if (dispatchOn) FameGoSuccessGreen else FameGoGold,
+            fontSize = 12.sp, fontWeight = FontWeight.Bold
+          )
+        }
       }
     }
 
     Spacer(modifier = Modifier.height(20.dp))
 
-    Spacer(modifier = Modifier.height(24.dp))
+    com.example.ui.components.CreditsCard()
+
+    Spacer(modifier = Modifier.height(20.dp))
+
+    Surface(
+      shape = RoundedCornerShape(16.dp),
+      color = FameGoSurface,
+      border = androidx.compose.foundation.BorderStroke(1.dp, FameGoLiveRed.copy(alpha = 0.4f)),
+      modifier = Modifier
+        .fillMaxWidth()
+        .clickable { onLogout() }
+        .testTag("crew_logout_button")
+    ) {
+      Box(modifier = Modifier.padding(vertical = 15.dp), contentAlignment = Alignment.Center) {
+        Text(text = "Sign out", color = FameGoLiveRed, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+      }
+    }
 
     Spacer(modifier = Modifier.height(110.dp))
+  }
+}
+
+@Composable
+private fun CrewStatCard(value: String, label: String, modifier: Modifier = Modifier) {
+  SoftCard(modifier = modifier) {
+    Column(
+      modifier = Modifier.padding(vertical = 14.dp),
+      horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+      Text(text = value, color = FameGoGold, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+      Text(text = label, color = FameGoTextMuted, fontSize = 11.sp)
+    }
   }
 }
 

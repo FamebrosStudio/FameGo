@@ -248,6 +248,11 @@ fun ClientProfileScreen(
 
       Spacer(modifier = Modifier.height(20.dp))
 
+      // Credits & inspiration.
+      com.example.ui.components.CreditsCard()
+
+      Spacer(modifier = Modifier.height(20.dp))
+
       // Sign out — asks for confirmation in MainActivity.
       Surface(
         shape = RoundedCornerShape(16.dp),
