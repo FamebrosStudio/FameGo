@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.FameGoRepository
 import com.example.data.SupabaseConfig
+import com.example.data.SupabaseNetwork
 import com.example.model.Booking
 import com.example.model.PaymentStatus
 import com.example.ui.components.FameGoButton
@@ -88,6 +89,7 @@ fun PaymentDemoScreen(
   var submitting by remember { mutableStateOf(false) }
   var error by remember { mutableStateOf<String?>(null) }
   val scope = rememberCoroutineScope()
+  val payContext = LocalContext.current.applicationContext
   Column(
     modifier = modifier.fillMaxSize().background(Color.Transparent).statusBarsPadding()
       .navigationBarsPadding().padding(horizontal = 20.dp)
@@ -130,22 +132,22 @@ fun PaymentDemoScreen(
             paymentReference = "DEMO-${System.currentTimeMillis()}"
           )
           scope.launch {
-            // Demo receipt must ALWAYS show — server first, local fallback.
-            // HTTP errors ("Supabase <code>: ...") are real rejections and surface;
-            // anything else (no network, DNS, timeouts) falls back to local demo.
+            // Fully online: no local demo fallback. Offline means stop here
+            // with a clear message instead of a phantom booking.
+            if (!SupabaseNetwork.isDeviceOnline(payContext)) {
+              error = "You're offline. Connect to the internet to complete payment."
+              submitting = false
+              return@launch
+            }
             if (!SupabaseConfig.isConfigured) {
-              onPaid(FameGoRepository.createBooking(paidBooking))
+              error = "FameGo is temporarily unavailable. Please try again later."
+              submitting = false
               return@launch
             }
             FameGoRepository.createPaidBooking(paidBooking)
               .onSuccess { onPaid(it) }
               .onFailure {
-                val msg = it.message.orEmpty()
-                if (!msg.startsWith("Supabase ")) {
-                  onPaid(FameGoRepository.createBooking(paidBooking))
-                } else {
-                  error = FameGoRepository.friendlyMessage(it); submitting = false
-                }
+                error = FameGoRepository.friendlyMessage(it); submitting = false
               }
           }
         },

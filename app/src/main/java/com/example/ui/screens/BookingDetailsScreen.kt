@@ -51,7 +51,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.FameGoRepository
-import com.example.data.SupabaseConfig
 import com.example.model.Booking
 import com.example.model.BookingStatus
 import com.example.model.ShootCategory
@@ -76,8 +75,6 @@ import com.example.ui.theme.FameGoTextMuted
 import com.example.ui.theme.FameGoTextPrimary
 import com.example.ui.theme.FameGoTextSecondary
 import com.example.ui.theme.FameGoWhite
-import android.webkit.WebView
-import android.webkit.WebViewClient
 
 @Composable
 fun BookingDetailsScreen(
@@ -572,17 +569,35 @@ private fun LiveLocationMap(
           .background(Color(0xFF101216)),
         contentAlignment = Alignment.Center
       ) {
-        if (sharing && latitude != null && longitude != null && SupabaseConfig.mapTilerKey.isNotBlank() &&
-          !SupabaseConfig.mapTilerKey.startsWith("your-")) {
+        if (sharing && latitude != null && longitude != null) {
+          // Key-free live map (osmdroid + OSM tiles): follows the crew point.
           AndroidView(
-            factory = { context -> WebView(context).apply {
-              webViewClient = WebViewClient()
-              settings.javaScriptEnabled = false
-              settings.domStorageEnabled = false
-              loadUrl("https://api.maptiler.com/maps/streets-v2/static/$longitude,$latitude,14/900x500.png?key=${SupabaseConfig.mapTilerKey}")
-            } },
-            update = { view -> view.loadUrl("https://api.maptiler.com/maps/streets-v2/static/$longitude,$latitude,14/900x500.png?key=${SupabaseConfig.mapTilerKey}") },
-            modifier = Modifier.fillMaxSize()
+            factory = { context ->
+              org.osmdroid.views.MapView(context).apply {
+                setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
+                setMultiTouchControls(true)
+                zoomController.setVisibility(
+                  org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER
+                )
+                controller.setZoom(15.0)
+                controller.setCenter(org.osmdroid.util.GeoPoint(latitude, longitude))
+                val marker = org.osmdroid.views.overlay.Marker(this).apply {
+                  position = org.osmdroid.util.GeoPoint(latitude, longitude)
+                  setAnchor(org.osmdroid.views.overlay.Marker.ANCHOR_CENTER, org.osmdroid.views.overlay.Marker.ANCHOR_BOTTOM)
+                  title = "Crew"
+                }
+                overlays.add(marker)
+                tag = marker
+              }
+            },
+            update = { map ->
+              (map.tag as? org.osmdroid.views.overlay.Marker)?.position =
+                org.osmdroid.util.GeoPoint(latitude, longitude)
+              map.controller.animateTo(org.osmdroid.util.GeoPoint(latitude, longitude))
+              map.invalidate()
+            },
+            modifier = Modifier.fillMaxSize(),
+            onRelease = { it.onDetach() }
           )
         } else {
           Column(horizontalAlignment = Alignment.CenterHorizontally) {

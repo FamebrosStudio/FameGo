@@ -53,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,7 +64,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
-import dev.chrisbanes.haze.haze
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -87,6 +87,7 @@ import com.example.model.ShootPlan
 import com.example.ui.components.FameGoTabBar
 import com.example.ui.components.FameGoTopBar
 import com.example.ui.components.FameGoHaptics
+import com.example.ui.components.NoInternetScreen
 import com.example.ui.components.FameGoSnakeLoader
 import com.example.ui.components.FameGoSprings
 import com.example.ui.components.swipeDownToDismiss
@@ -99,6 +100,7 @@ import com.example.ui.components.FameGoAmbientBackground
 import com.example.ui.screens.AdminDashboardScreen
 import com.example.ui.screens.AdminPeopleScreen
 import com.example.ui.screens.AdminProfileScreen
+import com.example.ui.screens.AdminSupportScreen
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.BookAShootScreen
 import com.example.ui.screens.BookShootLaunchpadScreen
@@ -149,6 +151,7 @@ sealed class Screen {
   data class CrewRequestDetail(val bookingId: String) : Screen()
   data class BookingChat(val bookingId: String, val returnTo: Screen? = null) : Screen()
   data class CustomerSupport(val returnTo: Screen = Main("profile")) : Screen()
+  data class AdminSupport(val returnTo: Screen = Main("dashboard")) : Screen()
 }
 
 class MainActivity : ComponentActivity() {
@@ -159,6 +162,10 @@ class MainActivity : ComponentActivity() {
     // Free map tiles (osmdroid) need an app user-agent or tile servers refuse us.
     org.osmdroid.config.Configuration.getInstance().apply {
       userAgentValue = packageName
+      // More parallel tile fetches + disk reads: the map paints faster.
+      // (OSM policy asks restraint per host; MAPNIK spreads a/b/c subdomains.)
+      tileDownloadThreads = 4
+      tileFileSystemThreads = 8
       load(applicationContext, getPreferences(Context.MODE_PRIVATE))
     }
     handleAuthDeepLink(intent)
@@ -253,8 +260,22 @@ fun FameGoApp() {
   val appScope = rememberCoroutineScope()
   val appContext = LocalContext.current
   val appHaptic = LocalHapticFeedback.current
-  // Backdrop-blur source for the glass tab bar (Haze).
-  val tabHaze = remember { dev.chrisbanes.haze.HazeState() }
+  // Online-only app: track connectivity live; the No-Internet screen takes
+  // over the moment the network drops.
+  var isOnline by remember { mutableStateOf(true) }
+  DisposableEffect(appContext) {
+    isOnline = com.example.data.SupabaseNetwork.isDeviceOnline(appContext)
+    val manager = appContext.getSystemService(Context.CONNECTIVITY_SERVICE)
+      as? android.net.ConnectivityManager
+    val callback = object : android.net.ConnectivityManager.NetworkCallback() {
+      override fun onAvailable(network: android.net.Network) { isOnline = true }
+      override fun onLost(network: android.net.Network) {
+        isOnline = com.example.data.SupabaseNetwork.isDeviceOnline(appContext)
+      }
+    }
+    runCatching { manager?.registerDefaultNetworkCallback(callback) }
+    onDispose { runCatching { manager?.unregisterNetworkCallback(callback) } }
+  }
   val notifPermission =
     rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
@@ -424,6 +445,7 @@ fun FameGoApp() {
         else goBack(Screen.Main("home"))
       }
       is Screen.CustomerSupport -> goBack(current.returnTo)
+      is Screen.AdminSupport -> goBack(current.returnTo)
       is Screen.Main -> { /* handled by tab */ }
       Screen.Splash -> {}
     }
@@ -504,7 +526,6 @@ fun FameGoApp() {
               AnimatedContent(
                 targetState = screen.tab,
                 modifier = Modifier.fillMaxSize()
-                  .haze(tabHaze)
                   .navigationBarsPadding()
                   .padding(bottom = 104.dp)
                   .swipeToSwitchTabs(
@@ -586,7 +607,9 @@ fun FameGoApp() {
                       onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "dashboard")) },
                       onOpenSupport = { navigateTo(Screen.CustomerSupport(Screen.Main("dashboard"))) }
                     )
-                    "users" -> AdminPeopleScreen()
+                    "users" -> AdminPeopleScreen(
+                      onOpenSupport = { navigateTo(Screen.AdminSupport(Screen.Main("users"))) }
+                    )
                     "notifications" -> NotificationsScreen(
                       onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "notifications")) }
                     )
@@ -604,22 +627,19 @@ fun FameGoApp() {
                 tabs = fameGoClientTabs(),
                 selectedRoute = screen.tab,
                 onSelect = { destination -> navigateTo(Screen.Main(tab = destination)) },
-                modifier = Modifier.align(Alignment.BottomCenter),
-                hazeState = tabHaze
+                modifier = Modifier.align(Alignment.BottomCenter)
               )
               if (currentUser.role == Role.CREW) FameGoTabBar(
                 tabs = fameGoCrewTabs(),
                 selectedRoute = screen.tab,
                 onSelect = { destination -> navigateTo(Screen.Main(tab = destination)) },
-                modifier = Modifier.align(Alignment.BottomCenter),
-                hazeState = tabHaze
+                modifier = Modifier.align(Alignment.BottomCenter)
               )
               if (currentUser.role == Role.ADMIN) FameGoTabBar(
                 tabs = fameGoAdminTabs(),
                 selectedRoute = screen.tab,
                 onSelect = { destination -> navigateTo(Screen.Main(tab = destination)) },
-                modifier = Modifier.align(Alignment.BottomCenter),
-                hazeState = tabHaze
+                modifier = Modifier.align(Alignment.BottomCenter)
               )
             }
           }
@@ -759,6 +779,12 @@ fun FameGoApp() {
             onBack = { goBack(screen.returnTo) }
           )
         }
+
+        is Screen.AdminSupport -> {
+          AdminSupportScreen(
+            onBack = { goBack(screen.returnTo) }
+          )
+        }
       }
     }
     // Inter-page shimmer: mini snake, pass-through touches, auto-gone.
@@ -779,6 +805,14 @@ fun FameGoApp() {
           }
         }
       }
+    }
+    // Offline takeover for the online-only app.
+    if (!isOnline) {
+      NoInternetScreen(
+        onRetry = {
+          isOnline = com.example.data.SupabaseNetwork.isDeviceOnline(appContext)
+        }
+      )
     }
     // Sign-out confirmation — never log out on a stray tap.
     if (showSignOutDialog) {
@@ -832,8 +866,7 @@ fun FameGoApp() {
     if (currentUser.role == Role.CREW) {
       incomingAlert?.let { alert ->
         LaunchedEffect(alert.id) { com.example.data.FameGoSfx.notify(appContext) }
-        IncomingShootDialog(
-          bookingTitle = alert.shootTitle,
+        IncomingShootDialog(          bookingTitle = alert.shootTitle,
           venue = alert.venueName,
           dateTime = "${alert.dateText} • ${alert.timeText}",
           priceRupees = alert.priceRupees,

@@ -57,20 +57,45 @@ class ShootActionReceiver : BroadcastReceiver() {
       try {
         when (action) {
           ACTION_ACCEPT -> {
-            val result = SupabaseRestClient.post(
+            val rpc = SupabaseRestClient.post(
               "rpc/accept_booking",
               org.json.JSONObject().apply { put("p_booking_id", bookingId) }.toString()
             )
-            if (result.isSuccess) {
+            val store = FameGoDispatchStore(context)
+            if (rpc.isSuccess) {
+              store.unmarkNotified(bookingId)
               FameGoPush.showShootConfirmed(context, bookingId, title, details)
             } else {
-              val message = result.exceptionOrNull()?.message.orEmpty()
-              val claimedBy = if (message.contains("claimed by", ignoreCase = true)) {
-                message.substringAfter("claimed by ").take(80)
-              } else {
-                "another crew member"
+              // Never blanket-claim "taken": re-read the booking and say
+              // what actually happened (mine / taken / off-duty / retry).
+              when (val verdict = AcceptResolver.resolve(bookingId)) {
+                is AcceptOutcome.Confirmed -> {
+                  store.unmarkNotified(bookingId)
+                  FameGoPush.showShootConfirmed(
+                    context, bookingId,
+                    verdict.title.ifBlank { title }, verdict.details.ifBlank { details }
+                  )
+                }
+                is AcceptOutcome.Taken -> {
+                  store.unmarkNotified(bookingId)
+                  FameGoPush.showAlreadyAssigned(context, bookingId, verdict.name)
+                }
+                AcceptOutcome.OffDuty -> {
+                  FameGoPush.showDutyOff(context, bookingId)
+                }
+                AcceptOutcome.Gone -> {
+                  store.unmarkNotified(bookingId)
+                  FameGoPush.cancelIncoming(context, bookingId)
+                }
+                AcceptOutcome.Retry -> {
+                  FameGoPush.showAlert(
+                    context,
+                    "Couldn't claim yet",
+                    "$title — tap to open the request and retry.",
+                    bookingId
+                  )
+                }
               }
-              FameGoPush.showAlreadyAssigned(context, bookingId, claimedBy)
             }
           }
           ACTION_DECLINE -> {

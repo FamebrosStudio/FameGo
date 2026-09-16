@@ -56,7 +56,7 @@ fun AddressSuggestList(
   query: String,
   onPick: (MapPlace) -> Unit,
   modifier: Modifier = Modifier,
-  debounceMs: Long = 800,
+  debounceMs: Long = 400,
   onResults: (List<MapPlace>) -> Unit = {}
 ) {
   var places by remember { mutableStateOf(emptyList<MapPlace>()) }

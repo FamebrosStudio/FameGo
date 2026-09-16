@@ -236,6 +236,14 @@ data class CrewRating(
   val review: String = ""
 )
 
+data class SupportMessage(
+  val id: String = java.util.UUID.randomUUID().toString(),
+  val userId: String,
+  val message: String,
+  val isFromSupport: Boolean = false,
+  val createdAt: String = ""
+)
+
 data class LiveCrewPoint(
   val latitude: Double,
   val longitude: Double,

@@ -60,6 +60,8 @@ object FameGoRepository {
   /** Full-screen incoming request popup (crew): newest unhandled paid request. */
   private val _incomingAlert = MutableStateFlow<Booking?>(null)
   val incomingAlert: StateFlow<Booking?> = _incomingAlert.asStateFlow()
+  /** Chat screen currently open (if any): refreshed on every push event. */
+  private val _activeChatId = MutableStateFlow<String?>(null)
   private val seenSearchingIds = mutableSetOf<String>()
   private val declinedRequestIds = MutableStateFlow<Set<String>>(emptySet())
   private val _crewApplications = MutableStateFlow<List<CrewApplication>>(emptyList())
@@ -91,7 +93,12 @@ object FameGoRepository {
       delay(800)
       // Drop stale events: a logout/switch during the debounce must not
       // refill the cleared state with the previous user's data.
-      if (_currentUser.value.id == user.id) refreshFromSupabase(user)
+      if (_currentUser.value.id == user.id) {
+        refreshFromSupabase(user)
+        // An open chat reloads on ANY push (bell, booking flip): the dedicated
+        // chat socket may be dead while this one lives.
+        _activeChatId.value?.let { loadChatMessages(it) }
+      }
     }
   }
 
@@ -179,6 +186,8 @@ object FameGoRepository {
     declinedRequestIds.value = emptySet()
     _isCrewAvailable.value = true
     _allUsers.value = emptyList()
+    _supportThread.value = emptyList()
+    _allSupport.value = emptyList()
   }
 
   fun logout() {
@@ -209,12 +218,8 @@ object FameGoRepository {
         ).also(::setCurrentUser)
       }
     }
-    // Offline or slow-network fallback: tokens survived, so the session is
-    // still valid — sign in from the cached profile instead of bouncing out.
-    // (After a real sign-out the tokens are cleared, so this stays null.)
-    if (!SupabaseSession.refreshToken.isNullOrBlank() || !SupabaseSession.accessToken.isNullOrBlank()) {
-      return SupabaseSession.cachedProfile()?.also(::setCurrentUser)
-    }
+    // Fully online: no cached-profile fallback. Without a live session the
+    // user lands on Welcome and the No-Internet screen explains why.
     return null
   }
   fun dismissIncomingAlert() {
@@ -557,7 +562,7 @@ object FameGoRepository {
     applyCrewConfirmed(bookingId, crewMember)
   }
 
-  private fun applyCrewConfirmed(bookingId: String, member: AssignedCrewMember) {
+  private fun applyCrewConfirmed(bookingId: String, member: AssignedCrewMember, confirmServer: Boolean = true) {
     _bookings.value = _bookings.value.map {
       if (it.id == bookingId) it.copy(status = BookingStatus.CONFIRMED, assignedCrew = listOf(member)) else it
     }
@@ -574,11 +579,70 @@ object FameGoRepository {
       )
     )
     ioScope.launch {
-      SupabaseRestClient.post("rpc/accept_booking", JSONObject().apply { put("p_booking_id", bookingId) }.toString())
-        .onSuccess {
-          // The accepting crew's device tells the client's devices.
-          fanoutToPeers(bookingId, "Crew confirmed", "${member.name} is locked in for your shoot.")
+      if (!confirmServer) {
+        fanoutToPeers(bookingId, "Crew confirmed", "${member.name} is locked in for your shoot.")
+        return@launch
+      }
+      val rpc = SupabaseRestClient.post(
+        "rpc/accept_booking",
+        JSONObject().apply { put("p_booking_id", bookingId) }.toString()
+      )
+      rpc.onSuccess {
+        // The accepting crew's device tells the client's devices.
+        fanoutToPeers(bookingId, "Crew confirmed", "${member.name} is locked in for your shoot.")
+      }.onFailure { e ->        // Definitive rejections roll back the optimistic confirm and say why;
+        // transient network errors keep it and reconcile on next refresh.
+        val msg = e.message.orEmpty()
+        val definitive = msg.contains("booking_not_available") ||
+          msg.contains("crew_not_available") ||
+          Regex("Supabase 40[013]").containsMatchIn(msg)
+        if (!definitive) return@launch
+        _bookings.value = _bookings.value.map {
+          if (it.id == bookingId) it.copy(status = BookingStatus.SEARCHING_CREW, assignedCrew = emptyList())
+          else it
         }
+        refreshIncomingRequests()
+        when (val verdict = AcceptResolver.resolve(bookingId)) {
+          // Server already has me on this shoot: keep local truth, no RPC loop.
+          is AcceptOutcome.Confirmed -> applyCrewConfirmed(bookingId, member, confirmServer = false)
+          is AcceptOutcome.Taken -> addNotification(
+            NotificationItem(
+              title = "Already claimed",
+              message = "${verdict.name} claimed this shoot first.",
+              timestampText = "Just now",
+              targetRole = Role.CREW,
+              bookingId = bookingId
+            )
+          )
+          AcceptOutcome.OffDuty -> addNotification(
+            NotificationItem(
+              title = "You're off duty",
+              message = "Go on duty to claim shoots.",
+              timestampText = "Just now",
+              targetRole = Role.CREW,
+              bookingId = bookingId
+            )
+          )
+          AcceptOutcome.Gone -> addNotification(
+            NotificationItem(
+              title = "Request closed",
+              message = "This shoot is no longer open.",
+              timestampText = "Just now",
+              targetRole = Role.CREW,
+              bookingId = bookingId
+            )
+          )
+          AcceptOutcome.Retry -> addNotification(
+            NotificationItem(
+              title = "Couldn't claim yet",
+              message = "Check connection and retry from Requests.",
+              timestampText = "Just now",
+              targetRole = Role.CREW,
+              bookingId = bookingId
+            )
+          )
+        }
+      }
     }
   }
 
@@ -702,10 +766,68 @@ object FameGoRepository {
         SupabaseRestClient.post("support_messages", JSONObject().apply {
           put("user_id", userId)
           put("message", message)
-        }.toString())
+        }.toString()).onSuccess { loadSupportThread() }
       }
     }
     return true
+  }
+
+  // -- Support threads (two-way) -------------------------------------------
+  private val _supportThread = MutableStateFlow<List<com.example.model.SupportMessage>>(emptyList())
+  val supportThread: StateFlow<List<com.example.model.SupportMessage>> = _supportThread.asStateFlow()
+  private val _allSupport = MutableStateFlow<List<com.example.model.SupportMessage>>(emptyList())
+  val allSupport: StateFlow<List<com.example.model.SupportMessage>> = _allSupport.asStateFlow()
+
+  /** Own conversation (mine + admin replies). */
+  fun loadSupportThread() {
+    val userId = _currentUser.value.id
+    if (userId.isBlank() || !SupabaseConfig.isConfigured) return
+    ioScope.launch {
+      SupabaseRestClient.get("support_messages?select=*&user_id=eq.$userId&order=created_at.asc&limit=100")
+        .onSuccess { raw ->
+          _supportThread.value = runCatching { parseSupport(JSONArray(raw)) }.getOrDefault(emptyList())
+        }
+    }
+  }
+
+  /** Admin inbox: every thread, newest first. Requires 008_support_replies.sql. */
+  fun loadAllSupport() {
+    if (!SupabaseConfig.isConfigured || _currentUser.value.role != Role.ADMIN) return
+    ioScope.launch {
+      SupabaseRestClient.get("support_messages?select=*&order=created_at.desc&limit=200")
+        .onSuccess { raw ->
+          _allSupport.value = runCatching { parseSupport(JSONArray(raw)) }.getOrDefault(emptyList())
+        }
+    }
+  }
+
+  /** Admin reply inside a user's thread. */
+  suspend fun replySupport(targetUserId: String, text: String): Result<Unit> {
+    val message = text.trim()
+    if (message.isEmpty() || targetUserId.isBlank()) {
+      return Result.failure(IllegalStateException("Write a reply first"))
+    }
+    return SupabaseRestClient.post("support_messages", JSONObject().apply {
+      put("user_id", targetUserId)
+      put("message", message)
+      put("is_from_support", true)
+    }.toString()).map { loadAllSupport() }
+  }
+
+  private fun parseSupport(array: JSONArray): List<com.example.model.SupportMessage> = buildList {
+    for (i in 0 until array.length()) {
+      val o = array.getJSONObject(i)
+      if (o.optString("message").isBlank()) continue
+      add(
+        com.example.model.SupportMessage(
+          id = o.optString("id"),
+          userId = o.optString("user_id"),
+          message = o.optString("message"),
+          isFromSupport = o.optBoolean("is_from_support"),
+          createdAt = o.optString("created_at")
+        )
+      )
+    }
   }
 
   /**
@@ -780,10 +902,12 @@ object FameGoRepository {
   }
 
   fun startChatRealtime(bookingId: String) {
+    _activeChatId.value = bookingId
     SupabaseRealtimeClient.subscribeToChat(bookingId) { loadChatMessages(bookingId) }
   }
 
   fun stopChatRealtime(bookingId: String) {
+    if (_activeChatId.value == bookingId) _activeChatId.value = null
     SupabaseRealtimeClient.unsubscribeFromChat(bookingId)
   }
   private fun refreshIncomingRequests() {

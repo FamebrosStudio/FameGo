@@ -139,6 +139,7 @@ private sealed interface PopupState {
   data class Active(val booking: PopupBooking) : PopupState
   data class Confirmed(val booking: PopupBooking) : PopupState
   data class Taken(val name: String) : PopupState
+  data object OffDuty : PopupState
   data object Gone : PopupState
 }
 
@@ -153,6 +154,7 @@ private fun IncomingShootContent(
   val scope = rememberCoroutineScope()
   var state by remember { mutableStateOf<PopupState>(PopupState.Loading) }
   var working by remember { mutableStateOf(false) }
+  var notice by remember { mutableStateOf<String?>(null) }
   val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
 
   LaunchedEffect(bookingId) {
@@ -188,6 +190,7 @@ private fun IncomingShootContent(
         LaunchedEffect(Unit) { onDone() }
       }
       is PopupState.Taken -> TakenCard(name = s.name, onClose = onDone)
+      is PopupState.OffDuty -> OffDutyCard(onOpenApp = onOpenApp, onClose = onDone)
       is PopupState.Confirmed -> ConfirmedCard(
         bookingId = s.booking.id,
         title = s.booking.title,
@@ -198,9 +201,11 @@ private fun IncomingShootContent(
       is PopupState.Active -> RequestCard(
         booking = s.booking,
         working = working,
+        notice = notice,
         onAccept = {
           if (working) return@RequestCard
           working = true
+          notice = null
           scope.launch {
             val result = SupabaseRestClient.post(
               "rpc/accept_booking",
@@ -210,7 +215,21 @@ private fun IncomingShootContent(
             if (result.isSuccess) {
               state = PopupState.Confirmed(s.booking)
             } else {
-              state = PopupState.Taken("another crew member")
+              // Same verdict engine as the notification action: say why.
+              when (val verdict = com.example.data.AcceptResolver.resolve(bookingId)) {
+                is com.example.data.AcceptOutcome.Confirmed ->
+                  state = PopupState.Confirmed(s.booking)
+                is com.example.data.AcceptOutcome.Taken ->
+                  state = PopupState.Taken(verdict.name)
+                com.example.data.AcceptOutcome.OffDuty ->
+                  state = PopupState.OffDuty
+                com.example.data.AcceptOutcome.Gone ->
+                  state = PopupState.Gone
+                com.example.data.AcceptOutcome.Retry -> {
+                  notice = "Couldn't reach the server — check connection and retry."
+                  state = PopupState.Active(s.booking)
+                }
+              }
             }
           }
         },
@@ -308,6 +327,7 @@ private fun PulsingBadge() {
 private fun RequestCard(
   booking: PopupBooking,
   working: Boolean,
+  notice: String?,
   onAccept: () -> Unit,
   onDecline: () -> Unit
 ) {
@@ -336,6 +356,12 @@ private fun RequestCard(
         text = booking.roleLine, color = FameGoTextMuted, fontSize = 12.sp,
         textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp)
       )
+      if (!notice.isNullOrBlank()) {
+        Text(
+          text = notice, color = FameGoGold, fontSize = 12.sp,
+          textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp)
+        )
+      }
       Spacer(modifier = Modifier.height(20.dp))
       Row(
         modifier = Modifier.fillMaxWidth(),
@@ -415,8 +441,7 @@ private fun ConfirmedCard(
 }
 
 @Composable
-private fun TakenCard(name: String, onClose: () -> Unit) {
-  Surface(
+private fun TakenCard(name: String, onClose: () -> Unit) {  Surface(
     shape = RoundedCornerShape(26.dp),
     color = FameGoCard,
     border = androidx.compose.foundation.BorderStroke(1.dp, FameGoLiveRed.copy(alpha = 0.5f)),
@@ -437,6 +462,41 @@ private fun TakenCard(name: String, onClose: () -> Unit) {
         fontWeight = FontWeight.Bold, textAlign = TextAlign.Center
       )
       Spacer(modifier = Modifier.height(16.dp))
+      TextButton(onClick = onClose) {
+        Text("Close", color = FameGoTextSecondary, fontSize = 14.sp)
+      }
+    }
+  }
+}
+
+@Composable
+private fun OffDutyCard(onOpenApp: () -> Unit, onClose: () -> Unit) {
+  Surface(
+    shape = RoundedCornerShape(26.dp),
+    color = FameGoCard,
+    border = androidx.compose.foundation.BorderStroke(1.5.dp, FameGoGold),
+    shadowElevation = 24.dp,
+    modifier = Modifier.fillMaxWidth()
+  ) {
+    Column(
+      modifier = Modifier.padding(horizontal = 22.dp, vertical = 24.dp),
+      horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+      PulsingBadge()
+      Spacer(modifier = Modifier.height(16.dp))
+      Text(
+        text = "You're off duty",
+        color = FameGoWhite, fontSize = 20.sp,
+        fontWeight = FontWeight.Bold, textAlign = TextAlign.Center
+      )
+      Text(
+        text = "Go on duty in the app to claim this shoot before someone else does.",
+        color = FameGoTextSecondary, fontSize = 13.sp,
+        textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp)
+      )
+      Spacer(modifier = Modifier.height(20.dp))
+      FameGoButton(text = "Open app", onClick = onOpenApp, modifier = Modifier.fillMaxWidth())
+      Spacer(modifier = Modifier.height(8.dp))
       TextButton(onClick = onClose) {
         Text("Close", color = FameGoTextSecondary, fontSize = 14.sp)
       }

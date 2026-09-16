@@ -454,7 +454,10 @@ private fun AdminApplicationCard(
 }
 
 @Composable
-fun AdminPeopleScreen(modifier: Modifier = Modifier) {
+fun AdminPeopleScreen(
+  onOpenSupport: () -> Unit = {},
+  modifier: Modifier = Modifier
+) {
   val crewApplications by FameGoRepository.crewApplications.collectAsState()
   val pendingApplications = crewApplications.filter { it.status == CrewApplicationStatus.UNDER_REVIEW }
   val scrollState = rememberScrollState()
@@ -486,8 +489,38 @@ fun AdminPeopleScreen(modifier: Modifier = Modifier) {
         text = "Applications and user roles",
         color = FameGoTextMuted,
         fontSize = 13.sp,
-        modifier = Modifier.padding(top = 2.dp, bottom = 20.dp)
+        modifier = Modifier.padding(top = 2.dp, bottom = 16.dp)
       )
+
+      Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = FameGoGold,
+        modifier = Modifier
+          .fillMaxWidth()
+          .clickable { onOpenSupport() }
+          .testTag("admin_support_inbox_button")
+      ) {
+        Row(
+          modifier = Modifier.padding(horizontal = 16.dp, vertical = 13.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Text(
+            text = "Support inbox",
+            color = FameGoBg,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f)
+          )
+          Text(
+            text = "Reply as support →",
+            color = FameGoBg,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
+          )
+        }
+      }
+
+      Spacer(modifier = Modifier.height(20.dp))
 
       Row(
         modifier = Modifier.fillMaxWidth(),

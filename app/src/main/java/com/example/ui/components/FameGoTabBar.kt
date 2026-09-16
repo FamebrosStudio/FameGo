@@ -1,9 +1,8 @@
 package com.example.ui.components
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,12 +14,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -36,11 +32,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,16 +41,10 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
-import dev.chrisbanes.haze.hazeChild
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -68,14 +55,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.IntOffset
-import com.example.ui.theme.FameGoBrightGold
 import com.example.ui.theme.FameGoGlassBg
 import com.example.ui.theme.FameGoGlassBorder
 import com.example.ui.theme.FameGoGold
 import com.example.ui.theme.FameGoTextMuted
 import com.example.ui.theme.FameGoWhite
-import kotlin.math.roundToInt
 
 /**
  * A bottom tab entry: outline icon at rest, filled icon when selected —
@@ -150,47 +134,19 @@ fun fameGoAdminTabs() = listOf(
 )
 
 /**
- * FameGo bottom tab bar — dark floating glass pill with a spring-loaded
- * gold capsule that glides behind the active tab. The yellow never jumps:
- * one shared indicator animates across tabs on a soft spring, the active
- * icon pops gently and tints gold, labels stay put for readability.
+ * FameGo bottom tab bar — dark floating glass pill with a hairline top
+ * highlight. Unselected tabs are muted outline icons; the active tab is a
+ * filled gold icon with a bold white label. Tap a tab, or swipe left/right
+ * anywhere on the tab content to move between tabs.
  */
 @Composable
 fun FameGoTabBar(
   tabs: List<FameGoTab>,
   selectedRoute: String,
   onSelect: (String) -> Unit,
-  modifier: Modifier = Modifier,
-  hazeState: dev.chrisbanes.haze.HazeState? = null
+  modifier: Modifier = Modifier
 ) {
   val haptic = LocalHapticFeedback.current
-  val density = LocalDensity.current
-  val tabSfx = LocalContext.current.applicationContext
-  // Center-x of every tab cell, measured after layout. Reset with the tab
-  // list so stale positions can never fling the capsule across the bar.
-  var centers by remember(tabs) { mutableStateOf(mapOf<String, Float>()) }
-  val pillWidthPx = remember(density) { with(density) { 60.dp.toPx() } }
-  val targetCenter = centers[selectedRoute]
-
-  // One shared indicator: glides on a soft under-damped spring, interruptible
-  // mid-flight when taps come fast. Snaps on first measure, never animates
-  // from a stale position.
-  val glideX = remember(tabs) { Animatable(0f) }
-  var glideReady by remember(tabs) { mutableStateOf(false) }
-  LaunchedEffect(targetCenter) {
-    if (targetCenter != null) {
-      if (!glideReady) {
-        glideX.snapTo(targetCenter)
-        glideReady = true
-      } else {
-        glideX.animateTo(targetCenter, FameGoSprings.settle())
-      }
-    }
-  }
-  // Squash & stretch: the capsule smushes along its travel direction with
-  // speed, then relaxes back to round. Reads animation velocity per frame.
-  val speed = kotlin.math.abs(glideX.velocity)
-  val smush = 1f + (speed / 5000f).coerceAtMost(0.28f)
 
   Box(
     modifier = modifier
@@ -202,22 +158,9 @@ fun FameGoTabBar(
   ) {
     Surface(
       shape = RoundedCornerShape(28.dp),
-      color = if (hazeState != null) Color.Transparent else FameGoGlassBg,
+      color = FameGoGlassBg,
       border = androidx.compose.foundation.BorderStroke(1.dp, FameGoGlassBorder),
-      shadowElevation = 10.dp,
-      modifier = Modifier.then(
-        if (hazeState != null) {
-          Modifier.hazeChild(
-            state = hazeState,
-            style = dev.chrisbanes.haze.HazeDefaults.style(
-              backgroundColor = Color(0xFF0B0D10).copy(alpha = 0.55f),
-              tint = dev.chrisbanes.haze.HazeTint(Color.White.copy(alpha = 0.04f)),
-              blurRadius = 26.dp,
-              noiseFactor = 0f
-            )
-          )
-        } else Modifier
-      )
+      shadowElevation = 10.dp
     ) {
       Box {
         Row(
@@ -228,51 +171,19 @@ fun FameGoTabBar(
           verticalAlignment = Alignment.CenterVertically
         ) {
           tabs.forEach { tab ->
-            val selected = tab.route == selectedRoute
+            val selected = tab.route == selectedRoute ||
+              // "book" also covers the launchpad sub-flow visually.
+              (tab.route == "book" && selectedRoute == "book")
             FameGoTabItem(
               tab = tab,
               selected = selected,
               onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                com.example.data.FameGoSfx.click(tabSfx)
                 onSelect(tab.route)
               },
-              modifier = Modifier
-                .weight(1f)
-                .onGloballyPositioned { coords ->
-                  val center = coords.positionInParent().x + coords.size.width / 2f
-                  val prev = centers[tab.route]
-                  if (prev == null || kotlin.math.abs(prev - center) > 1f) {
-                    centers = centers + (tab.route to center)
-                  }
-                }
+              modifier = Modifier.weight(1f)
             )
           }
-        }
-        // The traveling gold capsule — visible once measured, slides forever.
-        if (glideReady && targetCenter != null) {
-          Box(
-            modifier = Modifier
-              .align(Alignment.CenterStart)
-              .offset {
-                IntOffset(
-                  (glideX.value - pillWidthPx / 2f).roundToInt(),
-                  0
-                )
-              }
-              .graphicsLayer {
-                scaleX = smush
-                scaleY = 1f - (smush - 1f) * 0.55f
-              }
-              .width(60.dp)
-              .height(44.dp)
-              .clip(RoundedCornerShape(22.dp))
-              .background(
-                Brush.horizontalGradient(
-                  colors = listOf(FameGoGold, FameGoBrightGold, FameGoGold)
-                )
-              ),
-          )
         }
         // Hairline glass highlight along the top edge (reference look).
         Canvas(
@@ -309,24 +220,23 @@ private fun FameGoTabItem(
 ) {
   val interaction = remember { MutableInteractionSource() }
   val pressed by interaction.collectIsPressedAsState()
-  // Gentle pop when a tab becomes active; subtle press-down under finger.
-  val pop by animateFloatAsState(
-    targetValue = when {
-      pressed -> 0.9f
-      selected -> 1.12f
-      else -> 1f
-    },
-    animationSpec = FameGoSprings.pop(),
-    label = "tabPop"
+  val scale by animateFloatAsState(
+    targetValue = if (pressed) 0.92f else 1f,
+    animationSpec = spring(
+      stiffness = Spring.StiffnessMedium,
+      dampingRatio = Spring.DampingRatioMediumBouncy
+    ),
+    label = "tabPress"
   )
-  val iconTint by animateColorAsState(
-    targetValue = if (selected) Color(0xFF1A1408) else FameGoTextMuted,
-    animationSpec = tween(200),
-    label = "tabIconTint"
-  )
+  val iconTint = when {
+    selected -> FameGoGold
+    tab.accent -> FameGoGold.copy(alpha = 0.75f)
+    else -> FameGoTextMuted
+  }
 
   Column(
     modifier = modifier
+      .scale(scale)
       .clip(RoundedCornerShape(18.dp))
       .clickable(
         interactionSource = interaction,
@@ -347,9 +257,7 @@ private fun FameGoTabItem(
       imageVector = if (selected) tab.filledIcon else tab.outlineIcon,
       contentDescription = null,
       tint = iconTint,
-      modifier = Modifier
-        .size(24.dp)
-        .scale(pop)
+      modifier = Modifier.size(24.dp)
     )
     Text(
       text = tab.label,

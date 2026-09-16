@@ -3,6 +3,7 @@ package com.example.data
 import com.example.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
@@ -20,6 +21,16 @@ object MapTilerGeocoding {
   const val MUMBAI_LNG = 72.8777
   const val MUMBAI_LAT = 19.0760
   private const val UA = "FameGo-Android/1.0"
+
+  /** Short-timeout client for interactive map work: fail fast, never stall. */
+  private val fastHttp: OkHttpClient by lazy {
+    OkHttpClient.Builder()
+      .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+      .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+      .writeTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+      .retryOnConnectionFailure(true)
+      .build()
+  }
 
   suspend fun suggest(query: String, limit: Int = 6): Result<List<MapPlace>> =
     withContext(Dispatchers.IO) {
@@ -42,7 +53,7 @@ object MapTilerGeocoding {
       runCatching {
         val url = "https://api.bigdatacloud.net/data/reverse-geocode-client" +
           "?latitude=$latitude&longitude=$longitude&localityLanguage=en"
-        SupabaseNetwork.http.newCall(Request.Builder().url(url).get().build())
+        fastHttp.newCall(Request.Builder().url(url).get().build())
           .execute().use { response ->
             val raw = response.body?.string().orEmpty()
             if (!response.isSuccessful) error("reverse ${response.code}")
@@ -71,7 +82,7 @@ object MapTilerGeocoding {
       "?key=$key&country=in&limit=$limit" +
       "&types=address,place,locality,neighborhood,poi" +
       "&language=en&proximity=72.8777,19.0760"
-    SupabaseNetwork.http.newCall(Request.Builder().url(url).get().build())
+    fastHttp.newCall(Request.Builder().url(url).get().build())
       .execute().use { response ->
         val raw = response.body?.string().orEmpty()
         if (!response.isSuccessful) error("MapTiler ${response.code}")
@@ -101,7 +112,7 @@ object MapTilerGeocoding {
     val encoded = java.net.URLEncoder.encode(query, "UTF-8")
     val url = "https://nominatim.openstreetmap.org/search" +
       "?format=jsonv2&q=$encoded&countrycodes=in&limit=$limit&addressdetails=1"
-    SupabaseNetwork.http.newCall(
+    fastHttp.newCall(
       Request.Builder().url(url).header("User-Agent", UA).get().build()
     ).execute().use { response ->
       val raw = response.body?.string().orEmpty()

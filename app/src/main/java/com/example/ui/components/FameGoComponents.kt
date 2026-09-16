@@ -1468,9 +1468,58 @@ fun CreditsCard(modifier: Modifier = Modifier) {
     }
   }
 }
+/**
+ * Fully-offline takeover: FameGo is online-only, so a lost connection gets
+ * a full screen with a retry instead of half-broken pages.
+ */
+@Composable
+fun NoInternetScreen(
+  onRetry: () -> Unit,
+  modifier: Modifier = Modifier
+) {
+  Box(
+    modifier = modifier
+      .fillMaxSize()
+      .background(FameGoBg.copy(alpha = 0.97f)),
+    contentAlignment = Alignment.Center
+  ) {
+    Column(
+      horizontalAlignment = Alignment.CenterHorizontally,
+      modifier = Modifier.padding(horizontal = 32.dp)
+    ) {
+      FameGoSnakeLoader(
+        modifier = Modifier.size(width = 150.dp, height = 88.dp)
+      )
+      Spacer(modifier = Modifier.height(16.dp))
+      Text(
+        text = "You're offline",
+        color = FameGoWhite,
+        fontSize = 22.sp,
+        fontWeight = FontWeight.Bold,
+        textAlign = TextAlign.Center
+      )
+      Text(
+        text = "FameGo needs the internet for bookings, chats and crew alerts. Check Wi-Fi or mobile data and retry.",
+        color = FameGoTextSecondary,
+        fontSize = 13.sp,
+        lineHeight = 19.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(top = 8.dp)
+      )
+      Spacer(modifier = Modifier.height(24.dp))
+      FameGoButton(
+        text = "Retry connection",
+        onClick = onRetry,
+        modifier = Modifier.fillMaxWidth(),
+        testTag = "no_internet_retry"
+      )
+    }
+  }
+}
 
 @Composable
-fun SectionHeader(  title: String,
+fun SectionHeader(
+  title: String,
   subtitle: String? = null,
   modifier: Modifier = Modifier
 ) {

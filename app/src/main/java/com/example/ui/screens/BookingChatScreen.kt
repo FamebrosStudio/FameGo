@@ -86,12 +86,23 @@ fun BookingChatScreen(
     onDispose { FameGoRepository.stopChatRealtime(bookingId) }
   }
   // Safety net: realtime sockets can silently drop (expired token, doze).
-  // A light poll guarantees messages land even when the socket is dead.
+  // A fast poll guarantees messages land even when the socket is dead.
   LaunchedEffect(bookingId) {
     while (true) {
-      kotlinx.coroutines.delay(6000)
+      kotlinx.coroutines.delay(3000)
       FameGoRepository.loadChatMessages(bookingId)
     }
+  }
+  // Foreground return: always re-read, never show a stale thread.
+  val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+  DisposableEffect(lifecycleOwner, bookingId) {
+    val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+      if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+        FameGoRepository.loadChatMessages(bookingId)
+      }
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
   }
 
   var messageInput by remember { mutableStateOf("") }

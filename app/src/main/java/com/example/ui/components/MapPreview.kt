@@ -106,22 +106,23 @@ fun MapPreviewCard(
           overlays.add(
             MapEventsOverlay(object : MapEventsReceiver {
               override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
-                resolving = true
-                pending = null
+                // Instant: drop the pin + confirm chip immediately with coords,
+                // then refine the label in the background. Never block on network.
+                val instant = MapPlace(
+                  full = "${p.latitude}, ${p.longitude}",
+                  short = "Selected spot",
+                  latitude = p.latitude,
+                  longitude = p.longitude
+                )
+                pending = Triple(p.latitude, p.longitude, "Selected spot")
+                pendingFull = instant
+                resolving = false
+                markerHolder[0]?.position = p
                 scope.launch {
-                  val place = MapTilerGeocoding.reverse(p.latitude, p.longitude).getOrNull()
-                  pending = Triple(
-                    p.latitude, p.longitude,
-                    place?.short ?: "Selected spot"
-                  )
-                  // Stash full place for the confirm tap.
-                  pendingFull = place ?: MapPlace(
-                    full = "${p.latitude}, ${p.longitude}",
-                    short = "Selected spot",
-                    latitude = p.latitude,
-                    longitude = p.longitude
-                  )
-                  resolving = false
+                  MapTilerGeocoding.reverse(p.latitude, p.longitude).onSuccess { place ->
+                    pending = Triple(p.latitude, p.longitude, place.short)
+                    pendingFull = place
+                  }
                 }
                 return true
               }
@@ -144,10 +145,17 @@ fun MapPreviewCard(
           it.title = pinLabel
         }
         if (lastApplied[0] != centerLat || lastApplied[1] != centerLng || lastApplied[2] != zoom.toDouble()) {
+          val dLat = kotlin.math.abs(lastApplied[0] - centerLat)
+          val dLng = kotlin.math.abs(lastApplied[1] - centerLng)
           lastApplied[0] = centerLat
           lastApplied[1] = centerLng
           lastApplied[2] = zoom.toDouble()
-          map.controller.animateTo(GeoPoint(centerLat, centerLng))
+          // Far jumps snap instantly; nearby moves glide smoothly.
+          if (dLat + dLng > 0.5) {
+            map.controller.setCenter(GeoPoint(centerLat, centerLng))
+          } else {
+            map.controller.animateTo(GeoPoint(centerLat, centerLng))
+          }
           map.controller.setZoom(zoom.toDouble())
         }
         map.invalidate()

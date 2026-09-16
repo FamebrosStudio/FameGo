@@ -329,8 +329,31 @@ object FameGoPush {
     runCatching { manager.notify(notificationId, notification) }
   }
 
-  fun showAlreadyAssigned(context: Context, bookingId: String, assignedTo: String) {
+  fun showDutyOff(context: Context, bookingId: String) {
     ensureChannels(context)
+    val manager = manager(context) ?: return
+    val notificationId = notifIdFor(bookingId)
+    val openIntent = Intent(context, MainActivity::class.java).apply {
+      flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+      putExtra(IncomingShootActivity.EXTRA_BOOKING_ID, bookingId)
+    }
+    val pending = PendingIntent.getActivity(
+      context, notificationId + 20, openIntent,
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    val notification = NotificationCompat.Builder(context, CHANNEL_SHOOTS)
+      .setSmallIcon(R.mipmap.ic_launcher)
+      .setContentTitle("You're off duty")
+      .setContentText("Go on duty in the app to claim this shoot before someone else does.")
+      .setColor(0xFFF6B941.toInt())
+      .setPriority(NotificationCompat.PRIORITY_HIGH)
+      .setAutoCancel(true)
+      .setContentIntent(pending)
+      .build()
+    runCatching { manager.notify(notificationId, notification) }
+  }
+
+  fun showAlreadyAssigned(context: Context, bookingId: String, assignedTo: String) {    ensureChannels(context)
     val manager = manager(context) ?: return
     val notification = NotificationCompat.Builder(context, CHANNEL_SHOOTS)
       .setSmallIcon(R.mipmap.ic_launcher)
