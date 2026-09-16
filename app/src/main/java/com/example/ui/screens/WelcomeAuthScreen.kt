@@ -152,6 +152,11 @@ fun SplashScreen(
       Spacer(modifier = Modifier.height(14.dp))
       Text("FAMEBROS STUDIO", color = FameGoTextSecondary,
         fontSize = 9.sp, letterSpacing = 3.sp)
+      Spacer(modifier = Modifier.height(26.dp))
+      // Signature snake loader while the session restores.
+      com.example.ui.components.FameGoSnakeLoader(
+        modifier = Modifier.size(width = 150.dp, height = 88.dp)
+      )
     }
   }
 }
