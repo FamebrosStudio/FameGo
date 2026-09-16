@@ -48,13 +48,16 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
+import dev.chrisbanes.haze.hazeChild
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -157,19 +160,23 @@ fun FameGoTabBar(
   tabs: List<FameGoTab>,
   selectedRoute: String,
   onSelect: (String) -> Unit,
-  modifier: Modifier = Modifier
+  modifier: Modifier = Modifier,
+  hazeState: dev.chrisbanes.haze.HazeState? = null
 ) {
   val haptic = LocalHapticFeedback.current
   val density = LocalDensity.current
-  // Center-x of every tab cell, measured after layout.
-  var centers by remember { mutableStateOf(mapOf<String, Float>()) }
+  val tabSfx = LocalContext.current.applicationContext
+  // Center-x of every tab cell, measured after layout. Reset with the tab
+  // list so stale positions can never fling the capsule across the bar.
+  var centers by remember(tabs) { mutableStateOf(mapOf<String, Float>()) }
   val pillWidthPx = remember(density) { with(density) { 60.dp.toPx() } }
   val targetCenter = centers[selectedRoute]
 
   // One shared indicator: glides on a soft under-damped spring, interruptible
-  // mid-flight when taps come fast.
-  val glideX = remember { Animatable(0f) }
-  var glideReady by remember { mutableStateOf(false) }
+  // mid-flight when taps come fast. Snaps on first measure, never animates
+  // from a stale position.
+  val glideX = remember(tabs) { Animatable(0f) }
+  var glideReady by remember(tabs) { mutableStateOf(false) }
   LaunchedEffect(targetCenter) {
     if (targetCenter != null) {
       if (!glideReady) {
@@ -180,6 +187,10 @@ fun FameGoTabBar(
       }
     }
   }
+  // Squash & stretch: the capsule smushes along its travel direction with
+  // speed, then relaxes back to round. Reads animation velocity per frame.
+  val speed = kotlin.math.abs(glideX.velocity)
+  val smush = 1f + (speed / 5000f).coerceAtMost(0.28f)
 
   Box(
     modifier = modifier
@@ -191,9 +202,22 @@ fun FameGoTabBar(
   ) {
     Surface(
       shape = RoundedCornerShape(28.dp),
-      color = FameGoGlassBg,
+      color = if (hazeState != null) Color.Transparent else FameGoGlassBg,
       border = androidx.compose.foundation.BorderStroke(1.dp, FameGoGlassBorder),
-      shadowElevation = 10.dp
+      shadowElevation = 10.dp,
+      modifier = Modifier.then(
+        if (hazeState != null) {
+          Modifier.hazeChild(
+            state = hazeState,
+            style = dev.chrisbanes.haze.HazeDefaults.style(
+              backgroundColor = Color(0xFF0B0D10).copy(alpha = 0.55f),
+              tint = dev.chrisbanes.haze.HazeTint(Color.White.copy(alpha = 0.04f)),
+              blurRadius = 26.dp,
+              noiseFactor = 0f
+            )
+          )
+        } else Modifier
+      )
     ) {
       Box {
         Row(
@@ -210,6 +234,7 @@ fun FameGoTabBar(
               selected = selected,
               onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                com.example.data.FameGoSfx.click(tabSfx)
                 onSelect(tab.route)
               },
               modifier = Modifier
@@ -234,6 +259,10 @@ fun FameGoTabBar(
                   (glideX.value - pillWidthPx / 2f).roundToInt(),
                   0
                 )
+              }
+              .graphicsLayer {
+                scaleX = smush
+                scaleY = 1f - (smush - 1f) * 0.55f
               }
               .width(60.dp)
               .height(44.dp)

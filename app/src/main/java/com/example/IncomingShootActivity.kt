@@ -90,6 +90,8 @@ class IncomingShootActivity : ComponentActivity() {
     }
     SupabaseSession.initialize(applicationContext)
     lifecycleScope.launch { runCatching { SupabaseAuthClient.restoreSession() } }
+    com.example.data.FameGoSfx.ensure(applicationContext)
+    com.example.data.FameGoSfx.notify(applicationContext)
 
     val bookingId = intent.getStringExtra(EXTRA_BOOKING_ID).orEmpty()
     val fallbackTitle = intent.getStringExtra(EXTRA_TITLE).orEmpty()

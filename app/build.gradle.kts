@@ -114,6 +114,8 @@ dependencies {
   implementation(libs.okhttp)
   // FCM for background push (inert until FCM_* values are set in local.properties).
   implementation("com.google.firebase:firebase-messaging:24.1.0")
+  // True backdrop blur for the glass tab bar (Haze).
+  implementation("dev.chrisbanes.haze:haze:1.0.0")
   // Free interactive maps: osmdroid (OSM) + CARTO dark tiles, no API key.
   implementation("org.osmdroid:osmdroid-android:6.1.20")
   // implementation(libs.play.services.location)

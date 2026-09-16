@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -61,6 +62,7 @@ fun NotificationsScreen(
   val scrollState = rememberScrollState()
   var isRefreshing by remember { mutableStateOf(false) }
   val refreshScope = rememberCoroutineScope()
+  val notifSfx = LocalContext.current.applicationContext
 
   Box(
     modifier = modifier
@@ -71,6 +73,7 @@ fun NotificationsScreen(
       isRefreshing = isRefreshing,
       onRefresh = {
         isRefreshing = true
+        com.example.data.FameGoSfx.pop(notifSfx)
         refreshScope.launch {
           FameGoRepository.refreshNow()
           isRefreshing = false

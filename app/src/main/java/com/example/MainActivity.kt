@@ -63,6 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import dev.chrisbanes.haze.haze
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -154,6 +155,7 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     SupabaseSession.initialize(applicationContext)
+    com.example.data.FameGoSfx.ensure(applicationContext)
     // Free map tiles (osmdroid) need an app user-agent or tile servers refuse us.
     org.osmdroid.config.Configuration.getInstance().apply {
       userAgentValue = packageName
@@ -251,6 +253,8 @@ fun FameGoApp() {
   val appScope = rememberCoroutineScope()
   val appContext = LocalContext.current
   val appHaptic = LocalHapticFeedback.current
+  // Backdrop-blur source for the glass tab bar (Haze).
+  val tabHaze = remember { dev.chrisbanes.haze.HazeState() }
   val notifPermission =
     rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
@@ -500,6 +504,7 @@ fun FameGoApp() {
               AnimatedContent(
                 targetState = screen.tab,
                 modifier = Modifier.fillMaxSize()
+                  .haze(tabHaze)
                   .navigationBarsPadding()
                   .padding(bottom = 104.dp)
                   .swipeToSwitchTabs(
@@ -599,19 +604,22 @@ fun FameGoApp() {
                 tabs = fameGoClientTabs(),
                 selectedRoute = screen.tab,
                 onSelect = { destination -> navigateTo(Screen.Main(tab = destination)) },
-                modifier = Modifier.align(Alignment.BottomCenter)
+                modifier = Modifier.align(Alignment.BottomCenter),
+                hazeState = tabHaze
               )
               if (currentUser.role == Role.CREW) FameGoTabBar(
                 tabs = fameGoCrewTabs(),
                 selectedRoute = screen.tab,
                 onSelect = { destination -> navigateTo(Screen.Main(tab = destination)) },
-                modifier = Modifier.align(Alignment.BottomCenter)
+                modifier = Modifier.align(Alignment.BottomCenter),
+                hazeState = tabHaze
               )
               if (currentUser.role == Role.ADMIN) FameGoTabBar(
                 tabs = fameGoAdminTabs(),
                 selectedRoute = screen.tab,
                 onSelect = { destination -> navigateTo(Screen.Main(tab = destination)) },
-                modifier = Modifier.align(Alignment.BottomCenter)
+                modifier = Modifier.align(Alignment.BottomCenter),
+                hazeState = tabHaze
               )
             }
           }
@@ -698,6 +706,7 @@ fun FameGoApp() {
             requestId = screen.bookingId,
             onAccept = {
               FameGoHaptics.success(appHaptic)
+              com.example.data.FameGoSfx.success(appContext)
               val me = currentUser
               val profile = FameGoRepository.crewProfiles.value.firstOrNull { it.userId == me.id }
               val crewMember = if (profile != null) {
@@ -726,6 +735,7 @@ fun FameGoApp() {
             },
             onDecline = {
               FameGoHaptics.micro(appHaptic)
+              com.example.data.FameGoSfx.tap(appContext)
               FameGoRepository.declineShootRequest(screen.bookingId)
               goBack(Screen.Main("requests"))
             },
@@ -821,6 +831,7 @@ fun FameGoApp() {
     // Crew full-screen incoming shoot request (Famebook-style).
     if (currentUser.role == Role.CREW) {
       incomingAlert?.let { alert ->
+        LaunchedEffect(alert.id) { com.example.data.FameGoSfx.notify(appContext) }
         IncomingShootDialog(
           bookingTitle = alert.shootTitle,
           venue = alert.venueName,

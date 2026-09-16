@@ -89,6 +89,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.graphics.Brush
@@ -544,6 +545,7 @@ fun SoftCard(
   val interactionSource = remember { MutableInteractionSource() }
   val isPressed by interactionSource.collectIsPressedAsState()
   val cardHaptic = LocalHapticFeedback.current
+  val cardSfx = LocalContext.current.applicationContext
   val scale by animateFloatAsState(
     targetValue = if (isPressed && onClick != null) 0.985f else 1.0f,
     animationSpec = spring(stiffness = 500f),
@@ -561,6 +563,7 @@ fun SoftCard(
             indication = null,
             onClick = {
               FameGoHaptics.micro(cardHaptic)
+              com.example.data.FameGoSfx.tap(cardSfx)
               onClick()
             }
           )
@@ -798,6 +801,7 @@ fun StatusCapsule(
   val interactionSource = remember { MutableInteractionSource() }
   val isPressed by interactionSource.collectIsPressedAsState()
   val haptic = LocalHapticFeedback.current
+  val capsuleSfx = LocalContext.current.applicationContext
   val scale by animateFloatAsState(
     targetValue = if (isPressed) 0.97f else 1.0f,
     animationSpec = spring(stiffness = 500f),
@@ -813,6 +817,7 @@ fun StatusCapsule(
         indication = null,
         onClick = {
           FameGoHaptics.micro(haptic)
+          com.example.data.FameGoSfx.pop(capsuleSfx)
           onToggle()
         }
       )
@@ -1296,6 +1301,7 @@ fun FameGoPressable(
   val interaction = remember { MutableInteractionSource() }
   val pressed by interaction.collectIsPressedAsState()
   val pressHaptic = LocalHapticFeedback.current
+  val pressSfx = LocalContext.current.applicationContext
   val scale by animateFloatAsState(
     targetValue = if (pressed && enabled) 0.96f else 1f,
     animationSpec = FameGoSprings.press(),
@@ -1311,6 +1317,7 @@ fun FameGoPressable(
         enabled = enabled,
         onClick = {
           FameGoHaptics.micro(pressHaptic)
+          com.example.data.FameGoSfx.click(pressSfx)
           onClick()
         }
       )
@@ -1334,7 +1341,11 @@ fun FameGoSheet(
   content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
 ) {
   val slide = remember { Animatable(600f) }
-  LaunchedEffect(Unit) { slide.animateTo(0f, FameGoSprings.sheet()) }
+  val sheetSfx = LocalContext.current.applicationContext
+  LaunchedEffect(Unit) {
+    com.example.data.FameGoSfx.pop(sheetSfx)
+    slide.animateTo(0f, FameGoSprings.sheet())
+  }
   androidx.compose.ui.window.Dialog(
     onDismissRequest = onDismiss,
     properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
@@ -1404,6 +1415,7 @@ fun CreditsCard(modifier: Modifier = Modifier) {
       "Ambient aura" to "Aurora-rays canvas study, calmed down",
       "Fluid motion" to "Spring physics, haptics, rubber-band, sheets",
       "Maps & places" to "OpenStreetMap tiles + Nominatim search",
+      "System sounds" to "AOSP UI sounds, Apache 2.0 license",
     )
   }
   SoftCard(modifier = modifier.fillMaxWidth()) {

@@ -68,6 +68,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -139,6 +140,7 @@ fun VengeanceAnimatedButton(
   val sweep = (shine * 2f).coerceIn(0f, 1f)
   val isGold = style == VengeanceButtonStyle.GOLD
   val haptic = LocalHapticFeedback.current
+  val sfxContext = LocalContext.current.applicationContext
   val container = when {
     !enabled -> FameGoCard.copy(alpha = 0.6f)
     isGold -> FameGoGold
@@ -158,6 +160,7 @@ fun VengeanceAnimatedButton(
         enabled = enabled,
         onClick = {
           FameGoHaptics.micro(haptic)
+          com.example.data.FameGoSfx.click(sfxContext)
           onClick()
         }
       )

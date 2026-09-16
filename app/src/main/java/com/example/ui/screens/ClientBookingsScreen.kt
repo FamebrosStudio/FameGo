@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -96,6 +97,7 @@ fun ClientBookingsScreen(
   var isRefreshing by remember { mutableStateOf(false) }
   val refreshScope = rememberCoroutineScope()
   val haptic = LocalHapticFeedback.current
+  val sfx = LocalContext.current.applicationContext
 
   val tabFiltered = when (selectedTab) {
     "Active" -> bookings.filter { it.status != BookingStatus.COMPLETED && it.status != BookingStatus.CANCELLED }
@@ -225,6 +227,7 @@ fun ClientBookingsScreen(
           isRefreshing = isRefreshing,
           onRefresh = {
             isRefreshing = true
+            com.example.data.FameGoSfx.pop(sfx)
             refreshScope.launch {
               FameGoRepository.refreshNow()
               isRefreshing = false
@@ -242,10 +245,12 @@ fun ClientBookingsScreen(
               confirmValueChange = { value ->
                 when (value) {
                   SwipeToDismissBoxValue.StartToEnd -> {
+                    com.example.data.FameGoSfx.tap(sfx)
                     onOpenChat(booking.id)
                     false
                   }
                   SwipeToDismissBoxValue.EndToStart -> {
+                    com.example.data.FameGoSfx.tap(sfx)
                     pendingDeleteId = booking.id
                     false
                   }

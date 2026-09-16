@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -172,8 +173,10 @@ fun PaymentSuccessScreen(
   }
   val pop = remember { androidx.compose.animation.core.Animatable(0.6f) }
   val receiptHaptic = LocalHapticFeedback.current
+  val receiptSfx = LocalContext.current.applicationContext
   LaunchedEffect(Unit) {
     com.example.ui.components.FameGoHaptics.success(receiptHaptic)
+    com.example.data.FameGoSfx.success(receiptSfx)
     pop.animateTo(
       1f,
       androidx.compose.animation.core.spring(

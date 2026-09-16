@@ -333,10 +333,16 @@ fun AuthScreen(
   val appContext = LocalContext.current
   val authHaptic = LocalHapticFeedback.current
   LaunchedEffect(authError) {
-    if (authError != null) com.example.ui.components.FameGoHaptics.error(authHaptic, coroutineScope)
+    if (authError != null) {
+      com.example.ui.components.FameGoHaptics.error(authHaptic, coroutineScope)
+      com.example.data.FameGoSfx.error(appContext)
+    }
   }
   LaunchedEffect(authNotice) {
-    if (authNotice != null) com.example.ui.components.FameGoHaptics.success(authHaptic)
+    if (authNotice != null) {
+      com.example.ui.components.FameGoHaptics.success(authHaptic)
+      com.example.data.FameGoSfx.success(appContext)
+    }
   }
 
   val scrollState = rememberScrollState()

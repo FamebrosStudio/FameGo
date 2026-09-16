@@ -150,6 +150,12 @@ object FameGoPush {
         enableVibration(true)
         vibrationPattern = longArrayOf(0, 350, 150, 350)
         enableLights(true)
+        // Banner sound for closed-app arrivals (the full-screen popup
+        // plays the custom chime when it opens).
+        setSound(
+          android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION),
+          null
+        )
         lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
         if (Build.VERSION.SDK_INT >= 29) setBypassDnd(true)
       }

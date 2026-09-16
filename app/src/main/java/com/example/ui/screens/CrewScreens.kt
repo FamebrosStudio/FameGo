@@ -105,6 +105,7 @@ fun CrewRequestsScreen(
   var isRefreshing by remember { mutableStateOf(false) }
   val scope = rememberCoroutineScope()
   val haptic = LocalHapticFeedback.current
+  val crewSfx = LocalContext.current.applicationContext
 
   Box(
     modifier = modifier
@@ -115,6 +116,7 @@ fun CrewRequestsScreen(
       isRefreshing = isRefreshing,
       onRefresh = {
         isRefreshing = true
+        com.example.data.FameGoSfx.pop(crewSfx)
         scope.launch {
           FameGoRepository.refreshNow()
           isRefreshing = false
