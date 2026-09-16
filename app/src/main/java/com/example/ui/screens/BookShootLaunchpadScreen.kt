@@ -20,9 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Security
@@ -31,21 +30,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.ShootCategory
+import com.example.model.ShootPlan
 import com.example.ui.components.CharacterState
 import com.example.ui.components.FameGoCharacterIllustration
 import com.example.ui.components.SoftCard
@@ -64,22 +60,21 @@ import com.example.ui.theme.fameGoBreathe
 import com.example.ui.theme.fameGoRise
 
 /**
- * Launchpad screen displayed when the client opens the booking tab.
- * Allows clients to browse production categories, inspect instant day rates,
- * and immediately enter the comprehensive 6-step booking flow.
+ * Reels-only launchpad. FameGo shoots vertical reels and nothing else,
+ * so this screen goes straight to plans instead of picking a production type.
  */
 @Composable
 fun BookShootLaunchpadScreen(
   onStartBooking: (ShootCategory?) -> Unit,
+  onPlanClick: (ShootPlan) -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   val scrollState = rememberScrollState()
-  var selectedCategory by remember { mutableStateOf<ShootCategory?>(ShootCategory.VIDEO) }
 
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg)
+      .background(Color.Transparent)
   ) {
     Column(
       modifier = Modifier
@@ -90,58 +85,56 @@ fun BookShootLaunchpadScreen(
     ) {
       Spacer(modifier = Modifier.height(16.dp))
 
-      // Header
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Column {
-          Text(
-            text = "Book a Shoot",
-            color = FameGoWhite,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.5).sp
-          )
-          Text(
-            text = "Tell us what you need and we’ll find the right crew",
-            color = FameGoTextSecondary,
-            fontSize = 12.sp,
-            modifier = Modifier.padding(top = 2.dp)
-          )
-        }
+      Text(
+        text = "Book a Reel Shoot",
+        color = FameGoWhite,
+        fontSize = 22.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = (-0.5).sp
+      )
+      Text(
+        text = "Vertical reel crew for brands and creators",
+        color = FameGoTextSecondary,
+        fontSize = 12.sp,
+        modifier = Modifier.padding(top = 2.dp)
+      )
 
-        Box(
-          modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(FameGoGoldContainer)
-            .border(1.dp, FameGoGold.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-        ) {
-          Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-              modifier = Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(FameGoSuccessGreen)
-            )
-            Spacer(modifier = Modifier.width(5.dp))
-            Text(
-              text = "Availability checked after booking",
-              color = FameGoGold,
-              fontSize = 11.sp,
-              fontWeight = FontWeight.Bold
-            )
-          }
+      Spacer(modifier = Modifier.height(12.dp))
+
+      // Availability badge — always a single line.
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .clip(RoundedCornerShape(12.dp))
+          .background(FameGoGoldContainer)
+          .border(1.dp, FameGoGold.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+          .padding(horizontal = 12.dp, vertical = 8.dp)
+      ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Box(
+            modifier = Modifier
+              .size(6.dp)
+              .clip(CircleShape)
+              .background(FameGoSuccessGreen)
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(
+            text = "Availability checked after booking",
+            color = FameGoGold,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+          )
         }
       }
 
       Spacer(modifier = Modifier.height(20.dp))
 
-      // Hero Character & Quick Pitch
+      // Hero: reels only
       SoftCard(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        isElevated = true
       ) {
         Row(
           modifier = Modifier.padding(16.dp),
@@ -155,151 +148,53 @@ fun BookShootLaunchpadScreen(
           Spacer(modifier = Modifier.width(14.dp))
           Column(modifier = Modifier.weight(1f)) {
             Text(
-              text = "Production support, tailored to your brief",
+              text = "We only shoot reels",
               color = FameGoWhite,
-              fontSize = 15.sp,
+              fontSize = 16.sp,
               fontWeight = FontWeight.Bold
             )
             Text(
-              text = "Share your requirements and receive matching crew options for your production.",
+              text = "Pro iPhone videographer, gimbal, mic and light. Raw vertical files, no editing.",
               color = FameGoTextSecondary,
               fontSize = 12.sp,
               lineHeight = 17.sp,
-              modifier = Modifier.padding(top = 3.dp)
+              modifier = Modifier.padding(top = 4.dp)
             )
           }
         }
       }
 
-      Spacer(modifier = Modifier.height(20.dp))
+      Spacer(modifier = Modifier.height(16.dp))
 
+      // Plans at a glance — tap a plan to jump straight into booking with it.
+      ShootPlan.values().forEach { plan ->
+        PlanGlanceRow(plan = plan, onClick = { onPlanClick(plan) })
+        Spacer(modifier = Modifier.height(8.dp))
+      }
+
+      Spacer(modifier = Modifier.height(8.dp))
+
+      // How it works
       Text(
-        text = "Select Production Type",
+        text = "How it works",
         color = FameGoTextMuted,
         fontSize = 12.sp,
         fontWeight = FontWeight.SemiBold
       )
-
       Spacer(modifier = Modifier.height(10.dp))
-
-      // Category Cards Grid
-      val categories = listOf(
-        CategoryLaunchpadItem(
-          category = ShootCategory.VIDEO,
-          title = "Commercial / Ad Video",
-          price = "₹28,000 / day",
-          kit = "Sony FX6 • Prime Pack • Gaffer",
-          icon = Icons.Default.Movie
-        ),
-        CategoryLaunchpadItem(
-          category = ShootCategory.FASHION,
-          title = "Fashion & Editorial",
-          price = "₹24,000 / day",
-          kit = "Sony FX3 • Prime Kit • Stylist Assist",
-          icon = Icons.Default.Videocam
-        ),
-        CategoryLaunchpadItem(
-          category = ShootCategory.PRODUCT,
-          title = "Product & Commercial",
-          price = "₹20,000 / day",
-          kit = "Macro Cinema Rig • Turntable • Softbox",
-          icon = Icons.Default.CameraAlt
-        ),
-        CategoryLaunchpadItem(
-          category = ShootCategory.EVENT,
-          title = "Event & Live Stream",
-          price = "₹18,000 / day",
-          kit = "Multi-Cam Setup • Wireless HDMI",
-          icon = Icons.Default.Schedule
-        ),
-        CategoryLaunchpadItem(
-          category = ShootCategory.CORPORATE,
-          title = "Corporate & Interview",
-          price = "₹16,000 / day",
-          kit = "4K Cinema • Wireless Mic • Key Light",
-          icon = Icons.Default.FlashOn
-        )
-      )
-
-      categories.forEach { item ->
-        val isSelected = selectedCategory == item.category
-        Surface(
-          shape = RoundedCornerShape(16.dp),
-          color = if (isSelected) FameGoCardElevated else FameGoCard,
-          border = androidx.compose.foundation.BorderStroke(
-            width = if (isSelected) 1.5.dp else 1.dp,
-            color = if (isSelected) FameGoGold else FameGoBorderSubtle
-          ),
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 5.dp)
-            .clickable {
-              selectedCategory = item.category
-              onStartBooking(item.category)
-            }
-            .testTag("launchpad_cat_${item.category.name.lowercase()}")
-        ) {
-          Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            Box(
-              modifier = Modifier
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(if (isSelected) FameGoGoldContainer else FameGoSurface),
-              contentAlignment = Alignment.Center
-            ) {
-              Icon(
-                imageVector = item.icon,
-                contentDescription = null,
-                tint = if (isSelected) FameGoGold else FameGoTextSecondary,
-                modifier = Modifier.size(20.dp)
-              )
-            }
-
-            Spacer(modifier = Modifier.width(14.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-              ) {
-                Text(
-                  text = item.title,
-                  color = if (isSelected) FameGoWhite else FameGoWhite.copy(alpha = 0.9f),
-                  fontSize = 14.sp,
-                  fontWeight = FontWeight.Bold
-                )
-                Text(
-                  text = item.price,
-                  color = FameGoGold,
-                  fontSize = 13.sp,
-                  fontWeight = FontWeight.SemiBold
-                )
-              }
-
-              Text(
-                text = item.kit,
-                color = FameGoTextMuted,
-                fontSize = 11.sp,
-                modifier = Modifier.padding(top = 2.dp)
-              )
-            }
-          }
-        }
-      }
+      HowItWorksRow(index = "1", title = "Pick a plan", subtitle = "Bronze, Silver or Gold")
+      HowItWorksRow(index = "2", title = "Share shoot details", subtitle = "Date, time and venue")
+      HowItWorksRow(index = "3", title = "Crew arrives", subtitle = "Videographer locked in after payment")
 
       Spacer(modifier = Modifier.height(20.dp))
 
-      // Primary Start Booking CTA Button
+      // Primary CTA
       Surface(
         shape = RoundedCornerShape(18.dp),
         color = FameGoGold,
         modifier = Modifier
           .fillMaxWidth()
-          .clickable { onStartBooking(selectedCategory) }
+          .clickable { onStartBooking(ShootCategory.VIDEO) }
           .testTag("launchpad_start_booking_btn")
       ) {
         Row(
@@ -315,7 +210,7 @@ fun BookShootLaunchpadScreen(
           )
           Spacer(modifier = Modifier.width(8.dp))
           Text(
-            text = "Begin Shoot Booking",
+            text = "Book a Reel Shoot",
             color = Color(0xFF141518),
             fontSize = 15.sp,
             fontWeight = FontWeight.Bold
@@ -325,7 +220,6 @@ fun BookShootLaunchpadScreen(
 
       Spacer(modifier = Modifier.height(14.dp))
 
-      // Trust badge
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
@@ -338,16 +232,113 @@ fun BookShootLaunchpadScreen(
           modifier = Modifier.size(13.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
-          Text(
-            text = "Verified operators and equipment matched to your brief",
+        Text(
+          text = "Verified reel shooters with pro iPhone kits",
           color = FameGoTextMuted,
-          fontSize = 11.sp
+          fontSize = 11.sp,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis
         )
       }
 
-      // Clearance for the FameGo rotating wheel
       Spacer(modifier = Modifier.height(145.dp))
     }
+  }
+}
+
+@Composable
+private fun PlanGlanceRow(plan: ShootPlan, onClick: () -> Unit) {
+  SoftCard(
+    modifier = Modifier
+      .fillMaxWidth()
+      .clip(RoundedCornerShape(20.dp))
+      .clickable(onClick = onClick)
+      .testTag("launchpad_plan_${plan.name.lowercase()}")
+  ) {
+    Row(
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 13.dp),
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      Box(
+        modifier = Modifier
+          .size(40.dp)
+          .clip(CircleShape)
+          .background(FameGoGoldContainer),
+        contentAlignment = Alignment.Center
+      ) {
+        Icon(
+          imageVector = when (plan) {
+            ShootPlan.BRONZE_90 -> Icons.Default.Movie
+            ShootPlan.BRONZE_3H -> Icons.Default.Videocam
+            ShootPlan.BRONZE_6H -> Icons.Default.Schedule
+          },
+          contentDescription = null,
+          tint = FameGoGold,
+          modifier = Modifier.size(19.dp)
+        )
+      }
+      Spacer(modifier = Modifier.width(12.dp))
+      Column(modifier = Modifier.weight(1f)) {
+        Text(
+          text = plan.title,
+          color = FameGoWhite,
+          fontSize = 14.sp,
+          fontWeight = FontWeight.Bold,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis
+        )
+        Text(
+          text = plan.durationLabel,
+          color = FameGoTextMuted,
+          fontSize = 11.sp,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis
+        )
+      }
+      Text(
+        text = "₹${"%,d".format(plan.priceRupees)}",
+        color = FameGoGold,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Bold
+      )
+      Icon(
+        imageVector = Icons.Default.ChevronRight,
+        contentDescription = "Book ${plan.title}",
+        tint = FameGoGold,
+        modifier = Modifier.size(18.dp).padding(start = 4.dp)
+      )
+    }
+  }
+}
+
+@Composable
+private fun HowItWorksRow(index: String, title: String, subtitle: String) {
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    modifier = Modifier.padding(vertical = 5.dp)
+  ) {
+    Box(
+      modifier = Modifier
+        .size(28.dp)
+        .clip(CircleShape)
+        .background(FameGoSurface)
+        .border(1.dp, FameGoBorderSubtle, CircleShape),
+      contentAlignment = Alignment.Center
+    ) {
+      Text(text = index, color = FameGoGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+    }
+    Spacer(modifier = Modifier.width(12.dp))
+    Column {
+      Text(text = title, color = FameGoWhite, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+      Text(text = subtitle, color = FameGoTextMuted, fontSize = 11.sp)
+    }
+    Spacer(modifier = Modifier.weight(1f))
+    Icon(
+      imageVector = Icons.Default.CheckCircle,
+      contentDescription = null,
+      tint = FameGoSuccessGreen.copy(alpha = 0.7f),
+      modifier = Modifier.size(16.dp)
+    )
   }
 }
 

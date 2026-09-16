@@ -19,12 +19,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,9 +32,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,34 +42,37 @@ import androidx.compose.ui.unit.sp
 import com.example.data.FameGoRepository
 import com.example.ui.components.SoftCard
 import com.example.ui.theme.FameGoBg
-import com.example.ui.theme.FameGoBorder
 import com.example.ui.theme.FameGoBorderSubtle
 import com.example.ui.theme.FameGoCard
-import com.example.ui.theme.FameGoCardElevated
 import com.example.ui.theme.FameGoGold
 import com.example.ui.theme.FameGoGoldContainer
+import com.example.ui.theme.FameGoLiveRed
 import com.example.ui.theme.FameGoSuccessGreen
-import com.example.ui.theme.FameGoSurface
 import com.example.ui.theme.FameGoTextMuted
-import com.example.ui.theme.FameGoTextPrimary
 import com.example.ui.theme.FameGoTextSecondary
 import com.example.ui.theme.FameGoWhite
 import com.example.ui.theme.fameGoRise
 
+/**
+ * Producer profile — every row works. Dead placeholders (billing, storage,
+ * saved lists, insurance) were removed; what remains navigates or explains.
+ */
 @Composable
 fun ClientProfileScreen(
   onOpenSupport: () -> Unit,
+  onOpenBookings: () -> Unit,
   onLogout: () -> Unit,
   modifier: Modifier = Modifier
 ) {
   val currentUser by FameGoRepository.currentUser.collectAsState()
+  val bookings by FameGoRepository.bookings.collectAsState()
   val scrollState = rememberScrollState()
-  var activeModal by remember { mutableStateOf<String?>(null) }
+  var showCancellation by remember { mutableStateOf(false) }
 
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg)
+      .background(Color.Transparent)
   ) {
     Column(
       modifier = Modifier
@@ -83,28 +83,13 @@ fun ClientProfileScreen(
     ) {
       Spacer(modifier = Modifier.height(16.dp))
 
-      // Header
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Text(
-          text = "Producer Profile",
-          color = FameGoWhite,
-          fontSize = 22.sp,
-          fontWeight = FontWeight.Bold,
-          letterSpacing = (-0.5).sp
-        )
-        Text(
-          text = "Sign out",
-          color = FameGoTextMuted,
-          fontSize = 12.sp,
-          modifier = Modifier
-            .clickable { onLogout() }
-            .testTag("profile_logout_button")
-        )
-      }
+      Text(
+        text = "Producer Profile",
+        color = FameGoWhite,
+        fontSize = 22.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = (-0.5).sp
+      )
 
       Spacer(modifier = Modifier.height(24.dp))
 
@@ -117,12 +102,15 @@ fun ClientProfileScreen(
           modifier = Modifier
             .size(68.dp)
             .clip(CircleShape)
-            .background(FameGoCardElevated)
+            .background(FameGoCard)
             .border(1.5.dp, FameGoGold.copy(alpha = 0.6f), CircleShape),
           contentAlignment = Alignment.Center
         ) {
           Text(
-            text = currentUser.name.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString(""),
+            text = currentUser.avatarInitials.ifBlank {
+              currentUser.name.split(" ").mapNotNull { it.firstOrNull()?.toString() }
+                .take(2).joinToString("").ifBlank { "FG" }
+            },
             color = FameGoGold,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold
@@ -131,13 +119,14 @@ fun ClientProfileScreen(
 
         Spacer(modifier = Modifier.width(16.dp))
 
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
           Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-              text = currentUser.name,
+              text = currentUser.name.ifBlank { "Producer" },
               color = FameGoWhite,
               fontSize = 18.sp,
-              fontWeight = FontWeight.Bold
+              fontWeight = FontWeight.Bold,
+              modifier = Modifier.weight(1f, fill = false)
             )
             Spacer(modifier = Modifier.width(6.dp))
             Box(
@@ -156,14 +145,14 @@ fun ClientProfileScreen(
           }
 
           Text(
-            text = currentUser.company ?: "Independent Production Studio",
+            text = currentUser.companyName.ifBlank { "Independent Creator" },
             color = FameGoTextSecondary,
             fontSize = 13.sp,
             modifier = Modifier.padding(top = 2.dp)
           )
 
           Text(
-            text = "Mumbai, MH • Account Verified",
+            text = "Account Verified",
             color = FameGoSuccessGreen,
             fontSize = 11.sp,
             modifier = Modifier.padding(top = 2.dp)
@@ -171,9 +160,38 @@ fun ClientProfileScreen(
         }
       }
 
-      Spacer(modifier = Modifier.height(28.dp))
+      Spacer(modifier = Modifier.height(20.dp))
 
-      // Section 1: Account
+      // Stats strip
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+      ) {
+        ProfileStatCard(
+          value = bookings.size.toString(),
+          label = "Total shoots",
+          modifier = Modifier.weight(1f)
+        )
+        ProfileStatCard(
+          value = bookings.count {
+            it.status == com.example.model.BookingStatus.COMPLETED
+          }.toString(),
+          label = "Completed",
+          modifier = Modifier.weight(1f)
+        )
+        ProfileStatCard(
+          value = bookings.count {
+            it.status == com.example.model.BookingStatus.SEARCHING_CREW ||
+              it.status == com.example.model.BookingStatus.CONFIRMED
+          }.toString(),
+          label = "Active",
+          modifier = Modifier.weight(1f)
+        )
+      }
+
+      Spacer(modifier = Modifier.height(20.dp))
+
+      // Account
       Text(
         text = "Account",
         color = FameGoTextMuted,
@@ -184,34 +202,27 @@ fun ClientProfileScreen(
 
       SoftCard {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-          ProfileClickableRow("Email", currentUser.email) { activeModal = "email" }
-          ProfileClickableRow("Phone", currentUser.phone) { activeModal = "phone" }
-          ProfileClickableRow("Billing details", "Not added") { activeModal = "billing" }
+          ProfileRow(
+            label = "Email",
+            value = currentUser.email.ifBlank { "Not set" },
+            onClick = null
+          )
+          ProfileRow(
+            label = "Phone",
+            value = currentUser.phone.ifBlank { "Not set" },
+            onClick = null
+          )
+          ProfileRow(
+            label = "My bookings",
+            value = if (bookings.isEmpty()) "No shoots yet" else "${bookings.size} shoots",
+            onClick = onOpenBookings
+          )
         }
       }
 
       Spacer(modifier = Modifier.height(20.dp))
 
-      // Section 2: Production
-      Text(
-        text = "Production",
-        color = FameGoTextMuted,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.SemiBold
-      )
-      Spacer(modifier = Modifier.height(8.dp))
-
-      SoftCard {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-          ProfileClickableRow("Saved crew", "No saved crew") { activeModal = "crew" }
-          ProfileClickableRow("Saved locations", "No saved locations") { activeModal = "locations" }
-          ProfileClickableRow("Storage folder", "Connect storage") { activeModal = "storage" }
-        }
-      }
-
-      Spacer(modifier = Modifier.height(20.dp))
-
-      // Section 3: Help and safety
+      // Help and safety
       Text(
         text = "Help and safety",
         color = FameGoTextMuted,
@@ -222,118 +233,65 @@ fun ClientProfileScreen(
 
       SoftCard {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-          ProfileClickableRow("Help desk", "24/7 support", onClick = onOpenSupport)
-          ProfileClickableRow("Cancellation policy", "Flexible 12h") { activeModal = "cancellation" }
-          ProfileClickableRow("Equipment insurance", "Covered up to ₹15 Lakhs") { activeModal = "insurance" }
+          ProfileRow(
+            label = "Help desk",
+            value = "24/7 support",
+            onClick = onOpenSupport
+          )
+          ProfileRow(
+            label = "Cancellation policy",
+            value = "Flexible 12h",
+            onClick = { showCancellation = true }
+          )
         }
       }
 
-      Spacer(modifier = Modifier.height(24.dp))
+      Spacer(modifier = Modifier.height(20.dp))
+
+      // Sign out — asks for confirmation in MainActivity.
+      Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = FameGoCard,
+        border = androidx.compose.foundation.BorderStroke(1.dp, FameGoLiveRed.copy(alpha = 0.4f)),
+        modifier = Modifier
+          .fillMaxWidth()
+          .clickable { onLogout() }
+          .testTag("profile_logout_button")
+      ) {
+        Text(
+          text = "Sign out",
+          color = FameGoLiveRed,
+          fontSize = 14.sp,
+          fontWeight = FontWeight.SemiBold,
+          modifier = Modifier.padding(vertical = 15.dp),
+          textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+      }
 
       Spacer(modifier = Modifier.height(130.dp))
     }
 
-    // Interactive Modals for every clicked row
-    activeModal?.let { modal ->
+    if (showCancellation) {
       AlertDialog(
-        onDismissRequest = { activeModal = null },
+        onDismissRequest = { showCancellation = false },
         title = {
           Text(
-            text = when (modal) {
-              "email" -> "Verified Email Address"
-              "phone" -> "Phone & SMS Alerts"
-              "billing" -> "Tax & Billing Profile"
-              "crew" -> "Bookmarked Crew Members"
-              "locations" -> "Saved Studios & Locations"
-              "storage" -> "Famebros Cloud Media Vault"
-              "cancellation" -> "Cancellation & Refund Terms"
-              "insurance" -> "Studio Equipment Insurance"
-              else -> "Account Setting"
-            },
+            text = "Cancellation & Refund Terms",
             color = FameGoWhite,
             fontSize = 17.sp,
             fontWeight = FontWeight.Bold
           )
         },
         text = {
-          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            when (modal) {
-              "email" -> {
-                Text(
-                  text = "Your account email is ${currentUser.email}. All invoices, booking confirmations, and media delivery links are dispatched to this address.",
-                  color = FameGoTextSecondary,
-                  fontSize = 13.sp
-                )
-                Text(
-                  text = "Status: 2-Factor Verified",
-                  color = FameGoSuccessGreen,
-                  fontSize = 12.sp,
-                  fontWeight = FontWeight.Medium
-                )
-              }
-              "phone" -> {
-                Text(
-                  text = "Primary contact: ${currentUser.phone}. Crew coordinators and assigned cinematographers receive direct callsheet communication through this number.",
-                  color = FameGoTextSecondary,
-                  fontSize = 13.sp
-                )
-              }
-              "billing" -> {
-                Text(
-                  text = "Company: ${currentUser.company ?: "Independent Producer"}",
-                  color = FameGoWhite,
-                  fontSize = 13.sp,
-                  fontWeight = FontWeight.Medium
-                )
-                Text(
-                  text = "Your billing details will appear here after they are connected.",
-                  color = FameGoTextSecondary,
-                  fontSize = 12.sp
-                )
-              }
-              "crew" -> {
-                Text(
-                  text = "Saved crew members will appear here when you bookmark them.",
-                  color = FameGoTextSecondary,
-                  fontSize = 13.sp,
-                  lineHeight = 20.sp
-                )
-              }
-              "locations" -> {
-                Text(
-                  text = "Saved locations will appear here after you add them.",
-                  color = FameGoTextSecondary,
-                  fontSize = 13.sp,
-                  lineHeight = 20.sp
-                )
-              }
-              "storage" -> {
-                Text(
-                  text = "Your connected storage and delivered media will appear here.",
-                  color = FameGoTextSecondary,
-                  fontSize = 13.sp
-                )
-              }
-              "cancellation" -> {
-                Text(
-                  text = "• Free cancellation up to 12 hours before call time.\n• Within 12 hours: 50% crew compensation fee.\n• Within 2 hours or on-set call: Full day rate applies to protect crew scheduling.",
-                  color = FameGoTextSecondary,
-                  fontSize = 13.sp,
-                  lineHeight = 18.sp
-                )
-              }
-              "insurance" -> {
-                Text(
-                  text = "FameGo Production Shield: All active shoots carry ₹15,00,000 comprehensive equipment & transit insurance covering cameras, lenses, lighting rigs, and gimbals against accidental damage or loss.",
-                  color = FameGoTextSecondary,
-                  fontSize = 13.sp
-                )
-              }
-            }
-          }
+          Text(
+            text = "• Free cancellation up to 12 hours before call time.\n• Within 12 hours: 50% crew compensation fee.\n• Within 2 hours or on-set call: full day rate applies to protect crew scheduling.",
+            color = FameGoTextSecondary,
+            fontSize = 13.sp,
+            lineHeight = 18.sp
+          )
         },
         confirmButton = {
-          TextButton(onClick = { activeModal = null }) {
+          TextButton(onClick = { showCancellation = false }) {
             Text("Done", color = FameGoGold, fontWeight = FontWeight.Bold)
           }
         },
@@ -345,16 +303,29 @@ fun ClientProfileScreen(
 }
 
 @Composable
-private fun ProfileClickableRow(
+private fun ProfileStatCard(value: String, label: String, modifier: Modifier = Modifier) {
+  SoftCard(modifier = modifier) {
+    Column(
+      modifier = Modifier.padding(vertical = 14.dp),
+      horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+      Text(text = value, color = FameGoGold, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+      Text(text = label, color = FameGoTextMuted, fontSize = 11.sp)
+    }
+  }
+}
+
+@Composable
+private fun ProfileRow(
   label: String,
   value: String,
-  onClick: (() -> Unit)? = null
+  onClick: (() -> Unit)?
 ) {
   Row(
     modifier = Modifier
       .fillMaxWidth()
       .clickable(enabled = onClick != null) { onClick?.invoke() }
-      .padding(vertical = 12.dp),
+      .padding(vertical = 13.dp),
     horizontalArrangement = Arrangement.SpaceBetween,
     verticalAlignment = Alignment.CenterVertically
   ) {

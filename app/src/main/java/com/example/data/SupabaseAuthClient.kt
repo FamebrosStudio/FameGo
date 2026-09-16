@@ -3,7 +3,6 @@ package com.example.data
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
@@ -17,16 +16,17 @@ data class SupabaseAuthResult(
 
 /** Small REST auth adapter kept independent from the app's UI and local state. */
 object SupabaseAuthClient {
-  private val http = OkHttpClient()
+  private val http = SupabaseNetwork.http
   private val jsonType = "application/json".toMediaType()
 
   /**
    * Where Supabase sends the user after they tap "Yes, it's me" in the
-   * confirmation email. Must ALSO be allow-listed in Supabase Dashboard >
-   * Authentication > URL Configuration > Redirect URLs, otherwise Supabase
-   * falls back to the Site URL (http://localhost:3000 by default).
+   * confirmation email. This is the hosted "You're verified" page.
+   * The same URL must ALSO be allow-listed in Supabase Dashboard >
+   * Authentication > URL Configuration > Redirect URLs.
    */
   const val EMAIL_REDIRECT_URI = "famego://auth/callback"
+  const val WEB_VERIFY_URL = "https://famebrosstudio.github.io/FameGo/verified.html"
 
   suspend fun authenticate(
     email: String,
@@ -40,8 +40,10 @@ object SupabaseAuthClient {
     if (!SupabaseConfig.isConfigured) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
     // redirect_to MUST be a URL query param (GoTrue rejects it in the body
     // on some versions with 400). Keep the JSON body minimal.
+    // The web "You're verified" page is the landing target; the app's
+    // deep link stays registered for the in-app "Open FameGo" button.
     val endpoint = if (signUp) {
-      "${SupabaseConfig.baseUrl}/auth/v1/signup?redirect_to=${java.net.URLEncoder.encode(EMAIL_REDIRECT_URI, "UTF-8")}"
+      "${SupabaseConfig.baseUrl}/auth/v1/signup?redirect_to=${java.net.URLEncoder.encode(WEB_VERIFY_URL, "UTF-8")}"
     } else {
       "${SupabaseConfig.baseUrl}/auth/v1/token?grant_type=password"
     }
@@ -114,6 +116,7 @@ object SupabaseAuthClient {
           // Only drop the local session when the server says the refresh
           // token itself is invalid. Transient 5xx / network errors keep it.
           if (response.code == 400 || response.code == 401) SupabaseSession.clear()
+          else android.util.Log.w("FameGoAuth", "restoreSession HTTP ${response.code}: ${raw.take(200)}")
           return@use null
         }
         val root = JSONObject(raw)
@@ -134,16 +137,34 @@ object SupabaseAuthClient {
   fun friendlyMessage(error: Throwable, signingUp: Boolean): String {
     val raw = error.message.orEmpty()
     val value = raw.lowercase()
+    // Real transport failures first — these never carry server text, so check
+    // the exception type (not a substring) to avoid mislabeling server errors.
+    if (SupabaseNetwork.isNetworkFailure(error)) {
+      return when {
+        "unable to resolve host" in value || "unknownhost" in value || "no address" in value ->
+          "Can't reach FameGo servers (DNS). Check your connection or VPN/DNS settings and try again."
+        "timeout" in value || "timed out" in value ->
+          "Server is taking too long to respond. Check your connection and try again."
+        else -> "No connection to server. Check internet and try again."
+      }
+    }
     return when {
       "already registered" in value || "already exists" in value || "user already" in value ->
         "An account already exists for this email. Try Sign in."
       "invalid login" in value || "invalid credentials" in value -> "Email or password is incorrect."
+      "invalid api key" in value || "no api key" in value ->
+        "Server config error. Please update the app and try again."
+      "redirect" in value && ("not allowed" in value || "url" in value) ->
+        "Server rejected signup (email redirect not allowed). Contact support."
+      "weak password" in value || "password too short" in value || "password should" in value ->
+        "Password is too weak. Use at least 6 characters with letters and numbers."
+      "rate limit" in value || "too many" in value || "code 429" in value ->
+        "Too many attempts. Wait a minute and try again."
       "check_email" in value -> "Account created. Open your email and tap \"Yes, it's me\" — the app confirms you automatically."
       "email not confirmed" in value -> "Tap \"Yes, it's me\" in your email, then sign in."
       "expired" in value && ("link" in value || "token" in value || "otp" in value) -> "That email link expired. Sign in to get a fresh one."
-      "timeout" in value || "connect" in value || "network" in value || "unable to resolve host" in value ->
-        "No connection to server. Check internet and try again."
       "code 400" in value || "code 422" in value -> "Server rejected signup: ${raw.take(220)}"
+      "code 401" in value || "code 403" in value -> "Server refused the request (${raw.take(120)}). Update the app and retry."
       "code 500" in value || "code 502" in value || "code 503" in value ->
         "Server error (${raw.take(120)}). Check Supabase Auth logs, then retry."
       signingUp -> "Unable to create account ($raw).".take(300)

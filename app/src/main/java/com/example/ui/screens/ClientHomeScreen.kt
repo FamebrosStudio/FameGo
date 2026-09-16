@@ -80,7 +80,6 @@ fun ClientHomeScreen(
   }
   val recentBooking = bookings.firstOrNull { it.status == BookingStatus.COMPLETED }
 
-  var selectedCategory by remember { mutableStateOf<ShootCategory?>(null) }
   val scrollState = rememberScrollState()
 
   // Dynamic greeting based on current time
@@ -93,30 +92,10 @@ fun ClientHomeScreen(
     }
   }
 
-  // Subtle ambient glow reacting to category selection
-  val ambientGlowColor by animateColorAsState(
-    targetValue = when (selectedCategory) {
-      ShootCategory.FOOD -> Color(0x12F6B941)
-      ShootCategory.FASHION -> Color(0x12C084FC)
-      ShootCategory.CORPORATE -> Color(0x1255C2FF)
-      ShootCategory.PRODUCT -> Color(0x1234D399)
-      ShootCategory.VIDEO -> Color(0x12F87171)
-      else -> Color(0x08D4AF37)
-    },
-    animationSpec = tween(350),
-    label = "ambientGlow"
-  )
-
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg)
-      .background(
-        Brush.radialGradient(
-          colors = listOf(ambientGlowColor, Color.Transparent),
-          radius = 750f
-        )
-      )
+      .background(Color.Transparent)
   ) {
     Column(
       modifier = Modifier
@@ -243,76 +222,6 @@ fun ClientHomeScreen(
               .clickable { onBookAShoot(null) }
               .testTag("home_living_empty_card")
           )
-        }
-      }
-
-      Spacer(modifier = Modifier.height(24.dp))
-
-      // 3. Category Selector (Minimal tactile chips)
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Text(
-          text = "Categories",
-          color = FameGoWhite,
-          fontSize = 16.sp,
-          fontWeight = FontWeight.SemiBold
-        )
-        if (selectedCategory != null) {
-          Text(
-            text = "Clear",
-            color = FameGoTextMuted,
-            fontSize = 12.sp,
-            modifier = Modifier.clickable { selectedCategory = null }
-          )
-        }
-      }
-
-      Spacer(modifier = Modifier.height(10.dp))
-
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-      ) {
-        val categories = listOf(
-          ShootCategory.VIDEO to "Video",
-          ShootCategory.FASHION to "Fashion",
-          ShootCategory.FOOD to "Food",
-          ShootCategory.PRODUCT to "Product",
-          ShootCategory.EVENT to "Event",
-          ShootCategory.PHOTO to "Photo",
-          ShootCategory.CORPORATE to "Corporate"
-        )
-
-        categories.forEach { (cat, label) ->
-          val isSelected = selectedCategory == cat
-          Surface(
-            shape = RoundedCornerShape(18.dp),
-            color = if (isSelected) FameGoGoldContainer else FameGoCard,
-            border = androidx.compose.foundation.BorderStroke(
-              1.dp,
-              if (isSelected) FameGoGold else FameGoBorderSubtle
-            ),
-            modifier = Modifier
-              .clip(RoundedCornerShape(18.dp))
-              .clickable {
-                selectedCategory = cat
-                onBookAShoot(cat)
-              }
-              .testTag("chip_${label.lowercase()}")
-          ) {
-            Text(
-              text = label,
-              color = if (isSelected) FameGoGold else FameGoTextSecondary,
-              fontSize = 13.sp,
-              fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-              modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
-            )
-          }
         }
       }
 

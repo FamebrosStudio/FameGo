@@ -3,12 +3,11 @@ package com.example.data
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
 object SupabaseRestClient {
-  private val client = OkHttpClient()
+  private val client = SupabaseNetwork.http
   private val json = "application/json".toMediaType()
 
   suspend fun get(path: String): Result<String> = call("GET", path)

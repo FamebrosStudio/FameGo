@@ -29,11 +29,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -44,6 +46,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -56,6 +59,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.FameGoRepository
+import com.example.data.MapPlace
+import com.example.data.MapTilerGeocoding
 import com.example.model.Booking
 import com.example.model.BookingStatus
 import com.example.model.CrewRequirement
@@ -66,6 +71,10 @@ import com.example.model.ShootLocation
 import com.example.ui.components.FlowPill
 import com.example.ui.components.FlowPillState
 import com.example.ui.components.FameGoOutlinedButton
+import com.example.ui.components.AddressSuggestList
+import com.example.ui.components.LocalityChips
+import com.example.ui.components.MapPreviewCard
+import com.example.ui.components.FameGoRadialTimePickerDialog
 import com.example.ui.components.RoleCounter
 import com.example.ui.components.SoftCard
 import com.example.ui.theme.FameGoAccentCyan
@@ -82,7 +91,20 @@ import com.example.ui.theme.FameGoTextMuted
 import com.example.ui.theme.FameGoTextPrimary
 import com.example.ui.theme.FameGoTextSecondary
 import com.example.ui.theme.FameGoWhite
+import java.util.Calendar
 import java.util.UUID
+
+/** Minutes since midnight for a 12-hour time — used for same-day gating. */
+private fun callTimeToMinutes(h12: Int, minute: Int, amPm: String): Int {
+  val h24 = if (amPm == "PM") h12 % 12 + 12 else h12 % 12
+  return h24 * 60 + minute
+}
+
+/** True when the picked slot is at/after the minimum (now + 1h buffer). */
+private fun isCallTimeValid(
+  h12: Int, minute: Int, amPm: String,
+  minH12: Int, minMinute: Int, minAmPm: String
+): Boolean = callTimeToMinutes(h12, minute, amPm) >= callTimeToMinutes(minH12, minMinute, minAmPm)
 
 @Composable
 fun BookAShootScreen(
@@ -93,35 +115,56 @@ fun BookAShootScreen(
   modifier: Modifier = Modifier
 ) {
   val currentUser by FameGoRepository.currentUser.collectAsState()
-  // Conversational 6-step flow (1 question per view)
+  // Reels-only 4-step flow: When → Where → About → Summary.
+  // Category is always VIDEO (reels) and crew is always 1 videographer.
   var currentStep by remember { mutableStateOf(1) }
+  val category = ShootCategory.VIDEO
 
-  // Step 1: Category (reset when launched with a different preselected category)
-  var category by remember(preselectedCategory) { mutableStateOf(preselectedCategory ?: ShootCategory.VIDEO) }
-
-  // Step 2: Date, Call Time & Duration
+  // Step 1: Date & custom call time
   var selectedDate by remember { mutableStateOf("") }
-  var callTime by remember { mutableStateOf("") }
-  val durationHours = plan.durationHours
+  var timeHour by remember { mutableStateOf("") }
+  var timeMinute by remember { mutableStateOf("") }
+  var timeAmPm by remember { mutableStateOf("AM") }
+  // The plan arrives preselected (launchpad / plan screen) but stays editable
+  // inside the booking via the Change option in Step 1.
+  var activePlan by remember(plan) { mutableStateOf(plan) }
+  val durationHours = activePlan.durationHours
+  val callTime: String = run {
+    val h = timeHour.trim().toIntOrNull()
+    val m = timeMinute.trim().toIntOrNull()
+    if (h == null || m == null || h !in 1..12 || m !in 0..59) ""
+    else "%02d:%02d %s".format(h, m, timeAmPm)
+  }
 
-  // Step 3: Location
+  // Same-day rule: analyse the current time and only allow slots at least
+  // 1 hour out (booking at 7 → 8 and later, never before).
+  val todayMin: Triple<Int, Int, String>? =
+    if (selectedDate.equals("Today", ignoreCase = true)) {
+      val cal = Calendar.getInstance().apply { add(Calendar.MINUTE, 60) }
+      val h24 = cal.get(Calendar.HOUR_OF_DAY)
+      val m = cal.get(Calendar.MINUTE)
+      var h12 = h24 % 12
+      if (h12 == 0) h12 = 12
+      Triple(h12, m, if (h24 >= 12) "PM" else "AM")
+    } else null
+  // A previously picked time may have slipped into the past — block continue.
+  // (Empty fields are not "blocked": the missing-time hint covers those.)
+  val timeBlocked = todayMin?.let { (mh, mm, map) ->
+    val h = timeHour.trim().toIntOrNull()
+    val m = timeMinute.trim().toIntOrNull()
+    h != null && m != null && !isCallTimeValid(h, m, timeAmPm, mh, mm, map)
+  } == true
+
+  // Step 2: Location
   var venueName by remember { mutableStateOf("") }
   var venueAddress by remember { mutableStateOf("") }
   var locationNotes by remember { mutableStateOf("") }
 
-  // Step 4: Crew
-  val crewCounts = remember {
-    mutableStateMapOf<CrewRoleType, Int>(
-      CrewRoleType.CINEMATOGRAPHER to 0,
-      CrewRoleType.VIDEOGRAPHER to 0,
-      CrewRoleType.PHOTOGRAPHER to 0,
-      CrewRoleType.DRONE_OPERATOR to 0,
-      CrewRoleType.EDITOR to 0,
-      CrewRoleType.ASSISTANT to 0
-    )
-  }
+  // Crew is fixed: one videographer shoots the reel.
+  val crewCounts: Map<CrewRoleType, Int> =
+    mapOf(CrewRoleType.VIDEOGRAPHER to 1)
 
-  // Step 5: Brief & Optional details
+  // Step 3: Brief & Optional details
   var shootTitle by remember { mutableStateOf("") }
   var shootBrief by remember {
     mutableStateOf("")
@@ -135,14 +178,13 @@ fun BookAShootScreen(
   var showInstructions by remember { mutableStateOf(false) }
   var specialInstructions by remember { mutableStateOf("") }
 
-  // Cost calculation
-  val totalCrewCount = crewCounts.values.sumOf { it }
-  val estimatedCost = plan.priceRupees
+  // Cost calculation — follows the editable plan.
+  val estimatedCost = activePlan.priceRupees
 
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg)
+      .background(Color.Transparent)
       .statusBarsPadding()
       .navigationBarsPadding()
   ) {
@@ -172,9 +214,9 @@ fun BookAShootScreen(
           )
         }
 
-        // 6 Minimal progress dots
+        // 4 Minimal progress dots
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-          (1..6).forEach { stepIndex ->
+          (1..4).forEach { stepIndex ->
             Box(
               modifier = Modifier
                 .height(3.dp)
@@ -191,7 +233,7 @@ fun BookAShootScreen(
 
         // Step counter
         Text(
-          text = "$currentStep of 6",
+          text = "$currentStep of 4",
           color = FameGoTextMuted,
           fontSize = 12.sp,
           fontWeight = FontWeight.Medium
@@ -218,23 +260,24 @@ fun BookAShootScreen(
           label = "wizardSteps"
         ) { step ->
           when (step) {
-            // STEP 1: What are we shooting?
-            1 -> StepWhatAreWeShooting(
-              selected = category,
-              onSelect = { category = it }
-            )
-
-            // STEP 2: When should the crew arrive?
-            2 -> StepWhen(
+            // STEP 1: When should the crew arrive? (custom time)
+            1 -> StepWhen(
               selectedDate = selectedDate,
               onDateSelect = { selectedDate = it },
-              callTime = callTime,
-              onCallTimeSelect = { callTime = it },
-              plan = plan
+              timeHour = timeHour,
+              onHourChange = { timeHour = it.filter(Char::isDigit).take(2) },
+              timeMinute = timeMinute,
+              onMinuteChange = { timeMinute = it.filter(Char::isDigit).take(2) },
+              timeAmPm = timeAmPm,
+              onAmPmChange = { timeAmPm = it },
+              plan = activePlan,
+              onPlanChange = { activePlan = it },
+              todayMin = todayMin,
+              timeBlocked = timeBlocked
             )
 
-            // STEP 3: Where are we shooting?
-            3 -> StepWhere(
+            // STEP 2: Where are we shooting?
+            2 -> StepWhere(
               venueName = venueName,
               onVenueNameChange = { venueName = it },
               address = venueAddress,
@@ -243,18 +286,8 @@ fun BookAShootScreen(
               onLocationNotesChange = { locationNotes = it }
             )
 
-            // STEP 4: Who do you need?
-            4 -> StepWhoDoYouNeed(
-              crewCounts = crewCounts,
-              onIncrement = { role -> crewCounts[role] = (crewCounts[role] ?: 0) + 1 },
-              onDecrement = { role ->
-                val curr = crewCounts[role] ?: 0
-                if (curr > 0) crewCounts[role] = curr - 1
-              }
-            )
-
-            // STEP 5: Tell us about the shoot
-            5 -> StepTellUsAboutShoot(
+            // STEP 3: Tell us about the reel
+            3 -> StepTellUsAboutShoot(
               shootTitle = shootTitle,
               onShootTitleChange = { shootTitle = it },
               brief = shootBrief,
@@ -277,8 +310,8 @@ fun BookAShootScreen(
               onSpecialChange = { specialInstructions = it }
             )
 
-            // STEP 6: Looks Good? (Summary)
-            6 -> StepLooksGood(
+            // STEP 4: Looks Good? (Summary)
+            4 -> StepLooksGood(
               shootTitle = shootTitle,
               category = category,
               date = selectedDate,
@@ -296,18 +329,17 @@ fun BookAShootScreen(
 
       // Bottom Actions
       val canContinue = when (currentStep) {
-        1 -> true
-        2 -> selectedDate.isNotBlank() && callTime.isNotBlank()
-        3 -> venueName.isNotBlank() && venueAddress.isNotBlank()
-        4 -> totalCrewCount > 0
-        5 -> shootBrief.isNotBlank()
+        1 -> selectedDate.isNotBlank() && callTime.isNotBlank() && !timeBlocked
+        2 -> venueName.isNotBlank() && venueAddress.isNotBlank()
+        3 -> shootBrief.isNotBlank()
         else -> true
       }
       val continueHint = when {
-        currentStep == 2 && !canContinue -> "Select date & call time"
-        currentStep == 3 && !canContinue -> "Add venue & address"
-        currentStep == 4 && totalCrewCount == 0 -> "Add at least one crew member"
-        currentStep == 5 && !canContinue -> "Add a shoot brief"
+        currentStep == 1 && selectedDate.isBlank() -> "Select date & time"
+        currentStep == 1 && timeBlocked -> "Pick a later time"
+        currentStep == 1 && !canContinue -> "Select date & time"
+        currentStep == 2 && !canContinue -> "Add venue & address"
+        currentStep == 3 && !canContinue -> "Add a shoot brief"
         else -> "Continue"
       }
       Box(
@@ -316,13 +348,13 @@ fun BookAShootScreen(
           .padding(bottom = 24.dp),
         contentAlignment = Alignment.Center
       ) {
-        if (currentStep < 6) {
+        if (currentStep < 4) {
           FlowPill(
             state = FlowPillState.CONTINUE,
             customText = continueHint,
             enabled = canContinue,
             onClick = {
-              if (currentStep < 6) currentStep++
+              if (currentStep < 4) currentStep++
             },
             testTag = "wizard_continue_button"
           )
@@ -343,12 +375,12 @@ fun BookAShootScreen(
               customText = "Find My Crew",
               enabled = selectedDate.isNotBlank() && callTime.isNotBlank() &&
                 venueName.isNotBlank() && venueAddress.isNotBlank() &&
-                shootBrief.isNotBlank() && totalCrewCount > 0,
+                shootBrief.isNotBlank(),
               onClick = {
                 val newBooking = Booking(
                   id = UUID.randomUUID().toString(),
                   bookingCode = "FG-" + (1000..9999).random(),
-                  shootTitle = shootTitle.ifBlank { "${category.title} Shoot - $venueName" },
+                  shootTitle = shootTitle.ifBlank { "Reel Shoot - $venueName" },
                   clientName = currentUser.name,
                   clientCompany = currentUser.companyName,
                   category = category,
@@ -360,15 +392,15 @@ fun BookAShootScreen(
                   venueName = venueName,
                   fullAddress = venueAddress,
                   locationInstructions = locationNotes,
-                  crewRequirements = crewCounts.filter { it.value > 0 }.map { (role, count) ->
-                    CrewRequirement(role = role, quantity = count)
-                  },
+                  crewRequirements = listOf(
+                    CrewRequirement(role = CrewRoleType.VIDEOGRAPHER, quantity = 1)
+                  ),
                   shootDescription = shootBrief,
                   specialInstructions = specialInstructions,
                   brandName = currentUser.companyName,
                   referenceLink = referenceLink.ifBlank { instagramRef.ifBlank { driveLink } },
-                  plan = plan,
-                  priceRupees = plan.priceRupees,
+                  plan = activePlan,
+                  priceRupees = activePlan.priceRupees,
                   status = BookingStatus.SEARCHING_CREW
                 )
                 onBookingReadyForPayment(newBooking)
@@ -384,99 +416,25 @@ fun BookAShootScreen(
 }
 
 // -----------------------------------------------------------------------------
-// STEP 1: What are we shooting?
-// -----------------------------------------------------------------------------
-@Composable
-private fun StepWhatAreWeShooting(
-  selected: ShootCategory,
-  onSelect: (ShootCategory) -> Unit
-) {
-  val scrollState = rememberScrollState()
-
-  Column(
-    modifier = Modifier
-      .fillMaxSize()
-      .verticalScroll(scrollState)
-  ) {
-    Text(
-      text = "What are we shooting?",
-      color = FameGoWhite,
-      fontSize = 28.sp,
-      fontWeight = FontWeight.Bold,
-      letterSpacing = (-0.5).sp
-    )
-    Text(
-      text = "Select a category for your shoot",
-      color = FameGoTextMuted,
-      fontSize = 14.sp,
-      modifier = Modifier.padding(top = 4.dp, bottom = 20.dp)
-    )
-
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-      ShootCategory.values().forEach { cat ->
-        val isSelected = selected == cat
-        SoftCard(
-          isElevated = isSelected,
-          onClick = { onSelect(cat) },
-          testTag = "category_card_${cat.name.lowercase()}"
-        ) {
-          Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(horizontal = 18.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-          ) {
-            Column(modifier = Modifier.weight(1f)) {
-              Text(
-                text = cat.title,
-                color = if (isSelected) FameGoWhite else FameGoTextPrimary,
-                fontSize = 16.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-              )
-              Text(
-                text = cat.description,
-                color = FameGoTextMuted,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 2.dp)
-              )
-            }
-
-            if (isSelected) {
-              Box(
-                modifier = Modifier
-                  .size(22.dp)
-                  .clip(CircleShape)
-                  .background(FameGoGold),
-                contentAlignment = Alignment.Center
-              ) {
-                Icon(
-                  imageVector = Icons.Default.Check,
-                  contentDescription = null,
-                  tint = FameGoBg,
-                  modifier = Modifier.size(14.dp)
-                )
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-// -----------------------------------------------------------------------------
-// STEP 2: When should the crew arrive?
+// STEP 1: When should the crew arrive? (custom time)
 // -----------------------------------------------------------------------------
 @Composable
 private fun StepWhen(
   selectedDate: String,
   onDateSelect: (String) -> Unit,
-  callTime: String,
-  onCallTimeSelect: (String) -> Unit,
-  plan: ShootPlan
+  timeHour: String,
+  onHourChange: (String) -> Unit,
+  timeMinute: String,
+  onMinuteChange: (String) -> Unit,
+  timeAmPm: String,
+  onAmPmChange: (String) -> Unit,
+  plan: ShootPlan,
+  onPlanChange: (ShootPlan) -> Unit,
+  todayMin: Triple<Int, Int, String>? = null,
+  timeBlocked: Boolean = false
 ) {
   val scrollState = rememberScrollState()
+  var showPlanPicker by remember { mutableStateOf(false) }
 
   Column(
     modifier = Modifier
@@ -544,7 +502,7 @@ private fun StepWhen(
 
     Spacer(modifier = Modifier.height(28.dp))
 
-    // Call Time
+    // Call Time — radial clock dial: tap the field, slide a finger on the dial.
     Text(
       text = "Call Time",
       color = FameGoTextMuted,
@@ -553,38 +511,94 @@ private fun StepWhen(
     )
     Spacer(modifier = Modifier.height(10.dp))
 
-    Row(
-      modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-      horizontalArrangement = Arrangement.spacedBy(8.dp)
+    var showClock by remember { mutableStateOf(false) }
+    val hasTime = timeHour.trim().toIntOrNull() in 1..12 &&
+      timeMinute.trim().toIntOrNull() in 0..59
+    val timeLabel = if (hasTime) {
+      "%02d:%02d %s".format(timeHour.trim().toInt(), timeMinute.trim().toInt(), timeAmPm)
+    } else "Set call time"
+
+    Surface(
+      shape = RoundedCornerShape(16.dp),
+      color = if (hasTime) FameGoGoldContainer else FameGoCard,
+      border = androidx.compose.foundation.BorderStroke(
+        1.dp,
+        if (hasTime) FameGoGold else FameGoBorderSubtle
+      ),
+      modifier = Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(16.dp))
+        .clickable { showClock = true }
+        .testTag("call_time_field")
     ) {
-      listOf("09:00 AM", "10:00 AM", "02:00 PM", "05:00 PM").forEach { time ->
-        val isSelected = callTime == time
-        Surface(
-          shape = RoundedCornerShape(14.dp),
-          color = if (isSelected) FameGoGoldContainer else FameGoCard,
-          border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (isSelected) FameGoGold else FameGoBorderSubtle
-          ),
-          modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .clickable { onCallTimeSelect(time) }
-            .testTag("time_chip_$time")
-        ) {
-          Box(
-            modifier = Modifier.padding(vertical = 12.dp),
-            contentAlignment = Alignment.Center
-          ) {
-            Text(
-              text = time,
-              color = if (isSelected) FameGoGold else FameGoTextSecondary,
-              fontSize = 12.sp,
-              fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-            )
-          }
+      Row(
+        modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Icon(
+          imageVector = Icons.Default.Schedule,
+          contentDescription = null,
+          tint = if (hasTime) FameGoGold else FameGoTextMuted,
+          modifier = Modifier.size(22.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+          Text(
+            text = timeLabel,
+            color = if (hasTime) FameGoWhite else FameGoTextSecondary,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.5.sp
+          )
+          Text(
+            text = if (hasTime) "Tap to change" else "Tap to pick on the clock dial",
+            color = FameGoTextMuted,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 2.dp)
+          )
         }
+        Icon(
+          imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+          contentDescription = "Pick time",
+          tint = FameGoGold,
+          modifier = Modifier.size(20.dp)
+        )
       }
     }
+
+    if (showClock) {
+      FameGoRadialTimePickerDialog(
+        initialHour12 = timeHour.trim().toIntOrNull()?.takeIf { it in 1..12 } ?: 9,
+        initialMinute = timeMinute.trim().toIntOrNull()?.takeIf { it in 0..59 } ?: 30,
+        initialAmPm = timeAmPm,
+        minHour12 = todayMin?.first,
+        minMinute = todayMin?.second ?: 0,
+        minAmPm = todayMin?.third,
+        onDismiss = { showClock = false },
+        onConfirm = { h, m, ampm ->
+          onHourChange("%02d".format(h))
+          onMinuteChange("%02d".format(m))
+          onAmPmChange(ampm)
+          showClock = false
+        }
+      )
+    }
+    if (timeBlocked && todayMin != null) {
+      Text(
+        text = "That time has passed — same-day shoots need 1-hour notice (from %02d:%02d %s).".format(
+          todayMin.first, todayMin.second, todayMin.third
+        ),
+        color = Color(0xFFFF7B84),
+        fontSize = 11.sp,
+        modifier = Modifier.padding(top = 8.dp)
+      )
+    }
+    Text(
+      text = "Tap the time and slide your finger around the clock dial.",
+      color = FameGoTextMuted,
+      fontSize = 11.sp,
+      modifier = Modifier.padding(top = 8.dp)
+    )
 
     Spacer(modifier = Modifier.height(28.dp))
 
@@ -603,8 +617,121 @@ private fun StepWhen(
       modifier = Modifier.fillMaxWidth().testTag("selected_plan_duration")
     ) {
       Column(Modifier.padding(14.dp)) {
-        Text(plan.durationLabel, color = FameGoGold, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        Text("Included with ${plan.title}", color = FameGoTextMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Text(plan.durationLabel, color = FameGoGold, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+          Text(
+            text = "Change",
+            color = FameGoGold,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+              .clip(RoundedCornerShape(10.dp))
+              .clickable { showPlanPicker = true }
+              .border(1.dp, FameGoGold, RoundedCornerShape(10.dp))
+              .padding(horizontal = 12.dp, vertical = 6.dp)
+              .testTag("change_plan_button")
+          )
+        }
+        Text("Included with ${plan.title}", color = FameGoTextMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
+      }
+    }
+
+    if (showPlanPicker) {
+      PlanPickerDialog(
+        current = plan,
+        onDismiss = { showPlanPicker = false },
+        onPick = { picked ->
+          onPlanChange(picked)
+          showPlanPicker = false
+        }
+      )
+    }
+  }
+}
+
+@Composable
+private fun PlanPickerDialog(
+  current: ShootPlan,
+  onDismiss: () -> Unit,
+  onPick: (ShootPlan) -> Unit
+) {
+  androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+    Surface(
+      shape = RoundedCornerShape(22.dp),
+      color = FameGoCardElevated,
+      border = androidx.compose.foundation.BorderStroke(1.dp, FameGoGold.copy(alpha = 0.35f)),
+      shadowElevation = 16.dp,
+      modifier = Modifier.fillMaxWidth().testTag("plan_picker_dialog")
+    ) {
+      Column(modifier = Modifier.padding(20.dp)) {
+        Text(
+          text = "Change plan",
+          color = FameGoWhite,
+          fontSize = 18.sp,
+          fontWeight = FontWeight.Bold
+        )
+        Text(
+          text = "Price and duration update instantly",
+          color = FameGoTextMuted,
+          fontSize = 12.sp,
+          modifier = Modifier.padding(top = 2.dp, bottom = 14.dp)
+        )
+        ShootPlan.entries.forEach { option ->
+          val active = option == current
+          Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = if (active) FameGoGoldContainer else FameGoCard,
+            border = androidx.compose.foundation.BorderStroke(
+              1.dp,
+              if (active) FameGoGold else FameGoBorderSubtle
+            ),
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(vertical = 4.dp)
+              .clip(RoundedCornerShape(14.dp))
+              .clickable { onPick(option) }
+              .testTag("plan_option_${option.name.lowercase()}")
+          ) {
+            Row(
+              modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Column(modifier = Modifier.weight(1f)) {
+                Text(
+                  text = option.title,
+                  color = if (active) FameGoGold else FameGoWhite,
+                  fontSize = 14.sp,
+                  fontWeight = FontWeight.Bold
+                )
+                Text(
+                  text = option.durationLabel,
+                  color = FameGoTextMuted,
+                  fontSize = 11.sp
+                )
+              }
+              Text(
+                text = "₹${"%,d".format(option.priceRupees)}",
+                color = FameGoGold,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+              )
+            }
+          }
+        }
+        Text(
+          text = "Cancel",
+          color = FameGoTextSecondary,
+          fontSize = 14.sp,
+          fontWeight = FontWeight.Medium,
+          modifier = Modifier
+            .align(Alignment.CenterHorizontally)
+            .clickable(onClick = onDismiss)
+            .padding(top = 12.dp, bottom = 4.dp)
+        )
       }
     }
   }
@@ -623,6 +750,22 @@ private fun StepWhere(
   onLocationNotesChange: (String) -> Unit
 ) {
   val scrollState = rememberScrollState()
+  // Map preview state — Mumbai by default, follows geocode hits and picks.
+  var mapLng by remember { mutableStateOf(MapTilerGeocoding.MUMBAI_LNG) }
+  var mapLat by remember { mutableStateOf(MapTilerGeocoding.MUMBAI_LAT) }
+  var mapZoom by remember { mutableIntStateOf(11) }
+  var mapLabel by remember { mutableStateOf("Mumbai") }
+
+  fun applyPlace(place: MapPlace) {
+    onAddressChange(place.full)
+    if (venueName.isBlank() && place.short.isNotBlank()) {
+      onVenueNameChange(place.short)
+    }
+    place.longitude?.let { mapLng = it }
+    place.latitude?.let { mapLat = it }
+    mapZoom = 14
+    mapLabel = place.short.ifBlank { "Selected spot" }
+  }
 
   Column(
     modifier = Modifier
@@ -713,8 +856,44 @@ private fun StepWhere(
 
     Spacer(modifier = Modifier.height(24.dp))
 
+    // MapTiler address options — one tap fills the full address below notes.
+    AddressSuggestList(
+      query = address,
+      onPick = ::applyPlace,
+      onResults = { list ->
+        list.firstOrNull { it.latitude != null && it.longitude != null }?.let { first ->
+          mapLng = first.longitude!!
+          mapLat = first.latitude!!
+          mapZoom = 13
+          mapLabel = first.short.ifBlank { "Top match" }
+        }
+      },
+      modifier = Modifier.fillMaxWidth()
+    )
+
+    Spacer(modifier = Modifier.height(14.dp))
+
+    // Always-visible map: real MapTiler tiles when allowed, styled art otherwise.
+    MapPreviewCard(
+      centerLng = mapLng,
+      centerLat = mapLat,
+      zoom = mapZoom,
+      pinLabel = mapLabel,
+      onPick = ::applyPlace,
+      modifier = Modifier.fillMaxWidth()
+    )
+
+    Spacer(modifier = Modifier.height(14.dp))
+
+    LocalityChips(
+      onPick = ::applyPlace,
+      modifier = Modifier.fillMaxWidth()
+    )
+
+    Spacer(modifier = Modifier.height(12.dp))
+
     Text(
-      text = "Enter the venue and full address above. Saved locations will appear here once connected.",
+      text = "Type the street above and pick the exact spot — or enter the venue and full address manually. Saved locations will appear here once connected.",
       color = FameGoTextMuted,
       fontSize = 12.sp,
       lineHeight = 17.sp
@@ -723,54 +902,7 @@ private fun StepWhere(
 }
 
 // -----------------------------------------------------------------------------
-// STEP 4: Who do you need?
-// -----------------------------------------------------------------------------
-@Composable
-private fun StepWhoDoYouNeed(
-  crewCounts: Map<CrewRoleType, Int>,
-  onIncrement: (CrewRoleType) -> Unit,
-  onDecrement: (CrewRoleType) -> Unit
-) {
-  val scrollState = rememberScrollState()
-
-  Column(
-    modifier = Modifier
-      .fillMaxSize()
-      .verticalScroll(scrollState)
-  ) {
-    Text(
-      text = "Who do you need?",
-      color = FameGoWhite,
-      fontSize = 28.sp,
-      fontWeight = FontWeight.Bold,
-      letterSpacing = (-0.5).sp
-    )
-    Text(
-      text = "Select the roles for your shoot",
-      color = FameGoTextMuted,
-      fontSize = 14.sp,
-      modifier = Modifier.padding(top = 4.dp, bottom = 20.dp)
-    )
-
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-      CrewRoleType.values().forEach { role ->
-        val count = crewCounts[role] ?: 0
-        RoleCounter(
-          roleTitle = role.title,
-          roleSubtitle = role.recommendedGear,
-          ratePerHour = role.ratePerHour,
-          count = count,
-          onIncrement = { onIncrement(role) },
-          onDecrement = { onDecrement(role) },
-          testTagPrefix = "role_${role.name.lowercase()}"
-        )
-      }
-    }
-  }
-}
-
-// -----------------------------------------------------------------------------
-// STEP 5: Tell us about the shoot
+// STEP 3: Tell us about the reel
 // -----------------------------------------------------------------------------
 @Composable
 private fun StepTellUsAboutShoot(
@@ -803,14 +935,14 @@ private fun StepTellUsAboutShoot(
       .verticalScroll(scrollState)
   ) {
     Text(
-      text = "Tell us about the shoot",
+      text = "Tell us about the reel",
       color = FameGoWhite,
       fontSize = 28.sp,
       fontWeight = FontWeight.Bold,
       letterSpacing = (-0.5).sp
     )
     Text(
-      text = "Give your crew the key details",
+      text = "Give your videographer the key details",
       color = FameGoTextMuted,
       fontSize = 14.sp,
       modifier = Modifier.padding(top = 4.dp, bottom = 20.dp)
@@ -1011,7 +1143,7 @@ private fun StepLooksGood(
       letterSpacing = (-0.5).sp
     )
     Text(
-      text = "Review your shoot details before sending to crew",
+      text = "Review your reel shoot before we lock your videographer",
       color = FameGoTextMuted,
       fontSize = 14.sp,
       modifier = Modifier.padding(top = 4.dp, bottom = 20.dp)
@@ -1026,7 +1158,7 @@ private fun StepLooksGood(
       Column(modifier = Modifier.padding(22.dp)) {
         // Shoot type
         Text(
-          text = shootTitle.ifBlank { "${category.title} Shoot" },
+          text = shootTitle.ifBlank { "Reel Shoot" },
           color = FameGoGold,
           fontSize = 13.sp,
           fontWeight = FontWeight.SemiBold
@@ -1064,41 +1196,9 @@ private fun StepLooksGood(
           modifier = Modifier.padding(top = 2.dp)
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Crew breakdown
-        Text(
-          text = "Crew",
-          color = FameGoTextMuted,
-          fontSize = 12.sp,
-          fontWeight = FontWeight.SemiBold
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-
-        val activeCrew = crewCounts.filter { it.value > 0 }
-        activeCrew.forEach { (role, count) ->
-          Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(vertical = 2.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-          ) {
-            Text(
-              text = "$count × ${role.title}",
-              color = FameGoTextSecondary,
-              fontSize = 13.sp
-            )
-            Text(
-              text = "₹${role.ratePerHour * count * duration}",
-              color = FameGoTextMuted,
-              fontSize = 13.sp
-            )
-          }
-        }
-
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Estimated Cost
+        // Estimated Cost (plan price — crew is included, no per-head math)
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.SpaceBetween,

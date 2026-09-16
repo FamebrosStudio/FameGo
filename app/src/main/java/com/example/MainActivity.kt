@@ -1,14 +1,22 @@
 package com.example
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -54,11 +62,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.data.FameGoRepository
+import com.example.data.FameGoPush
 import com.example.data.SupabaseAuthClient
 import com.example.data.SupabaseRestClient
 import com.example.data.SupabaseSession
@@ -67,15 +83,23 @@ import com.example.model.Booking
 import com.example.model.Role
 import com.example.model.ShootCategory
 import com.example.model.ShootPlan
-import com.example.ui.components.FameGoBottomNav
+import com.example.ui.components.FameGoTabBar
 import com.example.ui.components.FameGoTopBar
-import com.example.ui.components.FameGoWheelNavigation
+import com.example.ui.components.FameGoHaptics
+import com.example.ui.components.FameGoSprings
+import com.example.ui.components.swipeDownToDismiss
+import com.example.ui.components.swipeToSwitchTabs
+import com.example.ui.components.FameGoButton
+import com.example.ui.components.fameGoClientTabs
+import com.example.ui.components.fameGoCrewTabs
+import com.example.ui.components.FameGoAmbientBackground
 import com.example.ui.screens.AdminDashboardScreen
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.BookAShootScreen
 import com.example.ui.screens.BookShootLaunchpadScreen
 import com.example.ui.screens.ShootPlanScreen
 import com.example.ui.screens.PaymentDemoScreen
+import com.example.ui.screens.PaymentSuccessScreen
 import com.example.ui.screens.BookingChatScreen
 import com.example.ui.screens.BookingDetailsScreen
 import com.example.ui.screens.ClientBookingsScreen
@@ -114,6 +138,7 @@ sealed class Screen {
   data class ShootPlans(val preselectedCategory: ShootCategory? = null) : Screen()
   data class BookAShoot(val plan: ShootPlan, val preselectedCategory: ShootCategory? = null) : Screen()
   data class Payment(val booking: Booking) : Screen()
+  data class PaymentSuccess(val bookingId: String, val amountRupees: Int, val planTitle: String) : Screen()
   data class SearchingCrew(val bookingId: String) : Screen()
   data class BookingDetails(val bookingId: String, val returnTab: String = "bookings") : Screen()
   data class CrewRequestDetail(val bookingId: String) : Screen()
@@ -125,7 +150,13 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     SupabaseSession.initialize(applicationContext)
+    // Free map tiles (osmdroid) need an app user-agent or tile servers refuse us.
+    org.osmdroid.config.Configuration.getInstance().apply {
+      userAgentValue = packageName
+      load(applicationContext, getPreferences(Context.MODE_PRIVATE))
+    }
     handleAuthDeepLink(intent)
+    handleBookingAlertIntent(intent)
     enableEdgeToEdge()
     setContent {
       FameGoTheme {
@@ -138,6 +169,13 @@ class MainActivity : ComponentActivity() {
     super.onNewIntent(intent)
     setIntent(intent)
     handleAuthDeepLink(intent)
+    handleBookingAlertIntent(intent)
+  }
+
+  private fun handleBookingAlertIntent(intent: Intent?) {
+    val bookingId = intent?.getStringExtra(IncomingShootActivity.EXTRA_BOOKING_ID)
+      .orEmpty().ifBlank { intent?.getStringExtra("booking_id").orEmpty() }
+    if (bookingId.isNotBlank()) BookingAlertInbox.post(bookingId)
   }
 
   private fun handleAuthDeepLink(intent: Intent?) {
@@ -147,6 +185,15 @@ class MainActivity : ComponentActivity() {
       AuthDeepLinkInbox.post(uri.toString())
     }
   }
+}
+
+/** Holds a tapped shoot-request notification until the Compose tree consumes it. */
+object BookingAlertInbox {
+  private val _bookingId = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+  val bookingId: kotlinx.coroutines.flow.StateFlow<String?> = _bookingId
+
+  fun post(id: String) { _bookingId.value = id }
+  fun consume() { _bookingId.value = null }
 }
 
 /** Holds the latest email-confirmation link until the Compose tree consumes it. */
@@ -187,9 +234,50 @@ fun FameGoApp() {
   var screenHistory by remember { mutableStateOf(listOf<Screen>()) }
   val currentUser by FameGoRepository.currentUser.collectAsState()
   val notifications by FameGoRepository.notifications.collectAsState()
+  val incomingAlert by FameGoRepository.incomingAlert.collectAsState()
   val pendingLink by AuthDeepLinkInbox.link.collectAsState()
+  val pendingBookingAlert by BookingAlertInbox.bookingId.collectAsState()
   var linkStatus by remember { mutableStateOf<String?>(null) }
+  var showSignOutDialog by remember { mutableStateOf(false) }
+  var lastLocalAlertId by remember { mutableStateOf<String?>(null) }
+  val isCrewAvailable by FameGoRepository.isCrewAvailable.collectAsState()
   val appScope = rememberCoroutineScope()
+  val appContext = LocalContext.current
+  val appHaptic = LocalHapticFeedback.current
+  val notifPermission =
+    rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+  // Push registration follows the session: token uploads on sign-in so this
+  // phone gets booking alerts, chat pushes and crew-request alerts.
+  LaunchedEffect(currentUser.id, currentUser.role) {
+    if (currentUser.id.isNotBlank()) {
+      FameGoPush.registerToken(appContext, currentUser.id)
+      // Crew phones join the broadcast topic for new paid requests.
+      FameGoPush.setCrewTopic(appContext, currentUser.role == Role.CREW)
+      if (android.os.Build.VERSION.SDK_INT >= 33 &&
+        androidx.core.content.ContextCompat.checkSelfPermission(
+          appContext, android.Manifest.permission.POST_NOTIFICATIONS
+        ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+      ) {
+        notifPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+      }
+    }
+  }
+
+  // Crew dispatch service (Famebook pattern): while an available crew member
+  // is signed in, a foreground service polls for paid requests so the popup
+  // + notification arrive even with the app closed. Off-duty/logout stops it.
+  LaunchedEffect(currentUser.id, currentUser.role, isCrewAvailable) {
+    if (currentUser.role == Role.CREW && currentUser.id.isNotBlank() && isCrewAvailable) {
+      com.example.data.FameGoDispatchService.start(
+        appContext,
+        currentUser.id,
+        currentUser.name.ifBlank { "FameGo Crew" }
+      )
+    } else {
+      com.example.data.FameGoDispatchService.stop(appContext)
+    }
+  }
 
   fun navigateTo(next: Screen, from: Screen = currentScreen) {
     // Main tabs + auth roots reset history; detail screens push.
@@ -213,8 +301,17 @@ fun FameGoApp() {
   LaunchedEffect(pendingLink) {
     val uriString = pendingLink ?: return@LaunchedEffect
     AuthDeepLinkInbox.consume()
-    linkStatus = "Confirming your email…"
     val (query, fragment) = AuthDeepLinkInbox.splitParams(uriString)
+    // Bare "Open FameGo app" taps carry no token — just open, don't error.
+    if (query["token_hash"].isNullOrBlank() && fragment["token_hash"].isNullOrBlank() &&
+      fragment["access_token"].isNullOrBlank()
+    ) {
+      if (currentScreen is Screen.Splash || currentScreen is Screen.Welcome) {
+        currentScreen = Screen.Auth(startInSignUp = false)
+      }
+      return@LaunchedEffect
+    }
+    linkStatus = "Confirming your email…"
     val result = SupabaseAuthClient.confirmEmailLink(query, fragment)
     result.onSuccess { auth ->
       // Pull profile so role/name resolve correctly, then drop the user home.
@@ -258,6 +355,30 @@ fun FameGoApp() {
     }
   }
 
+  // Tapped notification / full-screen popup: crew lands on the request detail.
+  LaunchedEffect(pendingBookingAlert, currentUser.role, currentScreen) {
+    val bookingId = pendingBookingAlert ?: return@LaunchedEffect
+    if (currentScreen is Screen.Splash) return@LaunchedEffect
+    if (currentUser.id.isBlank()) return@LaunchedEffect
+    BookingAlertInbox.consume()
+    if (currentUser.role == Role.CREW) {
+      navigateTo(Screen.CrewRequestDetail(bookingId))
+    } else {
+      navigateTo(Screen.BookingDetails(bookingId, "home"))
+    }
+  }
+
+  // Foreground realtime alert -> also buzz the status bar with the alarm-style
+  // notification, so background phones get heads-up + lock-screen popup even
+  // before FCM is configured. Fires once per request.
+  LaunchedEffect(incomingAlert?.id, currentUser.role) {
+    val alert = incomingAlert ?: return@LaunchedEffect
+    if (currentUser.role != Role.CREW) return@LaunchedEffect
+    if (lastLocalAlertId == alert.id) return@LaunchedEffect
+    lastLocalAlertId = alert.id
+    runCatching { FameGoPush.notifyLocalIncoming(appContext, alert) }
+  }
+
   // Handle Android system back button
   BackHandler(
     enabled = currentScreen !is Screen.Splash &&
@@ -268,8 +389,9 @@ fun FameGoApp() {
       is Screen.Welcome -> { /* exit or stay */ }
       is Screen.Auth -> currentScreen = Screen.Welcome
       is Screen.ShootPlans -> goBack(Screen.Main("home"))
-      is Screen.BookAShoot -> currentScreen = Screen.ShootPlans(current.preselectedCategory)
-      is Screen.Payment -> currentScreen = Screen.BookAShoot(current.booking.plan, current.booking.category)
+      is Screen.BookAShoot -> goBack(Screen.ShootPlans(current.preselectedCategory))
+      is Screen.Payment -> goBack(Screen.BookAShoot(current.booking.plan, current.booking.category))
+      is Screen.PaymentSuccess -> goBack(Screen.Main("home"))
       is Screen.SearchingCrew -> goBack(Screen.Main("home"))
       is Screen.BookingDetails -> goBack(Screen.Main(current.returnTab))
       is Screen.CrewRequestDetail -> goBack(Screen.Main("home"))
@@ -284,10 +406,8 @@ fun FameGoApp() {
     }
   }
 
-  Box(
-    modifier = Modifier
-      .fillMaxSize()
-      .background(FameGoBg)
+  FameGoAmbientBackground(
+    modifier = Modifier.fillMaxSize()
   ) {
     AnimatedContent(
       targetState = currentScreen,
@@ -305,8 +425,8 @@ fun FameGoApp() {
 
         is Screen.Welcome -> {
           WelcomeScreen(
-            onGetStarted = { currentScreen = Screen.Auth(startInSignUp = true) },
-            onSignIn = { currentScreen = Screen.Auth(startInSignUp = false) }
+            onGetStarted = { navigateTo(Screen.Auth(startInSignUp = true)) },
+            onSignIn = { navigateTo(Screen.Auth(startInSignUp = false)) }
           )
         }
 
@@ -315,9 +435,9 @@ fun FameGoApp() {
             initialSignUp = screen.startInSignUp,
             onAuthenticated = { user ->
               FameGoRepository.setCurrentUser(user)
-              currentScreen = Screen.Main(tab = "home")
+              navigateTo(Screen.Main(tab = "home"))
             },
-            onBack = { currentScreen = Screen.Welcome },
+            onBack = { navigateTo(Screen.Welcome) },
           )
         }
 
@@ -325,17 +445,14 @@ fun FameGoApp() {
           Scaffold(
             topBar = {
               FameGoTopBar(
-                currentRole = currentUser.role,
                 unreadNotifications = notifications.count {
                   it.targetRole == currentUser.role && !it.isRead
                 },
-                onRoleClick = {},
-                onNotificationsClick = { currentScreen = Screen.Main("notifications") },
-                onProfileClick = { currentScreen = Screen.Main("profile") },
-                roleSwitcherEnabled = false
+                onNotificationsClick = { navigateTo(Screen.Main("notifications")) },
+                onProfileClick = { navigateTo(Screen.Main("profile")) }
               )
             },
-            containerColor = FameGoBg
+            containerColor = Color.Transparent
           ) { innerPadding ->
             Box(
                 modifier = Modifier
@@ -344,16 +461,29 @@ fun FameGoApp() {
             ) {
               // Keep back navigation synchronized with the current app screen.
               BackHandler(enabled = screen.tab != "home" && screen.tab != "dashboard") {
-                currentScreen = Screen.Main("home")
+                navigateTo(Screen.Main("home"))
               }
 
               val clientTabOrder = listOf("home", "bookings", "book", "notifications", "profile")
+              // Swipe anywhere on the tab content to move between tabs.
+              val swipeOrder = if (currentUser.role == Role.CREW)
+                listOf("home", "bookings", "notifications", "profile")
+              else clientTabOrder
+              fun stepTab(delta: Int) {
+                val idx = swipeOrder.indexOf(screen.tab).let { if (it == -1) 0 else it }
+                val next = (idx + delta).coerceIn(0, swipeOrder.lastIndex)
+                if (next != idx) navigateTo(Screen.Main(tab = swipeOrder[next]))
+              }
 
               AnimatedContent(
                 targetState = screen.tab,
                 modifier = Modifier.fillMaxSize()
                   .navigationBarsPadding()
-                  .padding(bottom = 142.dp),
+                  .padding(bottom = 104.dp)
+                  .swipeToSwitchTabs(
+                    onSwipeLeft = { stepTab(1) },
+                    onSwipeRight = { stepTab(-1) }
+                  ),
                 transitionSpec = {
                   val initialIdx = clientTabOrder.indexOf(initialState).let { if (it == -1) 0 else it }
                   val targetIdx = clientTabOrder.indexOf(targetState).let { if (it == -1) 0 else it }
@@ -376,33 +506,34 @@ fun FameGoApp() {
                     onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "home")) },
                     onOpenLiveSearch = { id -> navigateTo(Screen.SearchingCrew(id)) },
                     onOpenChat = { id -> navigateTo(Screen.BookingChat(id, Screen.Main(tab))) },
-                    onViewAllBookings = { currentScreen = Screen.Main("bookings") }
+                    onViewAllBookings = { navigateTo(Screen.Main("bookings")) }
                   )
                   "bookings" -> ClientBookingsScreen(
                     onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "bookings")) },
                     onBookAgain = { cat -> navigateTo(Screen.ShootPlans(cat)) },
-                    onNewBooking = { navigateTo(Screen.ShootPlans(null)) }
+                    onNewBooking = { navigateTo(Screen.ShootPlans(null)) },
+                    onOpenChat = { id -> navigateTo(Screen.BookingChat(id, Screen.Main(tab))) }
                   )
                   "book" -> BookShootLaunchpadScreen(
-                    onStartBooking = { cat -> navigateTo(Screen.ShootPlans(cat)) }
+                    onStartBooking = { cat -> navigateTo(Screen.ShootPlans(cat)) },
+                    onPlanClick = { plan ->
+                      navigateTo(Screen.BookAShoot(plan, ShootCategory.VIDEO))
+                    }
                   )
                   "notifications", "alerts" -> NotificationsScreen(
                     onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "notifications")) }
                   )
                   "profile" -> ClientProfileScreen(
                     onOpenSupport = { navigateTo(Screen.CustomerSupport(Screen.Main("profile"))) },
-                    onLogout = {
-                      FameGoRepository.logout()
-                      screenHistory = emptyList()
-                      currentScreen = Screen.Welcome
-                    }
+                    onOpenBookings = { navigateTo(Screen.Main("bookings")) },
+                    onLogout = { showSignOutDialog = true }
                   )
                   else -> ClientHomeScreen(
                     onBookAShoot = { cat -> navigateTo(Screen.ShootPlans(cat)) },
                     onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "home")) },
                     onOpenLiveSearch = { id -> navigateTo(Screen.SearchingCrew(id)) },
                     onOpenChat = { id -> navigateTo(Screen.BookingChat(id, Screen.Main(tab))) },
-                    onViewAllBookings = { currentScreen = Screen.Main("bookings") }
+                    onViewAllBookings = { navigateTo(Screen.Main("bookings")) }
                   )
                   }
                 } else if (currentUser.role == Role.CREW) {
@@ -413,7 +544,7 @@ fun FameGoApp() {
                       onOpenChat = { id -> navigateTo(Screen.BookingChat(id, Screen.Main(tab))) }
                     )
                     "bookings" -> CrewJobsScreen(onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "bookings")) })
-                    "profile" -> CrewProfileScreen(onSwitchRole = { })
+                    "profile" -> CrewProfileScreen()
                     "notifications" -> NotificationsScreen(
                       onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "notifications")) }
                     )
@@ -431,21 +562,18 @@ fun FameGoApp() {
                 }
               }
 
-              // FameGo rotating wheel navigation (swipe left/right to switch tabs)
-              // Crew gets a compact dock so Jobs + Profile are reachable.
-              if (currentUser.role == Role.CLIENT) FameGoWheelNavigation(
-                currentTab = screen.tab,
-                onNavigate = { destination ->
-                  currentScreen = Screen.Main(tab = destination)
-                },
-                onOpenBookingFlow = {
-                  navigateTo(Screen.ShootPlans(null))
-                },
+              // Minimal bottom tab bar (Home / Bookings / Book / Alerts / Profile).
+              // Crew gets the same bar with a Jobs tab instead of Book.
+              if (currentUser.role == Role.CLIENT) FameGoTabBar(
+                tabs = fameGoClientTabs(),
+                selectedRoute = screen.tab,
+                onSelect = { destination -> navigateTo(Screen.Main(tab = destination)) },
                 modifier = Modifier.align(Alignment.BottomCenter)
               )
-              if (currentUser.role == Role.CREW) com.example.ui.components.FlowDock(
-                currentRoute = screen.tab,
-                onNavigate = { destination -> currentScreen = Screen.Main(tab = destination) },
+              if (currentUser.role == Role.CREW) FameGoTabBar(
+                tabs = fameGoCrewTabs(),
+                selectedRoute = screen.tab,
+                onSelect = { destination -> navigateTo(Screen.Main(tab = destination)) },
                 modifier = Modifier.align(Alignment.BottomCenter)
               )
             }
@@ -472,8 +600,25 @@ fun FameGoApp() {
         is Screen.Payment -> {
           PaymentDemoScreen(
             booking = screen.booking,
-            onPaid = { bookingId -> navigateTo(Screen.SearchingCrew(bookingId)) },
+            onPaid = { paid ->
+              navigateTo(
+                Screen.PaymentSuccess(
+                  bookingId = paid.id,
+                  amountRupees = paid.priceRupees,
+                  planTitle = paid.plan.title
+                )
+              )
+            },
             onBack = { goBack(Screen.BookAShoot(screen.booking.plan, screen.booking.category)) }
+          )
+        }
+
+        is Screen.PaymentSuccess -> {
+          PaymentSuccessScreen(
+            bookingId = screen.bookingId,
+            amountRupees = screen.amountRupees,
+            planTitle = screen.planTitle,
+            onContinue = { navigateTo(Screen.SearchingCrew(screen.bookingId)) }
           )
         }
 
@@ -502,6 +647,7 @@ fun FameGoApp() {
           CrewRequestDetailScreen(
             requestId = screen.bookingId,
             onAccept = {
+              FameGoHaptics.success(appHaptic)
               val me = currentUser
               val profile = FameGoRepository.crewProfiles.value.firstOrNull { it.userId == me.id }
               val crewMember = if (profile != null) {
@@ -529,6 +675,7 @@ fun FameGoApp() {
               navigateTo(Screen.BookingDetails(screen.bookingId, "home"))
             },
             onDecline = {
+              FameGoHaptics.micro(appHaptic)
               FameGoRepository.declineShootRequest(screen.bookingId)
               goBack(Screen.Main("home"))
             },
@@ -554,6 +701,36 @@ fun FameGoApp() {
         }
       }
     }
+    // Sign-out confirmation — never log out on a stray tap.
+    if (showSignOutDialog) {
+      AlertDialog(
+        onDismissRequest = { showSignOutDialog = false },
+        title = { Text("Sign out?", color = FameGoWhite, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+        text = {
+          Text(
+            "You'll need your email and password to sign back in.",
+            color = FameGoTextSecondary, fontSize = 14.sp
+          )
+        },
+        confirmButton = {
+          TextButton(
+            onClick = {
+              showSignOutDialog = false
+              FameGoRepository.logout()
+              screenHistory = emptyList()
+              currentScreen = Screen.Welcome
+            }
+          ) { Text("Sign out", color = FameGoGold, fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = {
+          TextButton(onClick = { showSignOutDialog = false }) {
+            Text("Stay", color = FameGoTextSecondary, fontWeight = FontWeight.Medium)
+          }
+        },
+        containerColor = FameGoCard,
+        shape = RoundedCornerShape(20.dp)
+      )
+    }
     // Email-link status pill ("Confirming your email…" / errors).
     linkStatus?.let { status ->
       Surface(
@@ -570,6 +747,132 @@ fun FameGoApp() {
           fontWeight = FontWeight.Medium,
           modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
         )
+      }
+    }
+    // Crew full-screen incoming shoot request (Famebook-style).
+    if (currentUser.role == Role.CREW) {
+      incomingAlert?.let { alert ->
+        IncomingShootDialog(
+          bookingTitle = alert.shootTitle,
+          venue = alert.venueName,
+          dateTime = "${alert.dateText} • ${alert.timeText}",
+          priceRupees = alert.priceRupees,
+          onView = {
+            FameGoRepository.dismissIncomingAlert()
+            navigateTo(Screen.CrewRequestDetail(alert.id))
+          },
+          onDismiss = { FameGoRepository.dismissIncomingAlert() }
+        )
+      }
+    }
+  }
+}
+
+@Composable
+private fun IncomingShootDialog(
+  bookingTitle: String,
+  venue: String,
+  dateTime: String,
+  priceRupees: Int,
+  onView: () -> Unit,
+  onDismiss: () -> Unit
+) {
+  val pulseLoop = rememberInfiniteTransition(label = "incomingPulse")
+  val pulse by pulseLoop.animateFloat(
+    initialValue = 0.5f,
+    targetValue = 1f,
+    animationSpec = infiniteRepeatable(
+      animation = tween(1100, easing = FastOutSlowInEasing),
+      repeatMode = RepeatMode.Reverse
+    ),
+    label = "incomingBadge"
+  )
+  // Spring pop entrance — the card lands with a soft bounce, never rigid.
+  val enter = remember { Animatable(0.92f) }
+  LaunchedEffect(Unit) { enter.animateTo(1f, FameGoSprings.pop()) }
+  Dialog(
+    onDismissRequest = onDismiss,
+    properties = DialogProperties(usePlatformDefaultWidth = false)
+  ) {
+    Box(
+      modifier = Modifier
+        .fillMaxSize()
+        .background(Color.Black.copy(alpha = 0.82f))
+        .padding(horizontal = 24.dp),
+      contentAlignment = Alignment.Center
+    ) {
+      Surface(
+        shape = RoundedCornerShape(26.dp),
+        color = FameGoCard,
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, FameGoGold),
+        shadowElevation = 24.dp,
+        modifier = Modifier
+          .fillMaxWidth()
+          .graphicsLayer {
+            scaleX = enter.value
+            scaleY = enter.value
+          }
+          .swipeDownToDismiss(onDismiss = onDismiss)
+          .testTag("incoming_shoot_dialog")
+      ) {
+        Column(
+          modifier = Modifier.padding(horizontal = 22.dp, vertical = 24.dp),
+          horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+          Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = FameGoGold.copy(alpha = 0.16f * pulse + 0.08f)
+          ) {
+            Text(
+              text = "● NEW SHOOT REQUEST",
+              color = FameGoGold.copy(alpha = 0.6f * pulse + 0.4f),
+              fontSize = 12.sp,
+              fontWeight = FontWeight.Bold,
+              letterSpacing = 1.2.sp,
+              modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+            )
+          }
+          Spacer(modifier = Modifier.height(16.dp))
+          Text(
+            text = bookingTitle.ifBlank { "Reel Shoot" },
+            color = FameGoWhite,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+          )
+          Text(
+            text = venue,
+            color = FameGoTextSecondary,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 4.dp)
+          )
+          Text(
+            text = dateTime,
+            color = FameGoGold,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 8.dp)
+          )
+          Text(
+            text = "₹${"%,d".format(priceRupees)}",
+            color = FameGoWhite,
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 6.dp)
+          )
+          Spacer(modifier = Modifier.height(20.dp))
+          FameGoButton(
+            text = "View request",
+            onClick = onView,
+            modifier = Modifier.fillMaxWidth(),
+            testTag = "incoming_view_request"
+          )
+          Spacer(modifier = Modifier.height(8.dp))
+          TextButton(onClick = onDismiss) {
+            Text("Dismiss", color = FameGoTextSecondary, fontSize = 14.sp)
+          }
+        }
       }
     }
   }

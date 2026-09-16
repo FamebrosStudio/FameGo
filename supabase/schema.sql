@@ -264,6 +264,38 @@ alter table public.crew_ratings enable row level security;
 alter table public.crew_live_locations enable row level security;
 alter table public.device_tokens enable row level security;
 
+-- Drop first so this file can be re-run safely any number of times.
+drop policy if exists profiles_select on public.profiles;
+drop policy if exists profiles_insert on public.profiles;
+drop policy if exists profiles_update on public.profiles;
+drop policy if exists crew_profiles_select on public.crew_profiles;
+drop policy if exists crew_profiles_insert on public.crew_profiles;
+drop policy if exists crew_profiles_update on public.crew_profiles;
+drop policy if exists saved_locations_owner on public.saved_locations;
+drop policy if exists bookings_select on public.bookings;
+drop policy if exists bookings_client_insert on public.bookings;
+drop policy if exists bookings_client_update on public.bookings;
+drop policy if exists bookings_client_delete on public.bookings;
+drop policy if exists assignments_select on public.booking_assignments;
+drop policy if exists assignments_admin_insert on public.booking_assignments;
+drop policy if exists assignments_crew_insert on public.booking_assignments;
+drop policy if exists assignments_admin_delete on public.booking_assignments;
+drop policy if exists notifications_select on public.notifications;
+drop policy if exists notifications_update on public.notifications;
+drop policy if exists notifications_admin_insert on public.notifications;
+drop policy if exists chat_select on public.chat_messages;
+drop policy if exists chat_insert on public.chat_messages;
+drop policy if exists chat_mark_read on public.chat_messages;
+drop policy if exists support_owner on public.support_messages;
+drop policy if exists support_insert on public.support_messages;
+drop policy if exists support_admin_update on public.support_messages;
+drop policy if exists favorites_owner on public.favorite_crew;
+drop policy if exists ratings_participants_select on public.crew_ratings;
+drop policy if exists ratings_client_insert on public.crew_ratings;
+drop policy if exists live_location_participants_select on public.crew_live_locations;
+drop policy if exists live_location_crew_write on public.crew_live_locations;
+drop policy if exists device_tokens_owner on public.device_tokens;
+
 create policy profiles_select on public.profiles for select to authenticated using (id = auth.uid() or public.is_admin());
 create policy profiles_insert on public.profiles for insert to authenticated with check (id = auth.uid());
 create policy profiles_update on public.profiles for update to authenticated using (id = auth.uid() or public.is_admin()) with check (id = auth.uid() or public.is_admin());
@@ -404,3 +436,49 @@ grant execute on function public.is_admin(), public.is_crew(), public.is_client(
 
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on all tables in schema public to authenticated;
+
+-- Public shoot-crew applications. Anyone (even logged out) can apply;
+-- only admins can read or approve. Safe to run multiple times.
+create table if not exists public.crew_applications (
+  id uuid primary key default gen_random_uuid(),
+  full_name text not null default '',
+  phone text not null default '',
+  email text not null default '',
+  city text not null default '',
+  iphone_model text not null default '',
+  gear_summary text not null default '',
+  portfolio_url text not null default '',
+  instagram_handle text not null default '',
+  experience_years integer not null default 0 check (experience_years >= 0),
+  best_shoot text not null default '',
+  status text not null default 'UNDER_REVIEW' check (status in ('UNDER_REVIEW', 'APPROVED', 'REJECTED')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists crew_applications_status_idx
+  on public.crew_applications(status, created_at desc);
+
+alter table public.crew_applications enable row level security;
+
+drop policy if exists crew_applications_public_insert on public.crew_applications;
+create policy crew_applications_public_insert on public.crew_applications
+  for insert to anon, authenticated with check (true);
+
+drop policy if exists crew_applications_admin_select on public.crew_applications;
+create policy crew_applications_admin_select on public.crew_applications
+  for select to authenticated using (public.is_admin());
+
+drop policy if exists crew_applications_admin_update on public.crew_applications;
+create policy crew_applications_admin_update on public.crew_applications
+  for update to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+grant usage on schema public to anon;
+grant insert on public.crew_applications to anon;
+grant select, insert, update on public.crew_applications to authenticated;
+
+-- Retired: email-to-Gmail trigger removed. Applications are reviewed
+-- inside the app now. This also cleans projects that ran the older file.
+drop trigger if exists crew_applications_email on public.crew_applications;
+drop function if exists public.email_crew_application();
+drop function if exists public.html_escape(text);

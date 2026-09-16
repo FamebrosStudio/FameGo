@@ -55,6 +55,8 @@ import androidx.compose.material3.TextButton
 import com.example.ui.theme.fameGoRise
 import com.example.ui.components.FameGoButton
 import com.example.ui.components.SectionHeader
+import com.example.ui.components.VengeanceFaqAccordion
+import com.example.ui.components.VengeanceFaqItem
 import com.example.ui.theme.FameGoAccentCyan
 import com.example.ui.theme.FameGoBg
 import com.example.ui.theme.FameGoBorder
@@ -86,7 +88,7 @@ fun CustomerSupportScreen(
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg)
+      .background(Color.Transparent)
       .statusBarsPadding()
       .navigationBarsPadding()
   ) {
@@ -301,17 +303,22 @@ fun CustomerSupportScreen(
       )
 
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        FaqTile(
-          question = "What happens if a call time is delayed by weather?",
-          answer = "FameGo allows client-initiated standby hold up to 2 hours without additional charges. Simply notify via chat."
-        )
-        FaqTile(
-          question = "What gear is guaranteed on verified shoots?",
-          answer = "Every verified cinematographer brings a minimum 4K 10-bit cinema camera (FX3/A7SIII/R5C), prime lenses, and audio wireless transmitters."
-        )
-        FaqTile(
-          question = "How are shoot cancellations processed?",
-          answer = "Cancellations made 12 hours prior to call time receive 100% credit for future shoots. Emergency studio dispatch replaces crew immediately if unavailable."
+        VengeanceFaqAccordion(
+          title = null,
+          items = listOf(
+            VengeanceFaqItem(
+              question = "What happens if a call time is delayed by weather?",
+              answer = "FameGo allows client-initiated standby hold up to 2 hours without additional charges. Simply notify via chat."
+            ),
+            VengeanceFaqItem(
+              question = "What gear is guaranteed on verified shoots?",
+              answer = "Every verified cinematographer brings a minimum 4K 10-bit cinema camera (FX3/A7SIII/R5C), prime lenses, and audio wireless transmitters."
+            ),
+            VengeanceFaqItem(
+              question = "How are shoot cancellations processed?",
+              answer = "Cancellations made 12 hours prior to call time receive 100% credit for future shoots. Emergency studio dispatch replaces crew immediately if unavailable."
+            )
+          )
         )
       }
 
@@ -399,41 +406,6 @@ fun SupportChannelCard(
       }
 
       Icon(Icons.Default.ChevronRight, contentDescription = null, tint = FameGoTextMuted, modifier = Modifier.size(20.dp))
-    }
-  }
-}
-
-@Composable
-fun FaqTile(question: String, answer: String) {
-  var expanded by remember { mutableStateOf(false) }
-
-  Surface(
-    shape = RoundedCornerShape(12.dp),
-    color = FameGoCard,
-    border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorder),
-    modifier = Modifier
-      .fillMaxWidth()
-      .clickable { expanded = !expanded }
-  ) {
-    Column(modifier = Modifier.padding(14.dp)) {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Text(question, color = FameGoWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-        Icon(
-          imageVector = Icons.Default.ChevronRight,
-          contentDescription = null,
-          tint = FameGoGold,
-          modifier = Modifier.size(18.dp)
-        )
-      }
-
-      if (expanded) {
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(answer, color = FameGoTextSecondary, fontSize = 12.sp, lineHeight = 17.sp)
-      }
     }
   }
 }

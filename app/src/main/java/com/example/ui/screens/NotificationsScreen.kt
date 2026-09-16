@@ -17,10 +17,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
@@ -30,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.FameGoRepository
 import com.example.model.NotificationItem
 import com.example.ui.components.SoftCard
+import com.example.ui.components.rubberBand
 import com.example.ui.theme.fameGoRise
 import com.example.ui.theme.FameGoBg
 import com.example.ui.theme.FameGoGold
@@ -37,7 +45,9 @@ import com.example.ui.theme.FameGoTextMuted
 import com.example.ui.theme.FameGoTextPrimary
 import com.example.ui.theme.FameGoTextSecondary
 import com.example.ui.theme.FameGoWhite
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsScreen(
   onOpenBooking: (String) -> Unit,
@@ -49,16 +59,30 @@ fun NotificationsScreen(
   val unreadCount = notifications.count { !it.isRead }
 
   val scrollState = rememberScrollState()
+  var isRefreshing by remember { mutableStateOf(false) }
+  val refreshScope = rememberCoroutineScope()
 
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg)
+      .background(Color.Transparent)
   ) {
+    PullToRefreshBox(
+      isRefreshing = isRefreshing,
+      onRefresh = {
+        isRefreshing = true
+        refreshScope.launch {
+          FameGoRepository.refreshNow()
+          isRefreshing = false
+        }
+      },
+      modifier = Modifier.fillMaxSize()
+    ) {
     Column(
       modifier = Modifier
         .fillMaxSize()
         .verticalScroll(scrollState)
+        .rubberBand()
         .padding(horizontal = 20.dp)
         .fameGoRise()
     ) {
@@ -191,6 +215,7 @@ fun NotificationsScreen(
       }
 
       Spacer(modifier = Modifier.height(110.dp))
+    }
     }
   }
 }

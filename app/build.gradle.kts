@@ -31,6 +31,11 @@ android {
     buildConfigField("String", "SUPABASE_URL", "\"${fameGoGradleString(fameGoConfig("SUPABASE_URL"))}\"")
     buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${fameGoGradleString(fameGoConfig("SUPABASE_PUBLISHABLE_KEY"))}\"")
     buildConfigField("String", "MAPTILER_KEY", "\"${fameGoGradleString(fameGoConfig("MAPTILER_KEY"))}\"")
+    // FCM sender config (empty until the Firebase project exists — push stays inert).
+    buildConfigField("String", "FCM_SENDER_ID", "\"${fameGoGradleString(fameGoConfig("FCM_SENDER_ID"))}\"")
+    buildConfigField("String", "FCM_API_KEY", "\"${fameGoGradleString(fameGoConfig("FCM_API_KEY"))}\"")
+    buildConfigField("String", "FCM_PROJECT_ID", "\"${fameGoGradleString(fameGoConfig("FCM_PROJECT_ID"))}\"")
+    buildConfigField("String", "FCM_APP_ID", "\"${fameGoGradleString(fameGoConfig("FCM_APP_ID"))}\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -75,6 +80,11 @@ android {
   }
 }
 
+// Every built APK carries the FameGo name (e.g. FameGo-debug.apk).
+base {
+  archivesName.set("FameGo")
+}
+
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
   // implementation(libs.accompanist.permissions)
@@ -102,6 +112,10 @@ dependencies {
   implementation(libs.logging.interceptor)
   implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)
+  // FCM for background push (inert until FCM_* values are set in local.properties).
+  implementation("com.google.firebase:firebase-messaging:24.1.0")
+  // Free interactive maps: osmdroid (OSM) + CARTO dark tiles, no API key.
+  implementation("org.osmdroid:osmdroid-android:6.1.20")
   // implementation(libs.play.services.location)
   implementation(libs.retrofit)
   testImplementation(libs.androidx.compose.ui.test.junit4)

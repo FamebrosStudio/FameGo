@@ -49,15 +49,6 @@ class ClientAftercareTest {
   )
 
   @Test
-  fun `favorite toggle adds and removes crew`() {
-    val crewId = "fav-${UUID.randomUUID()}"
-    FameGoRepository.toggleFavoriteCrew(crewId)
-    assertTrue(crewId in FameGoRepository.favoriteCrewIds.value)
-    FameGoRepository.toggleFavoriteCrew(crewId)
-    assertTrue(crewId !in FameGoRepository.favoriteCrewIds.value)
-  }
-
-  @Test
   fun `rating is stored and stars are clamped`() {
     val booking = testBooking()
     val crewId = "rate-${UUID.randomUUID()}"

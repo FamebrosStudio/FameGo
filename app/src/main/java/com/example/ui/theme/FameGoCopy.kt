@@ -86,17 +86,12 @@ object FameGoCopy {
   const val PROFILE_TITLE = "Profile"
   const val ACCOUNT_TITLE = "Account"
   const val SAVED_LOCATIONS = "Saved Locations"
-  const val FAVORITE_CREW = "Favorite Crew"
   const val NOTIFICATIONS = "Notifications"
   const val SUPPORT = "Support"
   const val PRIVACY = "Privacy"
   const val TERMS = "Terms"
   const val LOG_OUT = "Log Out"
   const val DELETE_ACCOUNT = "Delete Account"
-
-  // Favorites
-  const val FAVORITE_ADDED = "Added to favorites"
-  const val FAVORITE_REMOVED = "Removed from favorites"
 
   // Chat
   const val CHAT_TITLE = "FameGo Chat"
@@ -110,8 +105,6 @@ object FameGoCopy {
   const val EMPTY_CREW_REQUESTS_TITLE = "No new requests."
   const val EMPTY_CREW_REQUESTS_SUBTITLE = "We'll show them here when they arrive."
   const val EMPTY_NOTIFICATIONS = "You're all caught up."
-  const val EMPTY_FAVORITES_TITLE = "No favorite crew yet."
-  const val EMPTY_FAVORITES_SUBTITLE = "Save crew you want to work with again."
   const val EMPTY_SEARCH = "No results found."
 
   // Error Messages

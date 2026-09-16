@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -19,6 +20,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -27,9 +30,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -43,8 +48,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
@@ -66,15 +69,28 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -118,6 +134,7 @@ import com.example.ui.theme.FameGoTextSecondary
 import com.example.ui.theme.FameGoWhite
 import com.example.R
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 // =============================================================================
 // 1. THE FLOW PILL (Signature interactive pill morphing near bottom of screen)
@@ -404,17 +421,15 @@ fun FameGoWordmark(modifier: Modifier = Modifier) {
 
 @Composable
 fun AdaptiveHeader(
-  currentRole: Role,
   unreadNotifications: Int = 0,
-  onRoleClick: () -> Unit,
   onNotificationsClick: () -> Unit,
   onProfileClick: () -> Unit,
-  roleSwitcherEnabled: Boolean = false,
   modifier: Modifier = Modifier
 ) {
   Row(
     modifier = modifier
       .fillMaxWidth()
+      .statusBarsPadding()
       .padding(horizontal = 20.dp, vertical = 14.dp),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.SpaceBetween
@@ -425,45 +440,6 @@ fun AdaptiveHeader(
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-      // Role Switcher capsule (Subtle Dev/Demo affordance)
-      Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = FameGoCard,
-        border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorderSubtle),
-        modifier = Modifier
-          .clickable(enabled = roleSwitcherEnabled) { onRoleClick() }
-          .testTag("role_switcher_chip")
-      ) {
-        Row(
-          modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Box(
-            modifier = Modifier
-              .size(6.dp)
-              .clip(CircleShape)
-              .background(
-                when (currentRole) {
-                  Role.CLIENT -> FameGoGold
-                  Role.CREW -> FameGoSuccessGreen
-                  Role.ADMIN -> FameGoAccentCyan
-                }
-              )
-          )
-          Spacer(modifier = Modifier.width(6.dp))
-          Text(
-            text = when (currentRole) {
-              Role.CLIENT -> "Client"
-              Role.CREW -> "Crew"
-              Role.ADMIN -> "Admin"
-            },
-            color = FameGoTextSecondary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium
-          )
-        }
-      }
-
       // Notifications button with unread badge
       Box(
         modifier = Modifier
@@ -482,12 +458,24 @@ fun AdaptiveHeader(
           modifier = Modifier.size(16.dp)
         )
         if (unreadNotifications > 0) {
+          // Gentle breathing halo — the only motion in the header, so
+          // new alerts catch the eye without animating the whole bar.
+          val badgePulse = rememberInfiniteTransition(label = "badgePulse")
+          val badgeGlow by badgePulse.animateFloat(
+            initialValue = 0.55f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+              animation = tween(1600, easing = FastOutSlowInEasing),
+              repeatMode = RepeatMode.Reverse
+            ),
+            label = "badgeGlow"
+          )
           Box(
             modifier = Modifier
               .align(Alignment.TopEnd)
               .size(14.dp)
               .clip(CircleShape)
-              .background(FameGoGold),
+              .background(FameGoGold.copy(alpha = badgeGlow)),
             contentAlignment = Alignment.Center
           ) {
             Text(
@@ -527,21 +515,15 @@ fun AdaptiveHeader(
 fun FameGoTopBar(
   title: String = "FameGo",
   subtitle: String = "by Famebros Studio",
-  currentRole: Role,
   unreadNotifications: Int = 0,
-  onRoleClick: () -> Unit,
   onNotificationsClick: () -> Unit,
   onProfileClick: () -> Unit,
-  roleSwitcherEnabled: Boolean = false,
   modifier: Modifier = Modifier
 ) {
   AdaptiveHeader(
-    currentRole = currentRole,
     unreadNotifications = unreadNotifications,
-    onRoleClick = onRoleClick,
     onNotificationsClick = onNotificationsClick,
     onProfileClick = onProfileClick,
-    roleSwitcherEnabled = roleSwitcherEnabled,
     modifier = modifier
   )
 }
@@ -811,6 +793,7 @@ fun StatusCapsule(
 ) {
   val interactionSource = remember { MutableInteractionSource() }
   val isPressed by interactionSource.collectIsPressedAsState()
+  val haptic = LocalHapticFeedback.current
   val scale by animateFloatAsState(
     targetValue = if (isPressed) 0.97f else 1.0f,
     animationSpec = spring(stiffness = 500f),
@@ -824,7 +807,10 @@ fun StatusCapsule(
       .clickable(
         interactionSource = interactionSource,
         indication = null,
-        onClick = onToggle
+        onClick = {
+          FameGoHaptics.micro(haptic)
+          onToggle()
+        }
       )
       .testTag("crew_duty_toggle"),
     shape = RoundedCornerShape(32.dp),
@@ -875,8 +861,6 @@ fun LiveCard(
   onClick: () -> Unit,
   modifier: Modifier = Modifier
 ) {
-  var isExpanded by remember { mutableStateOf(false) }
-
   SoftCard(
     modifier = modifier.fillMaxWidth(),
     shape = RoundedCornerShape(22.dp),
@@ -895,8 +879,9 @@ fun LiveCard(
           LiveOrb(
             color = when (booking.status) {
               BookingStatus.IN_PROGRESS -> FameGoGold
-              BookingStatus.CONFIRMED -> FameGoSuccessGreen
-              BookingStatus.SEARCHING_CREW -> FameGoAccentCyan
+              BookingStatus.CONFIRMED, BookingStatus.UPCOMING -> FameGoSuccessGreen
+              BookingStatus.SEARCHING_CREW, BookingStatus.CREW_RESPONDED -> FameGoAccentCyan
+              BookingStatus.CANCELLED -> FameGoLiveRed
               else -> FameGoTextMuted
             },
             size = 8.dp
@@ -906,8 +891,12 @@ fun LiveCard(
             text = when (booking.status) {
               BookingStatus.IN_PROGRESS -> "Shoot in progress"
               BookingStatus.CONFIRMED -> "Confirmed"
+              BookingStatus.UPCOMING -> "Upcoming"
               BookingStatus.SEARCHING_CREW -> "Finding crew"
-              else -> "Completed"
+              BookingStatus.CREW_RESPONDED -> "Crew responded"
+              BookingStatus.COMPLETED -> "Completed"
+              BookingStatus.CANCELLED -> "Cancelled"
+              BookingStatus.DRAFT -> "Draft"
             },
             color = when (booking.status) {
               BookingStatus.IN_PROGRESS -> FameGoGold
@@ -1057,48 +1046,38 @@ fun GestureRequestCard(
         horizontalArrangement = Arrangement.spacedBy(10.dp)
       ) {
         // Decline button
-        Surface(
+        FameGoPressable(
+          onClick = onDecline,
           shape = RoundedCornerShape(16.dp),
           color = FameGoSurface,
           border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorderSubtle),
-          modifier = Modifier
-            .weight(1f)
-            .clickable(onClick = onDecline)
-            .testTag("decline_request_button")
+          modifier = Modifier.weight(1f),
+          testTag = "decline_request_button"
         ) {
-          Box(
-            modifier = Modifier.padding(vertical = 12.dp),
-            contentAlignment = Alignment.Center
-          ) {
-            Text(
-              text = "Decline",
-              color = FameGoTextMuted,
-              fontSize = 13.sp,
-              fontWeight = FontWeight.Medium
-            )
-          }
+          Text(
+            text = "Decline",
+            color = FameGoTextMuted,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(vertical = 12.dp)
+          )
         }
 
         // Accept button (FameGo Gold)
-        Surface(
+        FameGoPressable(
+          onClick = onAccept,
           shape = RoundedCornerShape(16.dp),
           color = FameGoGold,
-          modifier = Modifier
-            .weight(1.5f)
-            .clickable(onClick = onAccept)
-            .testTag("accept_request_button")
+          modifier = Modifier.weight(1.5f),
+          testTag = "accept_request_button"
         ) {
-          Box(
-            modifier = Modifier.padding(vertical = 12.dp),
-            contentAlignment = Alignment.Center
-          ) {
-            Text(
-              text = "Accept shoot",
-              color = FameGoBg,
-              fontSize = 13.sp,
-              fontWeight = FontWeight.Bold
-            )
-          }
+          Text(
+            text = "Accept shoot",
+            color = FameGoBg,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(vertical = 12.dp)
+          )
         }
       }
     }
@@ -1108,6 +1087,297 @@ fun GestureRequestCard(
 // =============================================================================
 // 10. REUSABLE UTILITIES & BACKWARD-COMPATIBLE WRAPPERS
 // =============================================================================
+
+/**
+ * Shared spring language (Apple-style fluid physics): one bounce vocabulary
+ * across presses, sheets, dismissals and entrances. Stiffness in the
+ * 400–600 range with slightly under-damped ratios gives the natural settle.
+ */
+object FameGoSprings {
+  fun press() = spring<Float>(stiffness = 500f, dampingRatio = 0.7f)
+  fun sheet() = spring<Float>(stiffness = 380f, dampingRatio = 0.82f)
+  fun settle() = spring<Float>(stiffness = 420f, dampingRatio = 0.6f)
+  fun pop() = spring<Float>(stiffness = 320f, dampingRatio = 0.65f)
+}
+
+/**
+ * Haptic language (Taptic-style): micro ticks for selections and threshold
+ * crossings, a deep thud for success, a rapid triple-tick stutter for
+ * errors. Three distinct rhythms so fingers learn what happened.
+ */
+object FameGoHaptics {
+  fun micro(feedback: androidx.compose.ui.hapticfeedback.HapticFeedback) {
+    feedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+  }
+
+  fun success(feedback: androidx.compose.ui.hapticfeedback.HapticFeedback) {
+    feedback.performHapticFeedback(HapticFeedbackType.LongPress)
+  }
+
+  fun error(
+    feedback: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    scope: kotlinx.coroutines.CoroutineScope
+  ) {
+    scope.launch {
+      repeat(3) {
+        feedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        kotlinx.coroutines.delay(70)
+      }
+    }
+  }
+}
+
+/**
+ * Horizontal swipe between bottom tabs, anywhere on the tab content.
+ * Swipe left → next tab, swipe right → previous tab. Vertical scrolls and
+ * taps are untouched: only a deliberate horizontal drag past the threshold
+ * fires, so lists keep scrolling normally.
+ */
+@Composable
+fun Modifier.swipeToSwitchTabs(
+  onSwipeLeft: () -> Unit,
+  onSwipeRight: () -> Unit,
+  thresholdDp: Float = 90f
+): Modifier {
+  val density = LocalDensity.current
+  val haptic = LocalHapticFeedback.current
+  val thresholdPx = remember(density, thresholdDp) {
+    with(density) { thresholdDp.dp.toPx() }
+  }
+  val latestLeft by rememberUpdatedState(onSwipeLeft)
+  val latestRight by rememberUpdatedState(onSwipeRight)
+  return pointerInput(thresholdPx) {
+    var totalX = 0f
+    detectHorizontalDragGestures(
+      onDragStart = { totalX = 0f },
+      onHorizontalDrag = { _, dragAmount -> totalX += dragAmount },
+      onDragEnd = {
+        if (totalX <= -thresholdPx) {
+          FameGoHaptics.micro(haptic)
+          latestLeft()
+        } else if (totalX >= thresholdPx) {
+          FameGoHaptics.micro(haptic)
+          latestRight()
+        }
+      }
+    )
+  }
+}
+
+/**
+ * Swipe right to go back on detail screens. Higher threshold than tab
+ * switching so it never fires by accident; the on-screen back button stays
+ * as the visible alternative.
+ */
+@Composable
+fun Modifier.swipeToGoBack(
+  onBack: () -> Unit,
+  thresholdDp: Float = 130f
+): Modifier {
+  val density = LocalDensity.current
+  val haptic = LocalHapticFeedback.current
+  val thresholdPx = remember(density, thresholdDp) {
+    with(density) { thresholdDp.dp.toPx() }
+  }
+  val latestBack by rememberUpdatedState(onBack)
+  return pointerInput(thresholdPx) {
+    var totalX = 0f
+    detectHorizontalDragGestures(
+      onDragStart = { totalX = 0f },
+      onHorizontalDrag = { _, dragAmount -> totalX += dragAmount },
+      onDragEnd = {
+        if (totalX >= thresholdPx) {
+          FameGoHaptics.micro(haptic)
+          latestBack()
+        }
+      }
+    )
+  }
+}
+
+/**
+ * Drag a full-screen sheet/card downward to dismiss it, with a live
+ * follow-finger offset. The visible dismiss button stays as backup.
+ */
+@Composable
+fun Modifier.swipeDownToDismiss(
+  onDismiss: () -> Unit,
+  thresholdDp: Float = 110f
+): Modifier {
+  val density = LocalDensity.current
+  val haptic = LocalHapticFeedback.current
+  val scope = rememberCoroutineScope()
+  val thresholdPx = remember(density, thresholdDp) {
+    with(density) { thresholdDp.dp.toPx() }
+  }
+  val latestDismiss by rememberUpdatedState(onDismiss)
+  val offsetY = remember { Animatable(0f) }
+  return this
+    .offset { IntOffset(0, offsetY.value.roundToInt()) }
+    .pointerInput(thresholdPx) {
+      val tracker = VelocityTracker()
+      detectVerticalDragGestures(
+        // Velocity transfers from finger to sheet: a fast downward fling
+        // dismisses even before crossing the distance threshold.
+        onDragStart = { tracker.resetTracking() },
+        onDragEnd = {
+          val velocity = runCatching { tracker.calculateVelocity().y }.getOrDefault(0f)
+          if (offsetY.value >= thresholdPx || velocity > 1400f) {
+            FameGoHaptics.micro(haptic)
+            latestDismiss()
+          }
+          scope.launch { offsetY.animateTo(0f, FameGoSprings.press()) }
+        },
+        onDragCancel = { scope.launch { offsetY.animateTo(0f, FameGoSprings.press()) } },
+        onVerticalDrag = { change, dragAmount ->
+          runCatching { tracker.addPosition(change.uptimeMillis, change.position) }
+          if (dragAmount > 0) scope.launch { offsetY.snapTo((offsetY.value + dragAmount).coerceAtMost(thresholdPx * 1.6f)) }
+          else scope.launch { offsetY.snapTo((offsetY.value + dragAmount).coerceAtLeast(0f)) }
+        }
+      )
+    }
+}
+
+/**
+ * Rubber-band overscroll (Apple-style elastic edges): at the very top or
+ * bottom of a scrollable, content stretches with resistance and springs
+ * back instead of hitting a hard wall. Wrap the scrollable's content.
+ */
+@Composable
+fun Modifier.rubberBand(maxStretchPx: Float = 220f): Modifier {
+  val scope = rememberCoroutineScope()
+  val stretch = remember { Animatable(0f) }
+  val connection = remember {
+    object : NestedScrollConnection {
+      override fun onPostScroll(
+        consumed: Offset,
+        available: Offset,
+        source: NestedScrollSource
+      ): Offset {
+        if (available.y != 0f) {
+          scope.launch {
+            stretch.snapTo((stretch.value + available.y * 0.35f).coerceIn(-maxStretchPx, maxStretchPx))
+          }
+        }
+        return Offset.Zero
+      }
+
+      override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+        stretch.animateTo(0f, FameGoSprings.settle())
+        return super.onPostFling(consumed, available)
+      }
+    }
+  }
+  return this
+    .nestedScroll(connection)
+    .offset { IntOffset(0, stretch.value.roundToInt()) }
+}
+
+/**
+ * One pressable primitive for every tappable surface: shrink slightly under
+ * the finger, spring back on release. Replaces ad-hoc clickables so the
+ * whole app shares a single tactile vocabulary.
+ */
+@Composable
+fun FameGoPressable(
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  enabled: Boolean = true,
+  shape: RoundedCornerShape = RoundedCornerShape(16.dp),
+  color: Color = FameGoSurface,
+  border: androidx.compose.foundation.BorderStroke? = null,
+  testTag: String? = null,
+  content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit
+) {
+  val interaction = remember { MutableInteractionSource() }
+  val pressed by interaction.collectIsPressedAsState()
+  val scale by animateFloatAsState(
+    targetValue = if (pressed && enabled) 0.96f else 1f,
+    animationSpec = FameGoSprings.press(),
+    label = "pressableScale"
+  )
+  Surface(
+    modifier = modifier
+      .scale(scale)
+      .clip(shape)
+      .clickable(
+        interactionSource = interaction,
+        indication = null,
+        enabled = enabled,
+        onClick = onClick
+      )
+      .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
+    shape = shape,
+    color = color,
+    border = border,
+    content = { androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center, content = content) }
+  )
+}
+
+/**
+ * System-style bottom sheet: slides up on a spring, dims the page behind,
+ * drag handle on top, swipe-down or scrim tap to dismiss. Destructive
+ * confirms stay in AlertDialogs; everything contextual lives here.
+ */
+@Composable
+fun FameGoSheet(
+  onDismiss: () -> Unit,
+  modifier: Modifier = Modifier,
+  content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
+) {
+  val slide = remember { Animatable(600f) }
+  LaunchedEffect(Unit) { slide.animateTo(0f, FameGoSprings.sheet()) }
+  androidx.compose.ui.window.Dialog(
+    onDismissRequest = onDismiss,
+    properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+  ) {
+    Box(
+      modifier = Modifier
+        .fillMaxSize()
+        .background(Color.Black.copy(alpha = 0.6f))
+        .clickable(
+          interactionSource = remember { MutableInteractionSource() },
+          indication = null,
+          onClick = onDismiss
+        ),
+      contentAlignment = Alignment.BottomCenter
+    ) {
+      Surface(
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        color = FameGoCardElevated,
+        border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorderSubtle),
+        shadowElevation = 24.dp,
+        modifier = modifier
+          .fillMaxWidth()
+          .offset { IntOffset(0, slide.value.roundToInt()) }
+          .swipeDownToDismiss(onDismiss = onDismiss)
+          .clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = {}
+          )
+      ) {
+        Column(
+          modifier = Modifier
+            .navigationBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+          horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+          Box(
+            modifier = Modifier
+              .width(44.dp)
+              .height(4.dp)
+              .clip(RoundedCornerShape(4.dp))
+              .background(FameGoTextMuted.copy(alpha = 0.5f))
+          )
+          Spacer(modifier = Modifier.height(12.dp))
+          content()
+          Spacer(modifier = Modifier.height(12.dp))
+        }
+      }
+    }
+  }
+}
 
 @Composable
 fun SectionHeader(
@@ -1142,13 +1412,13 @@ fun FameGoButton(
   enabled: Boolean = true,
   testTag: String = "primary_button"
 ) {
-  FlowPill(
-    state = FlowPillState.CUSTOM,
-    customText = text,
-    customIcon = icon,
+  VengeanceAnimatedButton(
+    text = text,
     onClick = onClick,
-    enabled = enabled,
     modifier = modifier,
+    enabled = enabled,
+    icon = icon,
+    style = VengeanceButtonStyle.GOLD,
     testTag = testTag
   )
 }

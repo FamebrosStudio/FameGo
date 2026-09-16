@@ -39,21 +39,21 @@ enum class ShootPlan(
   val description: String
 ) {
   BRONZE_90(
-    "Bronze 90",
+    "Bronze Plan",
     "1 hour + 30 min buffer",
     1,
     1_999,
     "Fast and focused for small shoots."
   ),
   BRONZE_3H(
-    "Bronze 3 Hour",
+    "Silver Plan",
     "3 hours + 30 min buffer",
     3,
     2_999,
     "For product shoots, reels and small campaigns."
   ),
   BRONZE_6H(
-    "Bronze 6 Hour",
+    "Gold Plan",
     "6 hours + 30 min buffer",
     6,
     8_999,
@@ -247,4 +247,22 @@ data class SavedLocation(
   val label: String,
   val venueName: String,
   val address: String
+)
+
+enum class CrewApplicationStatus { UNDER_REVIEW, APPROVED, REJECTED }
+
+data class CrewApplication(
+  val id: String,
+  val fullName: String,
+  val phone: String,
+  val email: String,
+  val city: String,
+  val iphoneModel: String,
+  val gearSummary: String,
+  val portfolioUrl: String,
+  val instagramHandle: String,
+  val experienceYears: Int,
+  val bestShoot: String,
+  val status: CrewApplicationStatus = CrewApplicationStatus.UNDER_REVIEW,
+  val createdAt: String = ""
 )

@@ -30,6 +30,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -62,7 +64,7 @@ fun ShootPlanScreen(
   var selected by remember { mutableStateOf(ShootPlan.BRONZE_3H) }
   val context = LocalContext.current
   Column(
-    modifier = modifier.fillMaxSize().background(FameGoBg)
+    modifier = modifier.fillMaxSize().background(Color.Transparent)
       .statusBarsPadding().navigationBarsPadding()
       .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)
   ) {
@@ -81,8 +83,23 @@ fun ShootPlanScreen(
     ShootPlan.entries.forEach { plan ->
       val active = selected == plan
       SoftCard(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
-          .border(1.dp, if (active) FameGoGold else FameGoBorderSubtle, RoundedCornerShape(20.dp))
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(vertical = 6.dp)
+          // Static gold glow for the selected plan — no rotating layers, so
+          // cards stay fully visible and cheap to draw on low-end phones.
+          .then(
+            if (active) Modifier.shadow(
+              elevation = 14.dp,
+              shape = RoundedCornerShape(20.dp),
+              spotColor = FameGoGold.copy(alpha = 0.55f)
+            ) else Modifier
+          )
+          .border(
+            width = if (active) 1.5.dp else 1.dp,
+            color = if (active) FameGoGold else FameGoBorderSubtle,
+            shape = RoundedCornerShape(20.dp)
+          )
           .clickable { selected = plan }.testTag("plan_${plan.name.lowercase()}")
       ) {
         Column(Modifier.padding(18.dp)) {

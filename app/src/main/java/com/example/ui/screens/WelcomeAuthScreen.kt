@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.os.SystemClock
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,10 +27,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -52,6 +55,8 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -64,10 +69,12 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import com.example.model.Role
 import com.example.model.User
 import com.example.data.SupabaseAuthClient
+import com.example.data.SupabaseNetwork
 import com.example.data.SupabaseRestClient
 import com.example.data.FameGoRepository
 import com.example.ui.components.FameGoButton
 import com.example.ui.components.FameGoWordmark
+import com.example.ui.components.VengeanceTransitionOverlay
 import com.example.ui.components.FameGoOutlinedButton
 import com.example.ui.theme.FameGoBg
 import com.example.ui.theme.FameGoBorder
@@ -75,6 +82,7 @@ import com.example.ui.theme.FameGoCard
 import com.example.ui.theme.FameGoCardElevated
 import com.example.ui.theme.FameGoGold
 import com.example.ui.theme.FameGoGoldContainer
+import com.example.ui.theme.FameGoSuccessGreen
 import com.example.ui.theme.FameGoSurface
 import com.example.ui.theme.FameGoTextMuted
 import com.example.ui.theme.FameGoTextPrimary
@@ -95,7 +103,9 @@ fun SplashScreen(
   LaunchedEffect(Unit) {
     val startedAt = SystemClock.elapsedRealtime()
     launch { reveal.animateTo(1f, tween(1200, easing = FastOutSlowInEasing)) }
-    val restoredUser = withTimeoutOrNull(2200) {
+    // Generous restore budget: slow networks still stay signed in instead of
+    // bouncing to Welcome (offline falls back to the cached profile fast).
+    val restoredUser = withTimeoutOrNull(7000) {
       runCatching { FameGoRepository.restoreSignedInUser() }.getOrNull()
     }
     val remaining = 2600L - (SystemClock.elapsedRealtime() - startedAt)
@@ -106,7 +116,7 @@ fun SplashScreen(
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg)
+      .background(Color.Transparent)
       .testTag("cinematic_splash"),
     contentAlignment = Alignment.Center
   ) {
@@ -143,6 +153,11 @@ fun SplashScreen(
       Spacer(modifier = Modifier.height(14.dp))
       Text("FAMEBROS STUDIO", color = FameGoTextSecondary,
         fontSize = 9.sp, letterSpacing = 3.sp)
+      Spacer(modifier = Modifier.height(26.dp))
+      // Signature snake loader while the session restores.
+      com.example.ui.components.FameGoSnakeLoader(
+        modifier = Modifier.size(width = 150.dp, height = 88.dp)
+      )
     }
   }
 }
@@ -156,7 +171,7 @@ fun WelcomeScreen(
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg)
+      .background(Color.Transparent)
       .statusBarsPadding()
       .navigationBarsPadding()
   ) {
@@ -310,11 +325,20 @@ fun AuthScreen(
   var fullName by remember { mutableStateOf("") }
   var phone by remember { mutableStateOf("") }
   var companyName by remember { mutableStateOf("") }
-  var selectedRole by remember { mutableStateOf(Role.CLIENT) }
+  // Entry mode: clients sign in, crew applies via the shoot-crew form.
+  var authMode by remember { mutableStateOf("client") }
   var isSubmitting by remember { mutableStateOf(false) }
   var authError by remember { mutableStateOf<String?>(null) }
   var authNotice by remember { mutableStateOf<String?>(null) }
   val coroutineScope = rememberCoroutineScope()
+  val appContext = LocalContext.current
+  val authHaptic = LocalHapticFeedback.current
+  LaunchedEffect(authError) {
+    if (authError != null) com.example.ui.components.FameGoHaptics.error(authHaptic, coroutineScope)
+  }
+  LaunchedEffect(authNotice) {
+    if (authNotice != null) com.example.ui.components.FameGoHaptics.success(authHaptic)
+  }
 
   val scrollState = rememberScrollState()
   val emailValid = email.trim().contains("@") && email.trim().contains(".")
@@ -329,8 +353,8 @@ fun AuthScreen(
     if (!canSubmit) {
       authError = if (!emailValid) "Enter a valid email address."
         else if (!passwordValid) "Password must be at least 6 characters."
-        else if (phone.filter(Char::isDigit).length < 10) "Enter a valid phone number."
-        else if (password != confirmPassword) "Passwords do not match."
+        else if (isSignUp && phone.filter(Char::isDigit).length < 10) "Enter a valid phone number."
+        else if (isSignUp && password != confirmPassword) "Passwords do not match."
         else "Please complete all required fields."
       return
     }
@@ -338,11 +362,15 @@ fun AuthScreen(
       authError = "FameGo is temporarily unavailable. Please try again later."
       return
     }
+    if (!SupabaseNetwork.isDeviceOnline(appContext)) {
+      authError = "You're offline. Turn on mobile data or Wi-Fi and try again."
+      return
+    }
     isSubmitting = true
     coroutineScope.launch {
       val result = SupabaseAuthClient.authenticate(
         email = email.trim(), password = password, signUp = isSignUp,
-        name = fullName.trim(), phone = phone.trim(), role = selectedRole.name,
+        name = fullName.trim(), phone = phone.trim(), role = Role.CLIENT.name,
         companyName = companyName.trim()
       )
       isSubmitting = false
@@ -363,12 +391,16 @@ fun AuthScreen(
             .joinToString("") { it.first().uppercase() }.ifEmpty { "FG" }
         ))
       }.onFailure { e ->
-        val msg = e.message ?: "Authentication failed"
-        if (msg.contains("CHECK_EMAIL") || msg.contains("confirm your email", ignoreCase = true)) {
-          authNotice = "Account created. Open your email and tap \"Yes, it's me\" — the FameGo app will confirm you automatically, then sign in."
-          isSignUp = false
+        if (!SupabaseNetwork.isDeviceOnline(appContext)) {
+          authError = "You're offline. Reconnect, then tap \"${if (isSignUp) "Create account" else "Sign in"}\" again."
         } else {
-          authError = SupabaseAuthClient.friendlyMessage(e, signingUp = isSignUp)
+          val msg = e.message ?: "Authentication failed"
+          if (msg.contains("CHECK_EMAIL") || msg.contains("confirm your email", ignoreCase = true)) {
+            authNotice = "Account created. Open your email and tap \"Yes, it's me\" — the FameGo app will confirm you automatically, then sign in."
+            isSignUp = false
+          } else {
+            authError = SupabaseAuthClient.friendlyMessage(e, signingUp = isSignUp)
+          }
         }
       }
     }
@@ -377,7 +409,7 @@ fun AuthScreen(
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg)
+      .background(Color.Transparent)
       .statusBarsPadding()
       .navigationBarsPadding()
       .imePadding()
@@ -431,35 +463,56 @@ fun AuthScreen(
 
       Spacer(modifier = Modifier.height(20.dp))
 
-      // Input Fields
+      // Client vs Crew choice lives ONLY on account creation.
+      // Sign-in is just email + password for everyone.
       if (isSignUp) {
-        // Role picker: client books shoots, crew receives work.
         Row(
           modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(8.dp)
+          horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-          listOf(Role.CLIENT to "Client", Role.CREW to "Crew").forEach { (role, label) ->
-            val selected = selectedRole == role
-            Surface(
-              shape = RoundedCornerShape(12.dp),
-              color = if (selected) FameGoGold else FameGoCard,
-              border = androidx.compose.foundation.BorderStroke(
-                1.dp, if (selected) FameGoGold else FameGoBorder
-              ),
-              modifier = Modifier.weight(1f).clickable { selectedRole = role }.testTag("role_${label.lowercase()}")
-            ) {
-              Text(
-                text = if (role == Role.CLIENT) "Book shoots" else "Crew work",
-                color = if (selected) Color(0xFF1A1408) else FameGoTextSecondary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(vertical = 10.dp)
-              )
-            }
-          }
+          AuthModeCard(
+            title = "Client",
+            subtitle = "Book reel shoots",
+            icon = Icons.Default.Person,
+            selected = authMode == "client",
+            onClick = { authMode = "client" },
+            modifier = Modifier.weight(1f),
+            testTag = "auth_mode_client"
+          )
+          AuthModeCard(
+            title = "Be a Crew",
+            subtitle = "Shoot reels, earn",
+            icon = Icons.Default.Videocam,
+            selected = authMode == "crew",
+            onClick = { authMode = "crew" },
+            modifier = Modifier.weight(1f),
+            testTag = "auth_mode_crew"
+          )
         }
-        Spacer(modifier = Modifier.height(12.dp))
+
+        Spacer(modifier = Modifier.height(20.dp))
+      }
+
+      if (isSignUp && authMode == "crew") {
+        CrewApplicationForm(
+          onExplore = {
+            // Guest preview while under review — session-only, nothing syncs.
+            onAuthenticated(
+              User(
+                id = "",
+                name = "Guest",
+                email = "",
+                phone = "",
+                role = Role.CLIENT,
+                avatarInitials = "GU"
+              )
+            )
+          }
+        )
+      } else {
+
+      // Input Fields
+      if (isSignUp) {
         FameGoTextField(
           value = fullName,
           onValueChange = { fullName = it },
@@ -538,6 +591,7 @@ fun AuthScreen(
       Row(
         modifier = Modifier.fillMaxWidth().clickable {
           isSignUp = !isSignUp
+          authMode = "client"
           authError = null
           authNotice = null
         },
@@ -552,10 +606,19 @@ fun AuthScreen(
         )
       }
 
+      } // end client auth branch
+
       Spacer(modifier = Modifier.height(20.dp))
 
       Spacer(modifier = Modifier.height(32.dp))
     }
+
+    // Kinetic mid-page transition while signing in / creating the account.
+    VengeanceTransitionOverlay(
+      visible = isSubmitting,
+      text = if (isSignUp) "Creating" else "Signing in",
+      subText = if (isSignUp) "Setting up your FameGo account…" else "Welcome back…"
+    )
   }
 }
 
@@ -595,4 +658,257 @@ fun FameGoTextField(
     ),
     modifier = Modifier.fillMaxWidth()
   )
+}
+
+@Composable
+private fun AuthModeCard(
+  title: String,
+  subtitle: String,
+  icon: androidx.compose.ui.graphics.vector.ImageVector,
+  selected: Boolean,
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  testTag: String = "auth_mode"
+) {
+  Surface(
+    shape = RoundedCornerShape(16.dp),
+    color = if (selected) FameGoGoldContainer else FameGoCard,
+    border = androidx.compose.foundation.BorderStroke(
+      1.dp, if (selected) FameGoGold else FameGoBorder
+    ),
+    modifier = modifier.clickable { onClick() }.testTag(testTag)
+  ) {
+    Column(
+      modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+      horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+      Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = if (selected) FameGoGold else FameGoTextMuted,
+        modifier = Modifier.size(22.dp)
+      )
+      Spacer(modifier = Modifier.height(6.dp))
+      Text(
+        text = title,
+        color = if (selected) FameGoWhite else FameGoTextPrimary,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Bold,
+        textAlign = TextAlign.Center
+      )
+      Text(
+        text = subtitle,
+        color = if (selected) FameGoGold else FameGoTextMuted,
+        fontSize = 11.sp,
+        textAlign = TextAlign.Center
+      )
+    }
+  }
+}
+
+/**
+ * Famebros Studio Shoot Crew Application — iPhone Reel Content Shooter.
+ * Every field is required; the form posts to the support inbox for review.
+ */
+@Composable
+private fun CrewApplicationForm(
+  onExplore: () -> Unit,
+  modifier: Modifier = Modifier
+) {
+  var fullName by remember { mutableStateOf("") }
+  var phone by remember { mutableStateOf("") }
+  var email by remember { mutableStateOf("") }
+  var city by remember { mutableStateOf("") }
+  var iphoneModel by remember { mutableStateOf("") }
+  var portfolioLink by remember { mutableStateOf("") }
+  var instagram by remember { mutableStateOf("") }
+  var experience by remember { mutableStateOf("") }
+  var bestShoot by remember { mutableStateOf("") }
+  var hasIphone by remember { mutableStateOf(false) }
+  var hasGimbal by remember { mutableStateOf(false) }
+  var hasMic by remember { mutableStateOf(false) }
+  var hasLight by remember { mutableStateOf(false) }
+  var hasPowerBank by remember { mutableStateOf(false) }
+  var formError by remember { mutableStateOf<String?>(null) }
+  var isSending by remember { mutableStateOf(false) }
+  var submitted by remember { mutableStateOf(false) }
+  val formScope = rememberCoroutineScope()
+
+  if (submitted) {
+    Column(
+      modifier = modifier.fillMaxWidth(),
+      horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+      Spacer(modifier = Modifier.height(12.dp))
+      Icon(
+        imageVector = Icons.Default.CheckCircle,
+        contentDescription = null,
+        tint = FameGoSuccessGreen,
+        modifier = Modifier.size(64.dp)
+      )
+      Spacer(modifier = Modifier.height(16.dp))
+      Text(
+        text = "Application received — under review",
+        color = FameGoWhite,
+        fontSize = 22.sp,
+        fontWeight = FontWeight.Bold,
+        textAlign = TextAlign.Center
+      )
+      Text(
+        text = "Our team will call you for a short interview about your reel shoots, gear and location. After approval you join the Famebros Shoot Crew.",
+        color = FameGoTextSecondary,
+        fontSize = 13.sp,
+        lineHeight = 19.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(top = 8.dp)
+      )
+      Spacer(modifier = Modifier.height(16.dp))
+      Text(
+        text = "What we check on the call: previous brand/creator reels, vertical video sense, camera handling, shot quality, gear and city availability.",
+        color = FameGoTextMuted,
+        fontSize = 12.sp,
+        lineHeight = 18.sp,
+        textAlign = TextAlign.Center
+      )
+      Spacer(modifier = Modifier.height(24.dp))
+      FameGoButton(
+        text = "Explore the app",
+        onClick = onExplore,
+        modifier = Modifier.fillMaxWidth(),
+        testTag = "crew_explore_button"
+      )
+      Text(
+        text = "Look around while you wait — booking unlocks after approval.",
+        color = FameGoTextMuted,
+        fontSize = 11.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(top = 10.dp)
+      )
+    }
+    return
+  }
+
+  Column(modifier = modifier.fillMaxWidth()) {
+    Text(
+      text = "Shoot Crew Application",
+      color = FameGoWhite,
+      fontSize = 20.sp,
+      fontWeight = FontWeight.Bold
+    )
+    Text(
+      text = "iPhone Reel Content Shooter (vertical only — no photo, no editing). Fill everything, our team calls shortlisted shooters.",
+      color = FameGoTextSecondary,
+      fontSize = 12.sp,
+      lineHeight = 18.sp,
+      modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
+    )
+
+    FameGoTextField(value = fullName, onValueChange = { fullName = it }, label = "Full name *", icon = Icons.Default.Person)
+    Spacer(modifier = Modifier.height(12.dp))
+    FameGoTextField(value = phone, onValueChange = { phone = it }, label = "Phone *", icon = Icons.Default.Phone, keyboardType = KeyboardType.Phone)
+    Spacer(modifier = Modifier.height(12.dp))
+    FameGoTextField(value = email, onValueChange = { email = it }, label = "Email *", icon = Icons.Default.Email, keyboardType = KeyboardType.Email)
+    Spacer(modifier = Modifier.height(12.dp))
+    FameGoTextField(value = city, onValueChange = { city = it }, label = "City / Location *", icon = Icons.Default.Person)
+    Spacer(modifier = Modifier.height(12.dp))
+    FameGoTextField(value = iphoneModel, onValueChange = { iphoneModel = it }, label = "iPhone model (14 Pro / 15 Pro or above) *", icon = Icons.Default.Videocam)
+
+    Spacer(modifier = Modifier.height(20.dp))
+    Text(text = "Required equipment *", color = FameGoTextMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+    Spacer(modifier = Modifier.height(8.dp))
+    CrewGearCheck(label = "iPhone (14 Pro / 15 Pro or above)", checked = hasIphone, onToggle = { hasIphone = !hasIphone })
+    CrewGearCheck(label = "Mobile Gimbal / Stabilizer", checked = hasGimbal, onToggle = { hasGimbal = !hasGimbal })
+    CrewGearCheck(label = "Wireless Mic", checked = hasMic, onToggle = { hasMic = !hasMic })
+    CrewGearCheck(label = "LED Light", checked = hasLight, onToggle = { hasLight = !hasLight })
+    CrewGearCheck(label = "Power Bank", checked = hasPowerBank, onToggle = { hasPowerBank = !hasPowerBank })
+
+    Spacer(modifier = Modifier.height(20.dp))
+    FameGoTextField(value = portfolioLink, onValueChange = { portfolioLink = it }, label = "Portfolio / reel work link *", icon = Icons.Default.Email)
+    Spacer(modifier = Modifier.height(12.dp))
+    FameGoTextField(value = instagram, onValueChange = { instagram = it }, label = "Instagram handle *", icon = Icons.Default.Person)
+    Spacer(modifier = Modifier.height(12.dp))
+    FameGoTextField(value = experience, onValueChange = { experience = it.filter(Char::isDigit).take(2) }, label = "Years shooting reels *", icon = Icons.Default.Person, keyboardType = KeyboardType.Number)
+    Spacer(modifier = Modifier.height(12.dp))
+    FameGoTextField(value = bestShoot, onValueChange = { bestShoot = it }, label = "Best reel shoot you did *", icon = Icons.Default.Person)
+
+    Spacer(modifier = Modifier.height(24.dp))
+    FameGoButton(
+      text = if (isSending) "Sending…" else "Submit application",
+      onClick = {
+        if (isSending) return@FameGoButton
+        formError = null
+        val emailOk = email.trim().contains("@") && email.trim().contains(".")
+        val missing = mutableListOf<String>()
+        if (fullName.trim().length < 2) missing += "name"
+        if (phone.filter(Char::isDigit).length < 10) missing += "phone"
+        if (!emailOk) missing += "email"
+        if (city.trim().isEmpty()) missing += "city"
+        if (iphoneModel.trim().isEmpty()) missing += "iPhone model"
+        if (portfolioLink.trim().isEmpty()) missing += "portfolio link"
+        if (instagram.trim().isEmpty()) missing += "Instagram"
+        if (experience.trim().isEmpty()) missing += "experience"
+        if (bestShoot.trim().isEmpty()) missing += "best shoot"
+        if (!(hasIphone && hasGimbal && hasMic && hasLight && hasPowerBank)) missing += "all 5 gear items"
+        if (missing.isNotEmpty()) {
+          formError = "Please complete: ${missing.joinToString(", ")}."
+          return@FameGoButton
+        }
+        isSending = true
+        formScope.launch {
+          FameGoRepository.submitCrewApplication(
+            fullName = fullName,
+            phone = phone,
+            email = email,
+            city = city,
+            iphoneModel = iphoneModel,
+            portfolioUrl = portfolioLink,
+            instagram = instagram,
+            experienceYears = experience.toIntOrNull() ?: 0,
+            bestShoot = bestShoot
+          ).onSuccess { submitted = true }
+            .onFailure { formError = FameGoRepository.friendlyMessage(it) }
+          isSending = false
+        }
+      },
+      enabled = !isSending,
+      modifier = Modifier.fillMaxWidth(),
+      testTag = "crew_apply_submit"
+    )
+    formError?.let { message ->
+      Text(message, color = Color(0xFFFF7B84), fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+    }
+  }
+}
+
+@Composable
+private fun CrewGearCheck(label: String, checked: Boolean, onToggle: () -> Unit) {
+  Surface(
+    shape = RoundedCornerShape(12.dp),
+    color = if (checked) FameGoGoldContainer else FameGoCard,
+    border = androidx.compose.foundation.BorderStroke(1.dp, if (checked) FameGoGold else FameGoBorder),
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(vertical = 4.dp)
+      .clickable { onToggle() }
+  ) {
+    Row(
+      modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      Box(
+        modifier = Modifier
+          .size(20.dp)
+          .clip(androidx.compose.foundation.shape.CircleShape)
+          .background(if (checked) FameGoGold else androidx.compose.ui.graphics.Color.Transparent)
+          .border(1.5.dp, if (checked) FameGoGold else FameGoTextMuted, androidx.compose.foundation.shape.CircleShape),
+        contentAlignment = Alignment.Center
+      ) {
+        if (checked) {
+          Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF1A1408), modifier = Modifier.size(14.dp))
+        }
+      }
+      Spacer(modifier = Modifier.width(10.dp))
+      Text(text = label, color = if (checked) FameGoWhite else FameGoTextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    }
+  }
 }

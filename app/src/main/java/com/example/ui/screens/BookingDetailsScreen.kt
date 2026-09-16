@@ -23,8 +23,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Star
@@ -61,6 +59,8 @@ import com.example.ui.components.FlowPill
 import com.example.ui.components.FlowPillState
 import com.example.ui.components.LiveOrb
 import com.example.ui.components.SoftCard
+import com.example.ui.components.rubberBand
+import com.example.ui.components.swipeToGoBack
 import com.example.ui.theme.fameGoRise
 import com.example.ui.theme.FameGoAccentCyan
 import com.example.ui.theme.FameGoBg
@@ -90,7 +90,6 @@ fun BookingDetailsScreen(
   modifier: Modifier = Modifier
 ) {
   val bookings by FameGoRepository.bookings.collectAsState()
-  val favoriteIds by FameGoRepository.favoriteCrewIds.collectAsState()
   val ratings by FameGoRepository.ratings.collectAsState()
   val liveSharing by FameGoRepository.liveSharing.collectAsState()
   val livePoints by FameGoRepository.livePoints.collectAsState()
@@ -102,14 +101,16 @@ fun BookingDetailsScreen(
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg)
+      .background(Color.Transparent)
       .statusBarsPadding()
       .navigationBarsPadding()
+      .swipeToGoBack(onBack = onBack)
   ) {
     Column(
       modifier = Modifier
         .fillMaxSize()
         .verticalScroll(scrollState)
+        .rubberBand()
         .padding(horizontal = 20.dp)
         .fameGoRise()
     ) {
@@ -353,34 +354,6 @@ fun BookingDetailsScreen(
                     )
                   }
                 }
-              }
-            }
-
-            // Favorite toggle for the primary crew member
-            val primaryCrew = booking.assignedCrew.firstOrNull()
-            if (primaryCrew != null) {
-              val isFavorite = primaryCrew.crewId in favoriteIds
-              Row(
-                modifier = Modifier
-                  .fillMaxWidth()
-                  .clickable { FameGoRepository.toggleFavoriteCrew(primaryCrew.crewId) }
-                  .padding(vertical = 4.dp)
-                  .testTag("favorite_crew_${primaryCrew.crewId}"),
-                verticalAlignment = Alignment.CenterVertically
-              ) {
-                Icon(
-                  imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                  contentDescription = "Favorite",
-                  tint = if (isFavorite) FameGoGold else FameGoTextMuted,
-                  modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                  text = if (isFavorite) "Saved to favorite crew" else "Add to favorite crew",
-                  color = if (isFavorite) FameGoGold else FameGoTextSecondary,
-                  fontSize = 13.sp,
-                  fontWeight = FontWeight.Medium
-                )
               }
             }
           }

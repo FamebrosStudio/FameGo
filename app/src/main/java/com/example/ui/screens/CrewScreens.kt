@@ -61,6 +61,7 @@ import com.example.ui.components.GestureRequestCard
 import com.example.ui.components.LiveOrb
 import com.example.ui.components.SoftCard
 import com.example.ui.components.StatusCapsule
+import com.example.ui.components.swipeToGoBack
 import com.example.ui.theme.FameGoAccentCyan
 import com.example.ui.theme.FameGoBg
 import com.example.ui.theme.FameGoBorder
@@ -102,7 +103,7 @@ fun CrewHomeScreen(
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg)
+      .background(Color.Transparent)
   ) {
     Column(
       modifier = Modifier
@@ -442,9 +443,10 @@ fun CrewRequestDetailScreen(
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg)
+      .background(Color.Transparent)
       .statusBarsPadding()
       .navigationBarsPadding()
+      .swipeToGoBack(onBack = onBack)
   ) {
     Column(
       modifier = Modifier
@@ -624,7 +626,7 @@ fun CrewJobsScreen(
   Column(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg)
+      .background(Color.Transparent)
       .padding(horizontal = 20.dp)
   ) {
     Spacer(modifier = Modifier.height(16.dp))
@@ -708,7 +710,6 @@ fun CrewJobsScreen(
 
 @Composable
 fun CrewProfileScreen(
-  onSwitchRole: () -> Unit,
   modifier: Modifier = Modifier
 ) {
   val scrollState = rememberScrollState()
@@ -716,7 +717,7 @@ fun CrewProfileScreen(
   Column(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg)
+      .background(Color.Transparent)
       .verticalScroll(scrollState)
       .padding(horizontal = 20.dp)
   ) {
@@ -783,20 +784,6 @@ fun CrewProfileScreen(
     }
 
     Spacer(modifier = Modifier.height(20.dp))
-
-    SoftCard(
-      onClick = onSwitchRole,
-      testTag = "crew_switch_role_card"
-    ) {
-      Row(
-        modifier = Modifier.padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-      ) {
-        Text(text = "Switch role", color = FameGoWhite, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        Text(text = "Client • Crew • Admin", color = FameGoTextMuted, fontSize = 13.sp)
-      }
-    }
 
     Spacer(modifier = Modifier.height(24.dp))
 

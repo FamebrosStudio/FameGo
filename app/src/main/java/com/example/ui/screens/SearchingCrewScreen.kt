@@ -106,7 +106,7 @@ fun SearchingCrewScreen(
   Box(
     modifier = modifier
       .fillMaxSize()
-      .background(FameGoBg)
+      .background(Color.Transparent)
       .statusBarsPadding()
       .navigationBarsPadding()
   ) {
