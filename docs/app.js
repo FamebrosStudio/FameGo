@@ -246,6 +246,38 @@
     steps.querySelectorAll(".j-step").forEach(function (s) { o.observe(s); });
   })();
 
+  // Scroll-driven 3D phone — banks, straightens and rises as the journey scrolls
+  (function phone3d() {
+    var scene = document.getElementById("p3d");
+    if (!scene || calm) return;
+    var journey = scene.closest ? (scene.closest(".journey") || scene.parentElement) : scene.parentElement;
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    var crx = 10, cry = -26, cdy = 0, mrx = 0, mry = 0, hidden = false;
+    document.addEventListener("visibilitychange", function () { hidden = document.hidden; });
+    if (fine) {
+      document.addEventListener("pointermove", function (e) {
+        var r = scene.getBoundingClientRect();
+        if (!r.width) return;
+        mry = clamp((e.clientX - (r.left + r.width / 2)) / r.width, -1, 1) * 5;
+        mrx = clamp(-(e.clientY - (r.top + r.height / 2)) / r.height, -1, 1) * 4;
+      }, { passive: true });
+    }
+    (function frame() {
+      requestAnimationFrame(frame);
+      if (hidden) return;
+      var r = journey.getBoundingClientRect(), vh = window.innerHeight;
+      var p = clamp((vh * 0.72 - r.top) / (r.height || 1), 0, 1);
+      var trx = 10 - 15 * p;     // tips back, then faces you
+      var tryy = -26 + 46 * p;   // shows its edge, then turns front-on
+      var tdy = (0.5 - p) * -70; // rises as you travel
+      crx += (trx + mrx - crx) * 0.08;
+      cry += (tryy + mry - cry) * 0.08;
+      cdy += (tdy - cdy) * 0.08;
+      scene.style.transform = "translate3d(0," + cdy.toFixed(1) + "px,0) rotateX(" +
+        crx.toFixed(2) + "deg) rotateY(" + cry.toFixed(2) + "deg)";
+    })();
+  })();
+
   // Split converge: halves meet at MATCHED (desktop pin)
   var splitWrap = document.getElementById("split");
   var halfL = document.getElementById("halfL"), halfR = document.getElementById("halfR"),
