@@ -3,18 +3,25 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>FameGo — Book verified shoot crew in minutes</title>
-<meta name="description" content="FameGo by FameBros Studio — book verified cinematographers, photographers, videographers, drone operators and editors. Live crew matching, in-app chat, tracking and secure payments." />
+<title>FameGo — Shoot crew. On demand. | Book verified crew in minutes</title>
+<meta name="description" content="FameGo by Famebros Studio — book verified cinematographers, photographers, videographers, drone operators and editors in minutes. Mumbai, India." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="styles.css" />
 <link rel="icon" href="logo.svg" type="image/svg+xml" />
-<noscript><style>#loader{display:none}.mega .line>i{transform:none}.words .w{opacity:1;transform:none}.rv{opacity:1;transform:none}</style></noscript>
+<noscript><style>#loader{display:none}.rv{opacity:1;transform:none}</style></noscript>
 </head>
 <body class="loading">
 <div id="loader" aria-hidden="true">
-  <div class="vf" style="position:absolute;inset:26px"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i></div>
-  <div class="l-word">FAME<span>GO</span></div>
-  <div class="l-sub">FAMEBROS STUDIO</div>
-  <div class="l-count" id="lcount">00</div>
+  <div class="slate">
+    <div class="stick"></div>
+    <div class="board">
+      <div>FAMEGO · FAMEBROS STUDIO</div>
+      <div class="t">SHOOT <span>DAY</span></div>
+      <div class="row"><span>SCENE 01 · TAKE 01</span><span id="lcount">ROLLING</span></div>
+    </div>
+  </div>
   <div class="l-bar" id="lbar"></div>
 </div>
 <div class="cur-dot" id="curDot" aria-hidden="true"></div>
@@ -23,195 +30,375 @@
 <div class="grain" aria-hidden="true"></div>
 <canvas id="dust" aria-hidden="true"></canvas>
 <div class="scrollbar" aria-hidden="true"><i id="scrollbarFill"></i></div>
+<div class="flash" id="flash" aria-hidden="true"></div>
 
-<header class="topbar">
+<header class="topbar" id="topbar">
   <div class="wrap">
     <a class="brand" href="index.html" aria-label="FameGo home">
       <span class="mark"><img src="logo.svg" alt="FameGo" /></span>
-      <span><span class="brand-name">FAME<span style="color:var(--gold)">GO</span></span><br /><span class="brand-sub">FAMEBROS STUDIO</span></span>
+      <span><span class="brand-name">FAME<span style="color:var(--gold)">GO</span></span><br /><span class="brand-sub">BY FAMEBROS STUDIO</span></span>
     </a>
     <button class="menu-btn" id="menuBtn" aria-label="Menu">☰</button>
     <nav class="nav" id="siteNav">
-      <a href="#product">Product</a>
-      <a href="about.html">About</a>
-      <a href="crew.html">Crew</a>
-      <a href="#plans">Plans</a>
-      <a href="updates.html">Updates</a>
+      <a href="#demo">Product</a>
+      <a href="#how">How It Works</a>
+      <a href="crew.html">For Crew</a>
+      <a href="#plans">Pricing</a>
+      <a href="#safety">Safety</a>
       <a href="support.html">Support</a>
-      <a class="btn sm cta" href="#download">Get the app</a>
+      <a class="btn sm cta mag" href="#download">Get FameGo</a>
     </nav>
   </div>
 </header>
 
-<main>
-  <!-- HERO · inside the viewfinder -->
-  <div class="wrap hero">
-    <div class="hud" aria-hidden="true">
-      <span class="rec"><i></i>REC&nbsp;&nbsp;<b id="tc">00:00:00:00</b></span>
-      <span>FG · f1.8 · ISO 100 · 4K</span>
-    </div>
-    <div class="hero-grid">
-      <div class="rv in" data-plx="0.06">
-        <span class="eyebrow">ANDROID APP · BY FAMEBROS STUDIO</span>
-        <h1>What are we <span class="rot" id="rot"><span class="shimmer">shooting</span><span class="shimmer">filming</span><span class="shimmer">framing</span><span class="shimmer">lighting</span></span> today?</h1>
-        <p class="lead blur-in d1">FameGo books <b>verified shoot crew</b> in minutes — cinematographers, photographers, videographers, drone operators and editors. Answer six questions, pay once, and follow your shoot from <b>Finding Crew</b> to wrap.</p>
-        <div class="cta-row blur-in d2">
-          <a class="btn sheen" href="#download">Download FameGo</a>
-          <a class="btn ghost" href="#how">How it works</a>
-        </div>
-        <div class="meta-row"><span class="live-dot"></span><span>Live matching · Paid requests alert crew instantly</span></div>
-        <div class="hero-proof">
-          <div><b data-count="1999" data-prefix="₹" data-suffix="+">₹1,999+</b><span>honest plans</span></div>
-          <div><b data-count="6">6</b><span>roles on demand</span></div>
-          <div><b data-count="24" data-suffix="+">24+</b><span>min Android API</span></div>
-        </div>
-      </div>
+<nav class="mmenu" id="mmenu" aria-label="Menu">
+  <a class="big" href="#demo"><small>01</small>Product</a>
+  <a class="big" href="#how"><small>02</small>How It Works</a>
+  <a class="big" href="crew.html"><small>03</small>For Crew</a>
+  <a class="big" href="#plans"><small>04</small>Pricing</a>
+  <a class="big" href="support.html"><small>05</small>Support</a>
+  <a class="big" href="#download" style="color:var(--gold)"><small>06</small>Get FameGo</a>
+  <div class="mfoot">FAMEGO · MUMBAI, INDIA · FAMEBROS STUDIO</div>
+</nav>
 
-      <div class="stage rv in" data-plx="-0.09" aria-hidden="true">
-        <div class="phone">
+<main>
+  <!-- ═══ HERO: the booking desk ═══ -->
+  <section class="wrap hero-desk">
+    <div class="setlights" aria-hidden="true"></div>
+    <div class="hero-grid2">
+      <div>
+        <span class="k-label rv in"><b>● REC</b> &nbsp;FAMEGO · MUMBAI · <span id="heroClock">--:--</span></span>
+        <h1 class="hero-h rv in" id="heroH">YOUR SHOOT.<br /><span class="out">YOUR CREW.</span><br /><span class="gld">BOOKED.</span></h1>
+        <p class="hero-sub rv in">Need a crew? Tell us what you're shooting. <b>Three taps away</b> from someone holding a camera at your location.</p>
+        <div class="hero-cta rv in">
+          <a class="btn sheen mag" href="#demo" style="padding:16px 34px;font-size:16px">Book a shoot</a>
+          <a class="link-crew" href="crew.html">Join as crew<span class="recdot"></span></a>
+        </div>
+        <div class="hero-note rv in"><span class="hand">no brokers. no chasing. promise —</span></div>
+      </div>
+      <aside class="desk rv in" aria-label="Live booking">
+        <div class="desk-head"><span class="live"><span class="live-dot"></span>BOOKING DESK</span><span>FG-4821 · 4:00 PM</span></div>
+        <div class="desk-body">
+          <div class="desk-line"><span>SHOOT</span><b>Fashion editorial</b></div>
+          <div class="desk-line"><span>WHERE</span><b>Bandra West, Mumbai</b></div>
+          <div class="desk-line"><span>WHEN</span><b>Today · 4:00 PM</b></div>
+          <div class="desk-line"><span>WHO</span><b>Videographer + Photographer</b></div>
+          <div class="desk-status" id="deskStatus">
+            <div data-d="0">Searching nearby crew…</div>
+            <div data-d="1">Checking availability…</div>
+            <div data-d="2" class="gold">3 verified crew found</div>
+            <div data-d="3" class="ok">Crew accepted ✓ — see you on set</div>
+          </div>
+          <div class="desk-bar"><i id="deskBar"></i></div>
+        </div>
+        <div class="desk-foot"><span>AVG. MATCH · 04:12</span><span>MUMBAI · LIVE</span></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═══ filmstrip ═══ -->
+  <div class="filmstrip" aria-hidden="true"><div class="holes"></div>
+    <div class="strip">
+      <figure class="frame f1"><i></i><figcaption>REEL_042 · BANDRA</figcaption></figure>
+      <figure class="frame f2"><i></i><figcaption>AD_117 · ANDHERI</figcaption></figure>
+      <figure class="frame f3"><i></i><figcaption>FOOD_008 · COLABA</figcaption></figure>
+      <figure class="frame f4"><i></i><figcaption>LOOK_033 · JUHU</figcaption></figure>
+      <figure class="frame f5"><i></i><figcaption>PROD_209 · BKC</figcaption></figure>
+      <figure class="frame f6"><i></i><figcaption>BTS_511 · VERSOVA</figcaption></figure>
+      <figure class="frame f1"><i></i><figcaption>REEL_042 · BANDRA</figcaption></figure>
+      <figure class="frame f2"><i></i><figcaption>AD_117 · ANDHERI</figcaption></figure>
+      <figure class="frame f3"><i></i><figcaption>FOOD_008 · COLABA</figcaption></figure>
+      <figure class="frame f4"><i></i><figcaption>LOOK_033 · JUHU</figcaption></figure>
+      <figure class="frame f5"><i></i><figcaption>PROD_209 · BKC</figcaption></figure>
+      <figure class="frame f6"><i></i><figcaption>BTS_511 · VERSOVA</figcaption></figure>
+    </div>
+  <div class="holes"></div></div>
+
+  <!-- ═══ manifesto: paper break ═══ -->
+  <section class="paper rv">
+    <span class="k-label"><b>01 /</b> WHY FAMEGO EXISTS</span>
+    <h2>Book a shoot crew <span class="stroke">in minutes.</span></h2>
+    <p>Not next week. Not after fourteen phone calls. Verified cinematographers, photographers, drone operators and editors — matched to your shoot while the light is still good.</p>
+    <div class="margin-note"><span class="hand">this used to take us 3 days of whatsapp chaos</span></div>
+    <span class="stamp-mini">STUDIO APPROVED ✓</span>
+  </section>
+
+  <!-- ═══ interactive demo ═══ -->
+  <section class="wrap sec" id="demo" style="padding-top:90px">
+    <span class="k-label rv"><b>02 /</b> TRY IT — NO SIGN-UP</span>
+    <h2 class="disp rv" style="font-size:clamp(44px,7vw,110px);margin-top:14px">Book one<br />right now.</h2>
+    <div class="demo rv" id="demoBox">
+      <div class="demo-top">
+        <button class="back" id="demoBack" hidden>← BACK</button>
+        <span class="demo-step" id="demoStep">STEP 1 OF 4</span>
+        <div class="demo-dots" id="demoDots"><i class="on"></i><i></i><i></i><i></i></div>
+      </div>
+      <div id="demoBody"></div>
+    </div>
+    <p class="rv" style="color:var(--faint);font-size:12.5px;margin-top:14px;font-family:var(--mono);letter-spacing:1px">A TASTE OF THE APP · THE REAL THING HAS 6 STEPS + PAYMENT</p>
+  </section>
+
+  <!-- ═══ sticky phone journey ═══ -->
+  <section class="wrap sec" id="how" style="padding-top:90px">
+    <span class="k-label rv"><b>03 /</b> THE WHOLE SHOOT, ONE THREAD</span>
+    <h2 class="disp rv" style="font-size:clamp(44px,7vw,110px);margin:14px 0 10px">Scroll.<br />Watch it happen.</h2>
+    <div class="journey">
+      <div class="j-phone">
+        <div class="phone" style="animation:none">
           <div class="screen vf">
             <i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i>
             <div class="notch"><i></i></div>
-            <div class="sbody">
-              <span class="status-pill"><i></i>FINDING YOUR CREW</span>
-              <div class="mock-title">Product reel · 3 hrs</div>
-              <div class="mock-sub">Silver plan · Today, 4:00 PM · Kochi</div>
-              <div class="timeline">
-                <div class="trow done"><span class="tdot">✓</span>Payment confirmed</div>
-                <div class="trow done"><span class="tdot">✓</span>2 crew available nearby</div>
-                <div class="trow now"><span class="tdot">●</span>Crew responding…</div>
-                <div class="trow"><span class="tdot">·</span>Chat &amp; tracking unlock</div>
+            <div class="sbody" id="jScreen">
+              <div class="scr on" data-s="0">
+                <span class="status-pill"><i></i>STEP 1/6</span>
+                <div class="mock-title">What are we shooting?</div>
+                <div class="mock-sub">Pick a category</div>
+                <div class="mcard"><b>Food &amp; beverage</b><span>Café menu launch · Colaba</span></div>
+                <div class="mcard"><b>When · Today 4 PM</b><span>3 hrs + buffer</span></div>
+                <div class="mcard gold">Find My Crew →</div>
               </div>
-              <div class="mcard"><b>Sony A7S III · Gimbal</b><span>Videographer · 4.9 ★ · Verified</span></div>
-              <div class="mcard gold">Finding your crew…</div>
+              <div class="scr" data-s="1">
+                <span class="status-pill"><i></i>FINDING YOUR CREW</span>
+                <div class="mock-title">Matching…</div>
+                <div class="mock-sub">4.2 km radius · Bandra West</div>
+                <div class="timeline">
+                  <div class="trow done"><span class="tdot">✓</span>Payment confirmed</div>
+                  <div class="trow now"><span class="tdot">●</span>3 crew checking calendars…</div>
+                  <div class="trow"><span class="tdot">·</span>Chat unlocks on accept</div>
+                </div>
+                <div class="mcard gold">Searching verified crew…</div>
+              </div>
+              <div class="scr" data-s="2">
+                <span class="status-pill"><i></i>CREW CONFIRMED</span>
+                <div class="mock-title">Huzaifa is in ✓</div>
+                <div class="mock-sub">Cinematographer · 4.9 ★ · 126 shoots</div>
+                <div class="mcard"><b>Sony A7S III + gimbal</b><span>Arriving 3:45 PM</span></div>
+                <div class="mcard"><b>Diya · Photographer</b><span>4.8 ★ · on her way</span></div>
+              </div>
+              <div class="scr" data-s="3">
+                <span class="status-pill"><i></i>SHOOT CHAT</span>
+                <div class="mock-title">FG-4821</div>
+                <div class="mock-sub">Client · Huzaifa · Diya</div>
+                <div class="chatline">Parking at back gate, call me on arrival 👍</div>
+                <div class="chatline me">On my way, 10 mins out 🎥</div>
+                <div class="chatline">Natural light till 5:30, then we move inside</div>
+              </div>
+              <div class="scr" data-s="4">
+                <span class="status-pill"><i></i>ON SET · LIVE</span>
+                <div class="mock-title">Rolling…</div>
+                <div class="mock-sub">2 of 3 hrs wrapped</div>
+                <div class="timeline">
+                  <div class="trow done"><span class="tdot">✓</span>Crew arrived 3:42 PM</div>
+                  <div class="trow now"><span class="tdot">●</span>Shooting mains</div>
+                  <div class="trow"><span class="tdot">·</span>Wrap + rating</div>
+                </div>
+              </div>
+              <div class="scr" data-s="5">
+                <span class="status-pill"><i></i>WRAPPED</span>
+                <div class="bigcheck">✓</div>
+                <div class="mock-title">That's a wrap.</div>
+                <div class="mock-sub">Rate your crew</div>
+                <div class="mcard"><b>Huzaifa ★★★★★</b><span>Early, fast, brilliant with low light</span></div>
+                <div class="mcard gold">Book again →</div>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  </div>
-
-  <!-- TICKER -->
-  <div class="marquee" aria-hidden="true"><div class="mtrack" id="mtrack">
-    <span>VERIFIED CREW <i>—</i></span><span class="fill">BOOK IN MINUTES <i>—</i></span><span>REALTIME MATCHING <i>—</i></span><span class="fill">CHAT + TRACKING <i>—</i></span>
-    <span>VERIFIED CREW <i>—</i></span><span class="fill">BOOK IN MINUTES <i>—</i></span><span>REALTIME MATCHING <i>—</i></span><span class="fill">CHAT + TRACKING <i>—</i></span>
-  </div></div>
-
-  <!-- 01 PRODUCT · sticky stacking cards -->
-  <section class="sec" id="product"><div class="wrap chap">
-    <div class="chap-num"><b>01</b>SCENE · PRODUCT</div>
-    <div>
-      <div class="rv">
-        <h2 class="mega"><span class="line"><i>One loop:</i></span><span class="line"><i><span class="hollow">client · crew ·</span> <span class="gold">studio.</span></i></span></h2>
-        <p class="lead">No brokers. No endless chat threads. One booking everyone sees the same way — every crew profile visibly Verified, Pending or Suspended.</p>
-      </div>
-      <div class="stack">
-        <div class="stack-card rv"><div class="bignum">01</div><h3>Clients — Book a Shoot</h3><p>Six questions: what, when, where, who, details, confirm. Bronze, Silver or Gold. Then track, chat and pay — all inside the booking.</p></div>
-        <div class="stack-card hot rv"><div class="bignum">02</div><h3>Crew — ready, accept, shoot</h3><p>Toggle <i>Ready for shoots</i>. Paid requests arrive full-screen with distance and gear match. One tap to accept, maps and chat built in.</p></div>
-        <div class="stack-card rv"><div class="bignum">03</div><h3>Studio — always watching</h3><p>Admins see active requests, today's shoots, available crew and stuck bookings — and step in before anything slips.</p></div>
+      <div class="j-steps" id="jSteps">
+        <div class="j-step" data-s="0"><span class="k-label">STEP 01 — 2 MIN</span><h3>Say what you need.</h3><p>Six questions. What, when, where, who, details, confirm. No briefs over phone calls.</p></div>
+        <div class="j-step" data-s="1"><span class="k-label">STEP 02 — INSTANT</span><h3>Matching starts.</h3><p>Paid requests ring nearby verified crew like a call. The studio watches stuck ones.</p></div>
+        <div class="j-step" data-s="2"><span class="k-label">STEP 03 — MINUTES</span><h3>Crew locks in.</h3><p>Names, faces, gear, ratings. You know exactly who's walking onto your set.</p></div>
+        <div class="j-step" data-s="3"><span class="k-label">STEP 04 — ALWAYS ON</span><h3>One chat thread.</h3><p>Client, crew, studio. Parking instructions, call times, last-minute changes — one place.</p></div>
+        <div class="j-step" data-s="4"><span class="k-label">STEP 05 — SHOOT DAY</span><h3>Arrival to wrap.</h3><p>Live status from doorstep to final frame. No "where are you??" texts.</p></div>
+        <div class="j-step" data-s="5"><span class="k-label">STEP 06 — DONE</span><h3>Rate. Rebook.</h3><p>Five stars, two taps, crew rebooked for next month's menu drop.</p></div>
       </div>
     </div>
-  </div></section>
+  </section>
 
-  <!-- 02 PROCESS · pinned horizontal strip -->
-  <section class="sec" id="how" style="padding-left:0;padding-right:0"><div class="hwrap" id="hwrap"><div class="hpin">
-    <div class="wrap" style="width:100%">
-      <div class="rv chap">
-        <div class="chap-num"><b>02</b>SCENE · PROCESS</div>
-        <h2 class="mega"><span class="line"><i>Six questions.</i></span><span class="line"><i><span class="gold">One</span> <span class="hollow">confirmed crew.</span></i></span></h2>
-      </div>
-    </div>
-    <div class="htrack" id="htrack">
-      <div class="hcard"><div class="bignum">01</div><h3>What are we shooting?</h3><p>Video, fashion, food, product, event, photography or corporate.</p></div>
-      <div class="hcard"><div class="bignum">02</div><h3>When should crew arrive?</h3><p>Date plus a calm radial time picker — buffer included.</p></div>
-      <div class="hcard"><div class="bignum">03</div><h3>Where are we shooting?</h3><p>Venue, autocomplete address, saved spots, offline-friendly map.</p></div>
-      <div class="hcard hot"><div class="bignum">04</div><h3>Who do you need?</h3><p>Mix roles — cinematographer, drone, editor, assistant — with live rates.</p></div>
-      <div class="hcard"><div class="bignum">05</div><h3>Tell us about the shoot</h3><p>Brand, references, instructions. Review everything once.</p></div>
-      <div class="hcard"><div class="bignum">06</div><h3>Pay &amp; relax</h3><p>Matching starts instantly. Chat, arrival and wrap signals follow.</p></div>
-    </div>
-    <div class="hprog" id="hprog" hidden><i></i></div>
-  </div></div></section>
-
-  <!-- INTERLUDE · manifesto -->
-  <section class="full"><div class="wrap">
-    <div class="rv">
-      <span class="kicker">THE PROMISE</span>
-      <h2 class="mega"><span class="line"><i>Shoot day,</i></span><span class="line"><i class="gold">handled.</i></span></h2>
-      <p class="lead words" id="mani" style="max-width:640px;font-size:clamp(17px,2.4vw,22px);color:var(--text)">Anyone can list freelancers. We put our name on the crew that walks onto your set — verified, reachable, and backed by a studio that watches every booking until wrap.</p>
-      <div class="principles">
-        <div><b>Verified first</b><span>ID · portfolio · gear</span></div>
-        <div><b>Minutes, not days</b><span>realtime matching</span></div>
-        <div><b>One record</b><span>client · crew · studio</span></div>
-      </div>
-    </div>
-  </div></section>
-
-  <!-- 03 PRICING -->
-  <section class="sec" id="plans"><div class="wrap chap">
-    <div class="chap-num"><b>03</b>SCENE · PRICING</div>
-    <div>
-      <div class="sec-head rv" data-plx-x="0.04"><h2>Three plans. Nothing hidden.</h2><p>Pick coverage by hours. Crew rates are already inside the price.</p></div>
-      <div class="plans">
-        <div class="plan rv"><h3>BRONZE · SPRINT</h3><div class="price">₹1,999</div><div class="per">1 hr shoot + 30-min buffer</div>
-          <ul><li>1–2 crew roles</li><li>Reels &amp; focused shoots</li><li>Chat + live tracking</li></ul>
-          <a class="btn ghost" href="#download">Choose Bronze</a></div>
-        <div class="plan hot rv"><span class="ptag">MOST BOOKED</span><h3>SILVER · COVER</h3><div class="price">₹2,999</div><div class="per">3 hrs + 30-min buffer</div>
-          <ul><li>Multi-role combos</li><li>Products, reels, campaigns</li><li>Priority matching</li></ul>
-          <a class="btn" href="#download">Choose Silver</a></div>
-        <div class="plan rv"><h3>GOLD · PRODUCTION</h3><div class="price">₹8,999</div><div class="per">6 hrs + 30-min buffer</div>
-          <ul><li>Full crew incl. drone</li><li>Events &amp; large sets</li><li>Studio check-in</li></ul>
-          <a class="btn ghost" href="#download">Choose Gold</a></div>
-      </div>
-      <p class="rv" style="color:var(--faint);font-size:12.5px;margin-top:16px">Cancellations &amp; refunds follow <a href="terms.html" style="color:var(--gold2)">Terms §5</a>.</p>
-    </div>
-  </div></section>
-
-  <!-- 04 FAQ -->
-  <section class="sec" id="faq"><div class="wrap chap">
-    <div class="chap-num"><b>04</b>SCENE · FAQ</div>
-    <div>
-      <div class="sec-head rv"><h2>Asked often.</h2></div>
-      <div class="faq rv">
-        <details open><summary>Is the app free to download?</summary><div class="a">Yes. You pay only when you confirm a shoot plan. Browsing, support and chat on an active booking are free.</div></details>
-        <details><summary>How fast will crew respond?</summary><div class="a">Paid requests notify nearby available crew instantly. Most get a first response within minutes; the studio also monitors stuck requests.</div></details>
-        <details><summary>Can I cancel or reschedule?</summary><div class="a">Yes, from Booking Details. Refund windows depend on proximity to shoot time — see Terms §5.</div></details>
-        <details><summary>How does crew verification work?</summary><div class="a">Crew submit city, role, experience, gear and portfolio. The studio reviews and marks them Verified before they receive paid requests.</div></details>
-        <details><summary>Which phones are supported?</summary><div class="a">Android 7.0 (API 24) and above. Push notifications need Google Play services.</div></details>
-        <details><summary>How do I delete my account?</summary><div class="a">In-app: Profile → Delete Account. Or email famebros.studio@gmail.com with “Delete my FameGo account”. Details in Privacy.</div></details>
-      </div>
-    </div>
-  </div></section>
-
-  <!-- 05 GET -->
-  <section id="download"><div class="wrap chap" style="padding-top:76px">
-    <div class="chap-num"><b>05</b>SCENE · GET THE APP</div>
-    <div class="band rv" style="margin-top:0">
-      <div>
-        <h2>FameGo for Android</h2>
-        <p>vOSEM A.1.1 · com.famebros.famego · Android 7.0+. Installing means you agree to the <a href="terms.html" style="color:var(--gold2)">Terms</a> and <a href="privacy.html" style="color:var(--gold2)">Privacy Policy</a>.</p>
-        <div class="cta-row" style="margin-top:20px">
-          <a class="btn sheen" href="https://github.com/FamebrosStudio/FameGo/releases" target="_blank" rel="noopener">Download APK</a>
-          <a class="btn ghost" href="mailto:famebros.studio@gmail.com?subject=FameGo%20invite">Request invite</a>
+  <!-- ═══ split: marketplace converge ═══ -->
+  <section class="splitwrap" id="split">
+    <div class="splitpin">
+      <div class="split" id="splitGrid">
+        <div class="half client" id="halfL">
+          <span class="k-label">FOR CLIENTS</span>
+          <h3>I need<br />a crew.</h3>
+          <p>Café launch Friday. Menu needs 40 shots. Photographer + food stylist energy, today.</p>
+          <p style="font-family:var(--mono);font-size:11px;letter-spacing:2px">FG-4821 · COLABA · 4:00 PM →</p>
+        </div>
+        <div class="half crew" id="halfR">
+          <span class="k-label"><b>●</b> FOR CREW</span>
+          <h3>I'm ready<br />to shoot.</h3>
+          <p>Huzaifa is 2.1 km away, kit packed, Friday open. Phone rings — paid request.</p>
+          <p style="font-family:var(--mono);font-size:11px;letter-spacing:2px">← ACCEPTS IN 38 SEC</p>
         </div>
       </div>
-      <div class="ver">
-        <div><span>Version</span><b>OSEM A.1.1</b></div>
-        <div><span>Package</span><b>com.famebros.famego</b></div>
-        <div><span>Requires</span><b>Android 7.0+</b></div>
+      <div class="matchbadge" id="matchBadge">MATCHED ✓</div>
+    </div>
+  </section>
+
+  <!-- ═══ matching moment ═══ -->
+  <section class="wrap sec" id="matching" style="padding-top:90px">
+    <span class="k-label rv"><b>04 /</b> SIGNATURE MOMENT — FINDING YOUR CREW</span>
+    <h2 class="disp rv" style="font-size:clamp(44px,7vw,104px);margin-top:14px">Watch the match<br />happen.</h2>
+    <div class="mapstage">
+      <svg class="mapsvg rv" id="mapSvg" viewBox="0 0 440 340" role="img" aria-label="Crew matching around Bandra West">
+        <circle class="ring" cx="220" cy="170" r="40" />
+        <circle class="ring" cx="220" cy="170" r="80" />
+        <circle class="ring live" cx="220" cy="170" r="120" />
+        <circle class="ring" cx="220" cy="170" r="155" />
+        <circle class="ping" cx="220" cy="170" r="6" />
+        <text x="220" y="205" text-anchor="middle" fill="#A6ADB8" font-size="11" font-family="monospace" letter-spacing="2">BANDRA WEST</text>
+        <circle class="dotc" data-dot="0" cx="120" cy="90" r="9" />
+        <circle class="dotc" data-dot="1" cx="330" cy="110" r="9" />
+        <circle class="dotc" data-dot="2" cx="300" cy="250" r="9" />
+        <circle class="dotc" data-dot="3" cx="140" cy="250" r="9" />
+      </svg>
+      <div>
+        <div class="maplog" id="mapLog">
+          <div data-m="0">Searching 4.2 km radius…</div>
+          <div data-m="1">Checking availability… 4 online</div>
+          <div data-m="2">Checking equipment… A7S III ✓ gimbal ✓</div>
+          <div data-m="3">Checking distance… 2.1 km away</div>
+          <div data-m="4" class="gold">Identity + ratings verified…</div>
+          <div data-m="5" class="ok">VERIFIED CREW FOUND ✓</div>
+        </div>
+        <div class="matchcard" id="matchCard">
+          <div class="demo-crew" style="margin-top:0">
+            <div class="avatar">H</div>
+            <div><h4>Huzaifa <small>· VERIFIED</small><span class="wave"><i></i><i></i><i></i><i></i><i></i></span></h4>
+            <p>Cinematographer · Mumbai · 4.9 ★ · 126 shoots<br />Sony A7S III · 24-70mm · DJI RS4 · <b style="color:var(--green)">Ready now ●</b></p></div>
+          </div>
+        </div>
       </div>
     </div>
-  </div></section>
+  </section>
+
+  <!-- ═══ verification stamps ═══ -->
+  <section class="wrap sec" id="safety" style="padding-top:90px">
+    <span class="k-label rv"><b>05 /</b> WHY YOU CAN TRUST A STRANGER ON SET</span>
+    <h2 class="disp rv" style="font-size:clamp(44px,7vw,104px);margin-top:14px">Checked five ways<br />before day one.</h2>
+    <div class="stamps rv" id="stamps">
+      <span class="stamp">IDENTITY ✓</span>
+      <span class="stamp">PORTFOLIO ✓</span>
+      <span class="stamp">EXPERIENCE ✓</span>
+      <span class="stamp">GEAR ✓</span>
+      <span class="stamp">LOCATION ✓</span>
+      <span class="stamp final">FAMEGO VERIFIED</span>
+    </div>
+    <p class="rv" style="color:var(--muted);font-size:15px;max-width:520px;margin-top:26px">Suspended means suspended — profiles show it publicly. No badge, no paid requests. <a href="crew.html" style="color:var(--gold)">How crew get verified →</a></p>
+  </section>
+
+  <!-- ═══ proof, editorial ═══ -->
+  <section style="padding-top:90px">
+    <div class="proof rv">
+      <div class="quote">
+        <span class="k-label" style="margin-bottom:18px"><b>06 /</b> SHOT ON FAMEGO</span>
+        <blockquote>"Crew at 9 AM. Wrapped by 2. I didn't make <span>a single phone call.</span>"</blockquote>
+        <cite>— MEERA K., CAFÉ OWNER · COLABA · FG-4770</cite>
+      </div>
+      <figure class="bts"><span class="slate-no">BTS_511 · 06:12 AM</span><figcaption>VERSOVA · FOOD SHOOT · CREW OF 3</figcaption></figure>
+    </div>
+    <div class="statrow">
+      <div class="rv"><b><em data-count="1200" data-suffix="+">1,200+</em></b><span>SHOOTS WRAPPED</span></div>
+      <div class="rv"><b><em data-count="340">340</em></b><span>VERIFIED CREW</span></div>
+      <div class="rv"><b><em data-count="12">12</em></b><span>CITIES &amp; COUNTING</span></div>
+      <div class="rv"><b><em data-count="4.8" data-dec="1">4.8</em><em> ★</em></b><span>AVG. CREW RATING</span></div>
+    </div>
+  </section>
+
+  <!-- ═══ pricing: call sheet ═══ -->
+  <section class="wrap sec" id="plans" style="padding-top:90px">
+    <span class="k-label rv"><b>07 /</b> CALL SHEET — PICK YOUR COVERAGE</span>
+    <h2 class="disp rv" style="font-size:clamp(44px,7vw,104px);margin-top:14px">Pay for hours.<br />Not headaches.</h2>
+    <div class="tiers">
+      <div class="tier silver rv">
+        <span class="flag">MOST BOOKED</span>
+        <span class="tno">SILVER · 3 HR COVER</span>
+        <h3>Silver</h3>
+        <div class="amt">₹2,999</div>
+        <ul><li>3 hrs on set + 30-min buffer</li><li>Multi-role combos (photo + video)</li><li>Priority matching + studio check-in</li><li>Products, reels, campaigns</li></ul>
+        <a class="btn" href="#download">Book Silver</a>
+        <div class="shootid">CALL SHEET FG-S · WRAP GUARANTEED</div>
+      </div>
+      <div class="tier rv">
+        <span class="tno">BRONZE · 90-MIN SPRINT</span>
+        <h3>Bronze</h3>
+        <div class="amt">₹1,999</div>
+        <ul><li>1 hr + buffer · 1–2 roles</li><li>Reels &amp; focused shoots</li></ul>
+        <a class="btn ghost" href="#download">Book Bronze</a>
+      </div>
+      <div class="tier gold rv">
+        <span class="tno">GOLD · FULL-DAY PRODUCTION</span>
+        <h3>Gold · ₹8,999</h3>
+        <ul><li>6 hrs + buffer · full crew incl. drone</li><li>Events &amp; large sets · dedicated line</li></ul>
+        <a class="btn ghost" href="#download">Book Gold</a>
+      </div>
+    </div>
+    <p class="rv" style="color:var(--faint);font-size:12.5px;margin-top:16px;font-family:var(--mono);letter-spacing:1px">REFUNDS: &gt;48H FULL · 24–48H HALF · &lt;24H CREW WAS RESERVED — <a href="terms.html" style="color:var(--gold)">TERMS §5</a></p>
+  </section>
+
+  <!-- ═══ story ═══ -->
+  <section class="wrap" style="padding-top:20px">
+    <div class="story rv">
+      <div>
+        <span class="k-label"><b>08 /</b> FAMEGO BY FAMEBROS STUDIO</span>
+        <h2>Built by people who <span>actually run shoots.</span></h2>
+        <p>Famebros Studio shoots reels, menus and campaigns across Mumbai every week. FameGo is the booking desk we wished existed — now open to everyone.</p>
+        <span class="sig">— Team Famebros, Bandra</span>
+      </div>
+      <div class="reel" aria-hidden="true"><i></i><i></i><i></i></div>
+    </div>
+  </section>
+
+  <!-- ═══ contact sheet ═══ -->
+  <section class="wrap sec" id="gallery" style="padding-top:90px">
+    <span class="k-label rv"><b>09 /</b> CONTACT SHEET — STRAIGHT OFF SET</span>
+    <h2 class="disp rv" style="font-size:clamp(44px,7vw,104px);margin-top:14px">Selected frames.</h2>
+    <div class="sheet rv" id="sheet">
+      <figure class="shot s1"><i></i><span class="st">SELECT ✓</span><figcaption>REEL_042 · FASHION · BANDRA · 4:47 PM</figcaption></figure>
+      <figure class="shot s2"><i></i><figcaption>AD_117 · PRODUCT · ANDHERI</figcaption></figure>
+      <figure class="shot s3"><i></i><figcaption>FOOD_008 · COLABA</figcaption></figure>
+      <figure class="shot s4"><i></i><figcaption>LOOK_033 · JUHU</figcaption></figure>
+      <figure class="shot s5"><i></i><span class="st">SELECT ✓</span><figcaption>BTS_511 · VERSOVA · 6:12 AM</figcaption></figure>
+    </div>
+  </section>
+
+  <!-- ═══ faq ═══ -->
+  <section class="wrap sec" id="faq" style="padding-top:70px;max-width:860px">
+    <span class="k-label rv"><b>10 /</b> FINE PRINT, PLAIN WORDS</span>
+    <div class="faq rv" style="margin-top:22px">
+      <details open><summary>Is the app free to download?</summary><div class="a">Yes. You pay only when you confirm a shoot plan. Browsing, support and chat on an active booking are free.</div></details>
+      <details><summary>How fast will crew respond?</summary><div class="a">Paid requests notify nearby available crew instantly. Most get a first response within minutes; the studio also monitors stuck requests.</div></details>
+      <details><summary>Can I cancel or reschedule?</summary><div class="a">Yes, from Booking Details. Over 48 hrs: full refund. 24–48 hrs: half. Under 24: the crew turned down other work, so no refund. Full terms §5.</div></details>
+      <details><summary>How does crew verification work?</summary><div class="a">ID, portfolio, experience, gear, location — five checks. Only VERIFIED crew receive paid requests, and suspensions show publicly.</div></details>
+      <details><summary>Which phones are supported?</summary><div class="a">Android 7.0 and above. Push notifications need Google Play services.</div></details>
+      <details><summary>How do I delete my account?</summary><div class="a">In-app: Profile → Delete Account. Or email famebros.studio@gmail.com with “Delete my FameGo account”. <a href="delete-account.html" style="color:var(--gold)">Details →</a></div></details>
+    </div>
+  </section>
+
+  <!-- ═══ finale ═══ -->
+  <section class="finale" id="download">
+    <p class="k-label rv"><b>11 /</b> CALL TIME IS NOW</p>
+    <h2 class="rv">Your next shoot<br /><span class="out">starts here.</span></h2>
+    <div class="cta-row rv">
+      <a class="btn sheen mag" href="https://github.com/FamebrosStudio/FameGo/releases" target="_blank" rel="noopener" style="padding:16px 38px;font-size:16px">Book a shoot</a>
+      <a class="link-crew" href="crew.html">Join as crew<span class="recdot"></span></a>
+    </div>
+    <p class="rv" style="color:var(--faint);font-size:12.5px;margin-top:20px;font-family:var(--mono);letter-spacing:1px">vOSEM A.1.1 · ANDROID 7.0+ · MUMBAI, INDIA</p>
+  </section>
 </main>
 
-<div class="wrap" style="text-align:center;padding-top:70px"><span class="kicker">THAT'S A WRAP</span></div>
-<div class="giant" aria-hidden="true">FAMEGO</div>
-
-<footer><div class="wrap foot">
-  <div>
-    <a class="brand" href="index.html" style="text-decoration:none"><span class="mark"><img src="logo.svg" alt="FameGo" /></span><span class="brand-name" style="font-size:13px">FAME<span style="color:var(--gold)">GO</span></span></a>
-    <p style="margin-top:10px">© <span id="year"></span> FameBros Studio · famebros.studio@gmail.com</p>
+<footer class="foot"><div class="wrap">
+  <div class="cols">
+    <div>
+      <a class="brand" href="index.html" style="text-decoration:none"><span class="mark"><img src="logo.svg" alt="FameGo" /></span><span class="brand-name" style="font-size:15px">FAME<span style="color:var(--gold)">GO</span></span></a>
+      <p style="color:var(--faint);font-size:13px;margin-top:12px;max-width:280px">Shot crew, on demand. Powered by Famebros Studio — people who actually run shoots.</p>
+    </div>
+    <div><h5>PRODUCT</h5><a href="#demo">Book a shoot</a><a href="crew.html">Join as crew</a><a href="#plans">Pricing</a><a href="updates.html">Updates</a></div>
+    <div><h5>STUDIO</h5><a href="about.html">About</a><a href="support.html">Support</a><a href="bug-report.html">Report a bug</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a></div>
   </div>
-  <nav><a href="about.html">About</a><a href="crew.html">Crew</a><a href="updates.html">Updates</a><a href="support.html">Support</a><a href="bug-report.html">Report a bug</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><a href="delete-account.html">Delete account</a><a href="https://github.com/FamebrosStudio/FameGo" target="_blank" rel="noopener">GitHub</a></nav>
+  <div class="base"><span>© <span id="year"></span> FAMEBROS STUDIO · MUMBAI, INDIA</span><span>FG-2026 · SHOT ON FAMEGO</span></div>
 </div></footer>
 
 <!-- Hidden auth landings (unlisted): confirmation.html · verified.html · reset-password.html · invite.html — reached only from Supabase emails. -->
