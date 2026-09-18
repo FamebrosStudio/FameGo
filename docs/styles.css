@@ -113,13 +113,20 @@ h2{font-size:clamp(23px,3vw,32px);letter-spacing:-.02em;font-weight:750;line-hei
 .trow.done .tdot{border-color:var(--green);color:var(--green)}
 .trow.now{color:var(--gold2)}
 .trow.now .tdot{border-color:var(--gold);color:var(--gold)}
-/* floating chips around phone */
-.float-chip{position:absolute;background:rgba(11,13,16,.92);border:1px solid var(--border);border-radius:12px;
-  padding:9px 13px;font-size:11.5px;color:var(--muted);backdrop-filter:blur(8px);box-shadow:0 12px 32px rgba(0,0,0,.5)}
-.float-chip b{color:var(--text)}
-.fc1{top:12%;left:-8px;animation:float 5s ease-in-out infinite}
-.fc2{bottom:14%;right:-6px;animation:float 6s ease-in-out infinite reverse}
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+/* cursor-following aura — one soft light, desktop only (see app.js) */
+.cursor-glow{position:fixed;top:0;left:0;width:560px;height:560px;margin:-280px 0 0 -280px;border-radius:50%;
+  pointer-events:none;z-index:1;background:radial-gradient(circle,rgba(246,185,65,.06),transparent 62%);
+  opacity:0;transition:opacity .5s}
+body.glow-on .cursor-glow{opacity:1}
+/* cursor spotlight on cards */
+.card,.plan,.step{position:relative}
+.card::before,.plan::before,.step::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(240px circle at var(--mx,50%) var(--my,50%),rgba(246,185,65,.08),transparent 65%);
+  opacity:0;transition:opacity .25s}
+.card:hover::before,.plan:hover::before,.step:hover::before{opacity:1}
+/* hero stage tilt */
+.stage{perspective:1000px}
+.stage.tilt{transition:transform .25s var(--ease)}
 /* ——— cards / grids ——— */
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 .card{background:linear-gradient(180deg,rgba(255,255,255,.025),transparent 40%),var(--card);
@@ -127,9 +134,7 @@ h2{font-size:clamp(23px,3vw,32px);letter-spacing:-.02em;font-weight:750;line-hei
 .card:hover{transform:translateY(-2px);border-color:#2b323c}
 .card h3{font-size:15.5px;margin:14px 0 6px;letter-spacing:-.005em}
 .card p{color:var(--muted);font-size:13.5px}
-.ticon{width:38px;height:38px;border-radius:11px;background:rgba(255,255,255,.03);border:1px solid var(--border);
-  display:grid;place-items:center;font-size:17px}
-.ticon.gold{background:var(--gold-soft);border-color:var(--gold-line)}
+.ticon{font-size:11px;font-weight:800;letter-spacing:2.5px;color:var(--gold)}
 .kicker{font-size:10.5px;font-weight:700;letter-spacing:2.2px;color:var(--faint)}
 /* steps — numbered minimal */
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
@@ -138,7 +143,6 @@ h2{font-size:clamp(23px,3vw,32px);letter-spacing:-.02em;font-weight:750;line-hei
 .step .n{font-size:11px;font-weight:800;letter-spacing:2px;color:var(--gold)}
 .step h3{margin:10px 0 6px;font-size:15px}
 .step p{color:var(--muted);font-size:13px}
-.step + .step::before{display:none}
 /* plans */
 .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:stretch}
 .plan{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:30px 28px;display:flex;flex-direction:column;position:relative}
@@ -165,8 +169,10 @@ h2{font-size:clamp(23px,3vw,32px);letter-spacing:-.02em;font-weight:750;line-hei
   border-radius:24px;padding:44px;display:grid;grid-template-columns:1fr auto;gap:28px;align-items:center;margin:70px 0 30px}
 .band h2{margin-bottom:8px}
 .band p{color:var(--muted);font-size:14.5px;max-width:520px}
-.qr{width:150px;text-align:center;color:var(--faint);font-size:11px}
-.qr .box{width:120px;height:120px;border:1px dashed #333a44;border-radius:14px;display:grid;place-items:center;font-size:44px;margin:0 auto 8px;background:#0a0c0e}
+.ver{display:flex;flex-direction:column;min-width:210px;color:var(--faint);font-size:12.5px}
+.ver div{display:flex;justify-content:space-between;gap:24px;border-top:1px solid var(--border);padding:9px 0}
+.ver div:first-child{border-top:0}
+.ver b{color:var(--text);font-weight:650}
 /* footer */
 footer{border-top:1px solid var(--border);margin-top:40px;padding:34px 0 46px;color:var(--faint);font-size:12.5px}
 .foot{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:flex-start}
@@ -212,7 +218,7 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding:34px 0 46px;co
 /* reveal on scroll — web version of fameGoRise */
 .rv{opacity:0;transform:translateY(16px);transition:opacity .38s var(--ease),transform .38s var(--ease)}
 .rv.in{opacity:1;transform:none}
-@media(prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}.phone,.float-chip,.live-dot::after,.status-pill i{animation:none}}
+@media(prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}.phone,.live-dot::after,.status-pill i{animation:none}.cursor-glow{display:none}}
 .menu-btn{display:none;background:none;border:1px solid var(--border);border-radius:10px;color:var(--text);padding:7px 12px;font-size:15px;cursor:pointer}
 @media(max-width:940px){
   .hero{padding-top:56px}
@@ -222,7 +228,7 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding:34px 0 46px;co
   .nav{display:none;position:absolute;top:62px;left:0;right:0;background:var(--surface);flex-direction:column;align-items:flex-start;padding:14px 24px 20px;border-bottom:1px solid var(--border);gap:14px}
   .nav.open{display:flex}
   .menu-btn{display:block}
-  .float-chip{display:none}
+  .cursor-glow{display:none}
   .sec{padding:56px 0 4px}
   .legal{padding:30px 22px}
 }
