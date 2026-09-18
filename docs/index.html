@@ -10,6 +10,8 @@
 </head>
 <body>
 <div class="ambient" aria-hidden="true"></div>
+<canvas id="dust" aria-hidden="true"></canvas>
+<div class="scrollbar" aria-hidden="true"><i id="scrollbarFill"></i></div>
 
 <header class="topbar">
   <div class="wrap">
@@ -31,26 +33,26 @@
 </header>
 
 <main>
-  <!-- HERO -->
+  <!-- HERO · layers drift at different speeds -->
   <div class="wrap hero">
     <div class="hero-grid">
-      <div class="rv in">
+      <div class="rv in" data-plx="0.06">
         <span class="eyebrow">ANDROID APP · BY FAMEBROS STUDIO</span>
-        <h1>What are we <span class="gold">shooting</span> today?</h1>
-        <p class="lead">FameGo books <b>verified shoot crew</b> in minutes — cinematographers, photographers, videographers, drone operators and editors. Answer six questions, pay once, and follow your shoot from <b>Finding Crew</b> to wrap.</p>
-        <div class="cta-row">
-          <a class="btn" href="#download">Download FameGo</a>
+        <h1>What are we <span class="gold shimmer">shooting</span> today?</h1>
+        <p class="lead blur-in d1">FameGo books <b>verified shoot crew</b> in minutes — cinematographers, photographers, videographers, drone operators and editors. Answer six questions, pay once, and follow your shoot from <b>Finding Crew</b> to wrap.</p>
+        <div class="cta-row blur-in d2">
+          <a class="btn sheen" href="#download">Download FameGo</a>
           <a class="btn ghost" href="#how">How it works</a>
         </div>
         <div class="meta-row"><span class="live-dot"></span><span>Live matching · Paid requests alert crew instantly</span></div>
         <div class="hero-proof">
-          <div><b>₹1,999+</b><span>honest plans</span></div>
-          <div><b>6 roles</b><span>on demand</span></div>
-          <div><b>API 24+</b><span>Android 7.0 &amp; up</span></div>
+          <div><b data-count="1999" data-prefix="₹" data-suffix="+">₹1,999+</b><span>honest plans</span></div>
+          <div><b data-count="6">6</b><span>roles on demand</span></div>
+          <div><b data-count="24" data-suffix="+">24+</b><span>min Android API</span></div>
         </div>
       </div>
 
-      <div class="stage rv in" aria-hidden="true">
+      <div class="stage rv in" data-plx="-0.09" aria-hidden="true">
         <div class="phone">
           <div class="screen">
             <div class="notch"><i></i></div>
@@ -73,32 +75,48 @@
     </div>
   </div>
 
-  <!-- PRODUCT -->
+  <!-- TICKER -->
+  <div class="marquee" aria-hidden="true"><div class="mtrack" id="mtrack">
+    <span>VERIFIED CREW <i>—</i></span><span class="fill">BOOK IN MINUTES <i>—</i></span><span>REALTIME MATCHING <i>—</i></span><span class="fill">CHAT + TRACKING <i>—</i></span>
+    <span>VERIFIED CREW <i>—</i></span><span class="fill">BOOK IN MINUTES <i>—</i></span><span>REALTIME MATCHING <i>—</i></span><span class="fill">CHAT + TRACKING <i>—</i></span>
+  </div></div>
+
+  <!-- PRODUCT · sticky stacking cards -->
   <section class="sec" id="product"><div class="wrap">
-    <div class="sec-head rv"><span class="kicker">THE PRODUCT</span><h2>One loop: client, crew, studio.</h2><p>No brokers. No endless chat threads. One booking everyone sees the same way — every crew profile visibly Verified, Pending or Suspended.</p></div>
-    <div class="grid3">
-      <div class="card rv"><div class="ticon">01</div><h3>Clients — Book a Shoot</h3><p>Six questions: what, when, where, who, details, confirm. Bronze, Silver or Gold. Then track, chat and pay — all inside the booking.</p></div>
-      <div class="card rv"><div class="ticon">02</div><h3>Crew — ready, accept, shoot</h3><p>Toggle <i>Ready for shoots</i>. Paid requests arrive full-screen with distance and gear match. One tap to accept, maps and chat built in.</p></div>
-      <div class="card rv"><div class="ticon">03</div><h3>Studio — always watching</h3><p>Admins see active requests, today's shoots, available crew and stuck bookings — and step in before anything slips.</p></div>
+    <div class="rv">
+      <span class="kicker">THE PRODUCT</span>
+      <h2 class="mega"><span class="line"><i>One loop:</i></span><span class="line"><i><span class="hollow">client · crew ·</span> <span class="gold">studio.</span></i></span></h2>
+      <p class="lead">No brokers. No endless chat threads. One booking everyone sees the same way — every crew profile visibly Verified, Pending or Suspended.</p>
+    </div>
+    <div class="stack">
+      <div class="stack-card rv"><div class="bignum">01</div><h3>Clients — Book a Shoot</h3><p>Six questions: what, when, where, who, details, confirm. Bronze, Silver or Gold. Then track, chat and pay — all inside the booking.</p></div>
+      <div class="stack-card hot rv"><div class="bignum">02</div><h3>Crew — ready, accept, shoot</h3><p>Toggle <i>Ready for shoots</i>. Paid requests arrive full-screen with distance and gear match. One tap to accept, maps and chat built in.</p></div>
+      <div class="stack-card rv"><div class="bignum">03</div><h3>Studio — always watching</h3><p>Admins see active requests, today's shoots, available crew and stuck bookings — and step in before anything slips.</p></div>
     </div>
   </div></section>
 
-  <!-- HOW -->
-  <section class="sec" id="how"><div class="wrap">
-    <div class="sec-head rv"><span class="kicker">HOW IT WORKS</span><h2>Six questions. One confirmed crew.</h2><p>The exact flow inside the app, start to wrap.</p></div>
-    <div class="steps">
-      <div class="step rv"><div class="n">01</div><h3>What are we shooting?</h3><p>Video, fashion, food, product, event, photography or corporate.</p></div>
-      <div class="step rv"><div class="n">02</div><h3>When should crew arrive?</h3><p>Date plus a calm radial time picker — buffer included.</p></div>
-      <div class="step rv"><div class="n">03</div><h3>Where are we shooting?</h3><p>Venue, autocomplete address, saved spots, offline-friendly map.</p></div>
-      <div class="step rv"><div class="n">04</div><h3>Who do you need?</h3><p>Mix roles — cinematographer, drone, editor, assistant — with live rates.</p></div>
-      <div class="step rv"><div class="n">05</div><h3>Tell us about the shoot</h3><p>Brand, references, instructions. Review everything once.</p></div>
-      <div class="step rv"><div class="n">06</div><h3>Pay &amp; relax</h3><p>Matching starts instantly. Chat, arrival and wrap signals follow.</p></div>
+  <!-- HOW · pinned horizontal strip (JS) / grid fallback -->
+  <section class="sec" id="how" style="padding-left:0;padding-right:0"><div class="hwrap" id="hwrap"><div class="hpin">
+    <div class="wrap" style="width:100%">
+      <div class="rv">
+        <span class="kicker">HOW IT WORKS</span>
+        <h2 class="mega"><span class="line"><i>Six questions.</i></span><span class="line"><i><span class="gold">One</span> <span class="hollow">confirmed crew.</span></i></span></h2>
+      </div>
     </div>
-  </div></section>
+    <div class="htrack" id="htrack">
+      <div class="hcard"><div class="bignum">01</div><h3>What are we shooting?</h3><p>Video, fashion, food, product, event, photography or corporate.</p></div>
+      <div class="hcard"><div class="bignum">02</div><h3>When should crew arrive?</h3><p>Date plus a calm radial time picker — buffer included.</p></div>
+      <div class="hcard"><div class="bignum">03</div><h3>Where are we shooting?</h3><p>Venue, autocomplete address, saved spots, offline-friendly map.</p></div>
+      <div class="hcard hot"><div class="bignum">04</div><h3>Who do you need?</h3><p>Mix roles — cinematographer, drone, editor, assistant — with live rates.</p></div>
+      <div class="hcard"><div class="bignum">05</div><h3>Tell us about the shoot</h3><p>Brand, references, instructions. Review everything once.</p></div>
+      <div class="hcard"><div class="bignum">06</div><h3>Pay &amp; relax</h3><p>Matching starts instantly. Chat, arrival and wrap signals follow.</p></div>
+    </div>
+    <div class="hprog" id="hprog" hidden><i></i></div>
+  </div></div></section>
 
   <!-- PLANS -->
   <section class="sec" id="plans"><div class="wrap">
-    <div class="sec-head rv"><span class="kicker">PRICING</span><h2>Three plans. Nothing hidden.</h2><p>Pick coverage by hours. Crew rates are already inside the price.</p></div>
+    <div class="sec-head rv" data-plx-x="0.04"><span class="kicker">PRICING</span><h2>Three plans. Nothing hidden.</h2><p>Pick coverage by hours. Crew rates are already inside the price.</p></div>
     <div class="plans">
       <div class="plan rv"><h3>BRONZE · SPRINT</h3><div class="price">₹1,999</div><div class="per">1 hr shoot + 30-min buffer</div>
         <ul><li>1–2 crew roles</li><li>Reels &amp; focused shoots</li><li>Chat + live tracking</li></ul>

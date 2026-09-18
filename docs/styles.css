@@ -215,10 +215,96 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding:34px 0 46px;co
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:640px){.frow{grid-template-columns:1fr}.form{padding:24px 20px}}
 .fine{color:var(--faint);font-size:12.5px;margin-top:14px}
+/* ——— Aceternity-grade signatures, vanilla build ——— */
+/* gold-dust particle canvas */
+#dust{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.8}
+/* primary CTA sheen sweep */
+.btn.sheen{position:relative;overflow:hidden}
+.btn.sheen::after{content:"";position:absolute;top:0;bottom:0;width:60px;left:-90px;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent);
+  transform:skewX(-18deg);animation:sheen 4.2s ease-in-out infinite}
+@keyframes sheen{0%,55%{left:-90px}90%,100%{left:calc(100% + 40px)}}
+/* shimmering gold type */
+.shimmer{background:linear-gradient(100deg,var(--gold) 30%,#fff6df 48%,var(--gold) 62%);
+  background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:shimmer 5s linear infinite}
+@keyframes shimmer{to{background-position:-220% 0}}
+/* blur-in entrance */
+.blur-in{animation:blurin .9s var(--ease) both}
+.blur-in.d1{animation-delay:.1s}.blur-in.d2{animation-delay:.22s}
+@keyframes blurin{from{opacity:0;filter:blur(10px);transform:translateY(14px)}to{opacity:1;filter:blur(0);transform:none}}
+/* 3D-card glare on the hero phone */
+.phone{overflow:hidden}
+.phone::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(300px circle at var(--mx,50%) var(--my,20%),rgba(255,255,255,.09),transparent 60%);
+  opacity:0;transition:opacity .3s}
+.phone:hover::after{opacity:1}
+/* ————————————————————————————————
+   PARALLAX SHOWPIECE (progressive enhancement;
+   static minimal layout without JS)
+   ———————————————————————————————— */
+/* scroll layers: JS writes el.style.translate — composes with transform */
+[data-plx],[data-plx-x]{will-change:translate}
+/* marquee ticker */
+.marquee{border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  overflow:hidden;padding:16px 0;background:rgba(255,255,255,.008);white-space:nowrap}
+.mtrack{display:inline-flex;width:max-content;animation:mscroll 28s linear infinite}
+.mtrack span{font-size:clamp(26px,4.4vw,52px);font-weight:800;letter-spacing:-.02em;
+  padding-right:52px;color:transparent;-webkit-text-stroke:1px #30363f}
+.mtrack span.fill{color:var(--gold);-webkit-text-stroke:0}
+.mtrack span i{font-style:normal;color:var(--faint);-webkit-text-stroke:0;font-weight:400;padding-right:52px}
+@keyframes mscroll{to{transform:translateX(-50%)}}
+/* mega headlines with masked line reveals */
+.mega{font-size:clamp(46px,9vw,120px);font-weight:800;letter-spacing:-.035em;line-height:.98;margin:14px 0 6px}
+.mega .line{display:block;overflow:hidden;padding-bottom:.06em}
+.mega .line > i{display:block;font-style:normal;transform:translateY(112%);transition:transform .8s var(--ease)}
+.mega .line:nth-child(2) > i{transition-delay:.09s}
+.rv.in .mega .line > i{transform:none}
+.mega .gold{color:var(--gold)}
+.mega .hollow{color:transparent;-webkit-text-stroke:1.5px var(--gold)}
+/* sticky stacking cards */
+.stack{display:grid;gap:18px;padding-bottom:30px}
+.stack-card{position:sticky;background:linear-gradient(180deg,rgba(255,255,255,.03),transparent 45%),var(--card);
+  border:1px solid var(--border);border-radius:24px;padding:clamp(28px,4vw,48px);
+  min-height:58vh;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
+.stack-card:nth-child(1){top:82px}
+.stack-card:nth-child(2){top:102px}
+.stack-card:nth-child(3){top:122px}
+.stack-card .bignum{font-size:clamp(64px,10vw,130px);font-weight:800;letter-spacing:-.04em;line-height:1;
+  color:transparent;-webkit-text-stroke:1.5px #333a44}
+.stack-card.hot .bignum{-webkit-text-stroke:0;color:var(--gold)}
+.stack-card h3{font-size:clamp(20px,2.6vw,28px);letter-spacing:-.015em;margin:14px 0 8px}
+.stack-card p{color:var(--muted);font-size:15px;max-width:520px}
+/* horizontal scroll strip (JS pins it; static grid without JS) */
+.htrack{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.hwrap.pinned{height:340vh;position:relative}
+.hwrap.pinned .hpin{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
+.hwrap.pinned .htrack{display:flex;gap:18px;padding:0 6vw;width:max-content;will-change:transform}
+.hcard{background:linear-gradient(180deg,rgba(255,255,255,.03),transparent 45%),var(--card);
+  border:1px solid var(--border);border-radius:22px;padding:34px 30px;position:relative;overflow:hidden}
+.hwrap.pinned .hcard{flex:0 0 min(430px,78vw);min-height:52vh;display:flex;flex-direction:column;justify-content:flex-end}
+.hcard .bignum{font-size:clamp(56px,7vw,96px);font-weight:800;letter-spacing:-.04em;line-height:1;
+  color:transparent;-webkit-text-stroke:1.5px #333a44}
+.hcard.hot{border-color:var(--gold-line)}
+.hcard.hot .bignum{-webkit-text-stroke:0;color:var(--gold)}
+.hcard h3{font-size:19px;margin:14px 0 6px;letter-spacing:-.01em}
+.hcard p{color:var(--muted);font-size:13.5px}
+.hprog{height:2px;background:var(--border);border-radius:2px;margin:26px 6vw 0;overflow:hidden}
+.hprog i{display:block;height:100%;width:100%;background:var(--gold);transform-origin:left;transform:scaleX(0)}
+/* scroll progress + anchor offset */
+.scrollbar{position:fixed;top:0;left:0;right:0;height:2px;z-index:60;background:transparent;pointer-events:none}
+.scrollbar i{display:block;height:100%;background:var(--gold);transform-origin:left;transform:scaleX(0);
+  box-shadow:0 0 8px rgba(246,185,65,.8)}
+section[id],div[id].hero{scroll-margin-top:70px}
+@media(prefers-reduced-motion:reduce){.mtrack{animation:none}.mega .line > i{transform:none;transition:none}}
+@media(max-width:940px){
+  .stack-card{min-height:0;position:static}
+  .mega{font-size:clamp(40px,12vw,64px)}
+}
 /* reveal on scroll — web version of fameGoRise */
 .rv{opacity:0;transform:translateY(16px);transition:opacity .38s var(--ease),transform .38s var(--ease)}
 .rv.in{opacity:1;transform:none}
-@media(prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}.phone,.live-dot::after,.status-pill i{animation:none}.cursor-glow{display:none}}
+@media(prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}.phone,.live-dot::after,.status-pill i{animation:none}.cursor-glow,#dust{display:none}.btn.sheen::after,.shimmer,.mtrack{animation:none}.blur-in{animation:none}}
 .menu-btn{display:none;background:none;border:1px solid var(--border);border-radius:10px;color:var(--text);padding:7px 12px;font-size:15px;cursor:pointer}
 @media(max-width:940px){
   .hero{padding-top:56px}
