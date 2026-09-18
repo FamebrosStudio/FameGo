@@ -20,6 +20,7 @@
 <div class="cur-dot" id="curDot" aria-hidden="true"></div>
 <div class="cur-ring" id="curRing" aria-hidden="true"></div>
 <div class="ambient" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
 <canvas id="dust" aria-hidden="true"></canvas>
 <div class="scrollbar" aria-hidden="true"><i id="scrollbarFill"></i></div>
 
@@ -43,12 +44,16 @@
 </header>
 
 <main>
-  <!-- HERO · layers drift at different speeds -->
+  <!-- HERO · inside the viewfinder -->
   <div class="wrap hero">
+    <div class="hud" aria-hidden="true">
+      <span class="rec"><i></i>REC&nbsp;&nbsp;<b id="tc">00:00:00:00</b></span>
+      <span>FG · f1.8 · ISO 100 · 4K</span>
+    </div>
     <div class="hero-grid">
       <div class="rv in" data-plx="0.06">
         <span class="eyebrow">ANDROID APP · BY FAMEBROS STUDIO</span>
-        <h1>What are we <span class="gold shimmer">shooting</span> today?</h1>
+        <h1>What are we <span class="rot" id="rot"><span class="shimmer">shooting</span><span class="shimmer">filming</span><span class="shimmer">framing</span><span class="shimmer">lighting</span></span> today?</h1>
         <p class="lead blur-in d1">FameGo books <b>verified shoot crew</b> in minutes — cinematographers, photographers, videographers, drone operators and editors. Answer six questions, pay once, and follow your shoot from <b>Finding Crew</b> to wrap.</p>
         <div class="cta-row blur-in d2">
           <a class="btn sheen" href="#download">Download FameGo</a>
@@ -94,7 +99,7 @@
 
   <!-- 01 PRODUCT · sticky stacking cards -->
   <section class="sec" id="product"><div class="wrap chap">
-    <div class="chap-num"><b>01</b>PRODUCT</div>
+    <div class="chap-num"><b>01</b>SCENE · PRODUCT</div>
     <div>
       <div class="rv">
         <h2 class="mega"><span class="line"><i>One loop:</i></span><span class="line"><i><span class="hollow">client · crew ·</span> <span class="gold">studio.</span></i></span></h2>
@@ -112,7 +117,7 @@
   <section class="sec" id="how" style="padding-left:0;padding-right:0"><div class="hwrap" id="hwrap"><div class="hpin">
     <div class="wrap" style="width:100%">
       <div class="rv chap">
-        <div class="chap-num"><b>02</b>PROCESS</div>
+        <div class="chap-num"><b>02</b>SCENE · PROCESS</div>
         <h2 class="mega"><span class="line"><i>Six questions.</i></span><span class="line"><i><span class="gold">One</span> <span class="hollow">confirmed crew.</span></i></span></h2>
       </div>
     </div>
@@ -143,7 +148,7 @@
 
   <!-- 03 PRICING -->
   <section class="sec" id="plans"><div class="wrap chap">
-    <div class="chap-num"><b>03</b>PRICING</div>
+    <div class="chap-num"><b>03</b>SCENE · PRICING</div>
     <div>
       <div class="sec-head rv" data-plx-x="0.04"><h2>Three plans. Nothing hidden.</h2><p>Pick coverage by hours. Crew rates are already inside the price.</p></div>
       <div class="plans">
@@ -163,7 +168,7 @@
 
   <!-- 04 FAQ -->
   <section class="sec" id="faq"><div class="wrap chap">
-    <div class="chap-num"><b>04</b>FAQ</div>
+    <div class="chap-num"><b>04</b>SCENE · FAQ</div>
     <div>
       <div class="sec-head rv"><h2>Asked often.</h2></div>
       <div class="faq rv">
@@ -179,7 +184,7 @@
 
   <!-- 05 GET -->
   <section id="download"><div class="wrap chap" style="padding-top:76px">
-    <div class="chap-num"><b>05</b>GET THE APP</div>
+    <div class="chap-num"><b>05</b>SCENE · GET THE APP</div>
     <div class="band rv" style="margin-top:0">
       <div>
         <h2>FameGo for Android</h2>
@@ -198,6 +203,7 @@
   </div></section>
 </main>
 
+<div class="wrap" style="text-align:center;padding-top:70px"><span class="kicker">THAT'S A WRAP</span></div>
 <div class="giant" aria-hidden="true">FAMEGO</div>
 
 <footer><div class="wrap foot">

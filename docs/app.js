@@ -45,6 +45,35 @@
 
   var fine = window.matchMedia("(pointer: fine)").matches;
   var calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Live REC timecode (HH:MM:SS:FF) — the hero is a running camera
+  (function timecode() {
+    var tc = document.getElementById("tc");
+    if (!tc || calm) return;
+    var t0 = Date.now();
+    function pad(n) { return String(n).padStart(2, "0"); }
+    setInterval(function () {
+      if (document.hidden) return;
+      var e = Date.now() - t0, f = Math.floor(e / 41.66);
+      tc.textContent = pad(Math.floor(f / 86400)) + ":" + pad(Math.floor(f / 3600) % 24) + ":" +
+        pad(Math.floor(f / 60) % 60) + ":" + pad(f % 24);
+    }, 42);
+  })();
+
+  // Rotating headline verb — shooting / filming / framing / lighting
+  (function rotator() {
+    var r = document.getElementById("rot");
+    if (!r || calm) return;
+    var words = r.querySelectorAll("span"), i = 0;
+    r.classList.add("js");
+    words[0].classList.add("on");
+    setInterval(function () {
+      if (document.hidden) return;
+      words[i].classList.remove("on");
+      i = (i + 1) % words.length;
+      words[i].classList.add("on");
+    }, 2600);
+  })();
   var isIndex = !!document.getElementById("loader");
 
   // Preloader (index only) — counter + curtain lift, failsafe included
