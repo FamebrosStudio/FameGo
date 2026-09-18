@@ -301,6 +301,15 @@ section[id],div[id].hero{scroll-margin-top:70px}
   .stack-card{min-height:0;position:static}
   .mega{font-size:clamp(40px,12vw,64px)}
 }
+.mark img{width:20px;height:20px;display:block}
+/* FameGo viewfinder — our own mark language: focus brackets */
+.vf{position:relative}
+.vf > i.tl,.vf > i.tr,.vf > i.bl,.vf > i.br{position:absolute;width:20px;height:20px;border:0 solid var(--gold);z-index:3;pointer-events:none}
+.vf > i.tl{top:10px;left:10px;border-top-width:2px;border-left-width:2px;border-top-left-radius:6px}
+.vf > i.tr{top:10px;right:10px;border-top-width:2px;border-right-width:2px;border-top-right-radius:6px}
+.vf > i.bl{bottom:10px;left:10px;border-bottom-width:2px;border-left-width:2px;border-bottom-left-radius:6px}
+.vf > i.br{bottom:10px;right:10px;border-bottom-width:2px;border-right-width:2px;border-bottom-right-radius:6px}
+#loader .vf{position:absolute;inset:26px;pointer-events:none}
 /* ————————————————————————————————
    AWARD LEVEL (index only; static-safe without JS)
    ———————————————————————————————— */
@@ -321,6 +330,9 @@ body.cur-on .cur-dot{display:block;width:6px;height:6px;margin:-3px 0 0 -3px;bac
 body.cur-on .cur-ring{display:block;width:34px;height:34px;margin:-17px 0 0 -17px;
   border:1px solid rgba(246,185,65,.55);transition:width .25s,height .25s,margin .25s,border-color .25s,background .25s}
 body.cur-on .cur-ring.big{width:58px;height:58px;margin:-29px 0 0 -29px;border-color:var(--gold);background:rgba(246,185,65,.08)}
+body.cur-on .cur-ring::before,body.cur-on .cur-ring::after{content:"";position:absolute;background:var(--gold);opacity:.9}
+body.cur-on .cur-ring::before{left:50%;top:3px;bottom:3px;width:1px;margin-left:-.5px}
+body.cur-on .cur-ring::after{top:50%;left:3px;right:3px;height:1px;margin-top:-.5px}
 body.cur-on,body.cur-on a,body.cur-on button,body.cur-on summary{cursor:none}
 /* editorial chapters */
 .chap{display:grid;grid-template-columns:120px 1fr;gap:24px}

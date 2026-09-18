@@ -2,6 +2,17 @@
 (function () {
   "use strict";
 
+  // Failsafe first: if anything below throws, never trap the visitor
+  // behind the loader or leave headlines hidden.
+  window.addEventListener("error", function () {
+    try {
+      document.body.classList.remove("loading");
+      var l = document.getElementById("loader");
+      if (l) l.style.display = "none";
+      document.querySelectorAll(".rv").forEach(function (e) { e.classList.add("in"); });
+    } catch (_) { /* last resort: stay visible */ }
+  });
+
   // Sticky nav toggle (mobile)
   var btn = document.getElementById("menuBtn");
   var nav = document.getElementById("siteNav");
@@ -112,10 +123,10 @@
   // Custom cursor (index only) — dot + trailing ring, grows on interactives
   if (isIndex) {
     var dot = document.getElementById("curDot"), ring = document.getElementById("curRing");
-    document.body.classList.add("cur-on");
-    var cx = -100, cy = -100, rx2 = cx, ry2 = cy;
+    var cx = -100, cy = -100, rx2 = cx, ry2 = cy, curOn = false;
     document.addEventListener("pointermove", function (e) {
       cx = e.clientX; cy = e.clientY;
+      if (!curOn) { curOn = true; document.body.classList.add("cur-on"); }
       if (dot) dot.style.transform = "translate(" + cx + "px," + cy + "px)";
     }, { passive: true });
     (function cur() {
