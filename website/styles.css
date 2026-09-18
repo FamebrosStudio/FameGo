@@ -333,8 +333,10 @@ body{font-family:var(--body)}
 .nav a:not(.btn):hover::after{width:100%}
 /* full-screen mobile menu */
 .mmenu{position:fixed;inset:0;z-index:80;background:#0A0A0B;display:flex;flex-direction:column;justify-content:center;
-  padding:90px 32px 40px;gap:6px;clip-path:inset(0 0 100% 0);transition:clip-path .5s var(--ease);visibility:hidden}
-.mmenu.open{clip-path:inset(0);visibility:visible}
+  padding:90px 32px 40px;gap:6px;clip-path:inset(0 0 100% 0);transition:clip-path .5s var(--ease),visibility 0s linear .5s;visibility:hidden}
+.mmenu.open{clip-path:inset(0);visibility:visible;transition:clip-path .5s var(--ease)}
+body.menu-open{overflow:hidden}
+body.menu-open .topbar{z-index:90;background:transparent;border-bottom-color:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
 .mmenu a.big{font-family:var(--disp);font-size:clamp(38px,11vw,64px);color:var(--text);text-decoration:none;
   text-transform:uppercase;display:flex;align-items:baseline;gap:14px;opacity:0;transform:translateY(20px);transition:opacity .4s,transform .4s}
 .mmenu.open a.big{opacity:1;transform:none}
@@ -364,6 +366,19 @@ body{font-family:var(--body)}
   background:var(--red);opacity:0;transform:scale(.4);transition:opacity .2s,transform .2s}
 .link-crew:hover .recdot{opacity:1;transform:scale(1)}
 .hero-note{margin-top:26px}
+/* scroll cue */
+.scroll-cue{display:flex;flex-direction:column;align-items:center;gap:10px;margin:34px auto 26px;
+  font-family:var(--mono);font-size:10px;letter-spacing:3px;color:var(--faint);text-decoration:none;
+  transition:opacity .4s;width:max-content}
+.scroll-cue .mouse{width:23px;height:37px;border:1.5px solid #3a414c;border-radius:13px;position:relative;display:block}
+.scroll-cue .mouse i{position:absolute;left:50%;top:7px;width:3px;height:8px;margin-left:-1.5px;border-radius:2px;
+  background:var(--gold);animation:cue 1.8s ease-in-out infinite}
+@keyframes cue{0%{transform:translateY(0);opacity:1}60%{transform:translateY(12px);opacity:0}100%{opacity:0}}
+.scroll-cue.hide{opacity:0;pointer-events:none}
+/* masked line reveals for display headings */
+h2.disp.rl .rl-line{display:block;overflow:hidden;padding-bottom:.05em}
+h2.disp.rl .rl-line > span{display:block;transform:translateY(112%);transition:transform .8s var(--ease)}
+h2.disp.rl.in .rl-line > span{transform:none}
 /* live booking panel */
 .desk{border:1px solid var(--border);border-radius:18px;background:rgba(11,13,16,.82);backdrop-filter:blur(10px);
   overflow:hidden;margin-bottom:34px}

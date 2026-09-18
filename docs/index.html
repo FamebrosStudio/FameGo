@@ -8,9 +8,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css" />
-<link rel="icon" href="logo.svg" type="image/svg+xml" />
-<noscript><style>#loader{display:none}.rv{opacity:1;transform:none}</style></noscript>
+<link rel="stylesheet" href="styles.css?v=3" />
+<link rel="icon" href="logo.svg?v=3" type="image/svg+xml" />
+<noscript><style>#loader{display:none}body.loading{overflow:visible}.rv{opacity:1;transform:none}</style></noscript>
 </head>
 <body class="loading">
 <div id="loader" aria-hidden="true">
@@ -94,6 +94,7 @@
         <div class="desk-foot"><span>AVG. MATCH · 04:12</span><span>MUMBAI · LIVE</span></div>
       </aside>
     </div>
+    <a class="scroll-cue" id="scrollCue" href="#demo" aria-label="Scroll to see more"><span class="mouse"><i></i></span><span>SCROLL</span></a>
   </section>
 
   <!-- ═══ filmstrip ═══ -->
@@ -297,7 +298,7 @@
         <blockquote>"Crew at 9 AM. Wrapped by 2. I didn't make <span>a single phone call.</span>"</blockquote>
         <cite>— MEERA K., CAFÉ OWNER · COLABA · FG-4770</cite>
       </div>
-      <figure class="bts"><span class="slate-no">BTS_511 · 06:12 AM</span><figcaption>VERSOVA · FOOD SHOOT · CREW OF 3</figcaption></figure>
+      <figure class="bts" data-plx="0.04"><span class="slate-no">BTS_511 · 06:12 AM</span><figcaption>VERSOVA · FOOD SHOOT · CREW OF 3</figcaption></figure>
     </div>
     <div class="statrow">
       <div class="rv"><b><em data-count="1200" data-suffix="+">1,200+</em></b><span>SHOOTS WRAPPED</span></div>
@@ -347,7 +348,7 @@
         <p>Famebros Studio shoots reels, menus and campaigns across Mumbai every week. FameGo is the booking desk we wished existed — now open to everyone.</p>
         <span class="sig">— Team Famebros, Bandra</span>
       </div>
-      <div class="reel" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="reel" data-plx="-0.05" aria-hidden="true"><i></i><i></i><i></i></div>
     </div>
   </section>
 
@@ -402,6 +403,6 @@
 </div></footer>
 
 <!-- Hidden auth landings (unlisted): confirmation.html · verified.html · reset-password.html · invite.html — reached only from Supabase emails. -->
-<script src="app.js"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

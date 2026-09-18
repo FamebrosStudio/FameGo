@@ -57,18 +57,44 @@
     menuBtn.addEventListener("click", function () {
       var open = mmenu.classList.toggle("open");
       menuBtn.textContent = open ? "✕" : "☰";
-      document.body.style.overflow = open ? "hidden" : "";
+      document.body.classList.toggle("menu-open", open);
     });
     links.forEach(function (a) {
       a.addEventListener("click", function () {
         mmenu.classList.remove("open");
         menuBtn.textContent = "☰";
-        document.body.style.overflow = "";
+        document.body.classList.remove("menu-open");
       });
     });
   }
 
-  // Rise-on-scroll
+  // Masked line reveals for display headings — the scroll-down signature
+  (function linereveal() {
+    var heads = document.querySelectorAll("h2.disp");
+    if (!heads.length) return;
+    heads.forEach(function (h) {
+      var parts = h.innerHTML.split(/<br\s*\/?>/i);
+      if (parts.length < 2) return; // single-line heads keep the plain rise
+      h.classList.add("rl");
+      h.innerHTML = parts.map(function (p) {
+        return '<span class="rl-line"><span>' + p + "</span></span>";
+      }).join("");
+      h.querySelectorAll(".rl-line > span").forEach(function (s, i) {
+        s.style.transitionDelay = (i * 0.1) + "s";
+      });
+    });
+    var lines = document.querySelectorAll("h2.disp.rl");
+    if (calm || !("IntersectionObserver" in window)) {
+      lines.forEach(function (h) { h.classList.add("in"); });
+      return;
+    }
+    var o = new IntersectionObserver(function (es) {
+      es.forEach(function (en) {
+        if (en.isIntersecting) { en.target.classList.add("in"); o.unobserve(en.target); }
+      });
+    }, { threshold: 0.4 });
+    lines.forEach(function (h) { o.observe(h); });
+  })();
   var els = document.querySelectorAll(".rv");
   if ("IntersectionObserver" in window && els.length) {
     var io = new IntersectionObserver(function (entries) {
@@ -412,6 +438,7 @@
   // Scroll engine: progress, parallax layers, split converge
   var layers = Array.prototype.slice.call(document.querySelectorAll("[data-plx],[data-plx-x]"));
   var sfill = document.getElementById("scrollbarFill");
+  var cue = document.getElementById("scrollCue");
   var ticking = false, lastY = window.scrollY, vel = 0, sVel = 0;
   function render() {
     ticking = false;
@@ -419,6 +446,7 @@
     vel = y - lastY; lastY = y;
     sVel += (vel - sVel) * 0.12;
     if (topbar) topbar.classList.toggle("scrolled", y > 40);
+    if (cue) cue.classList.toggle("hide", y > 120);
     if (sfill) {
       var max = document.documentElement.scrollHeight - vh;
       sfill.style.transform = "scaleX(" + (max > 0 ? Math.max(0, Math.min(1, y / max)).toFixed(3) : 0) + ")";
