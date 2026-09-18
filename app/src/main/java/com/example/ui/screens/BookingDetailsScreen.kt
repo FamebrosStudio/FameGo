@@ -24,6 +24,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -34,17 +37,22 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,6 +83,7 @@ import com.example.ui.theme.FameGoTextMuted
 import com.example.ui.theme.FameGoTextPrimary
 import com.example.ui.theme.FameGoTextSecondary
 import com.example.ui.theme.FameGoWhite
+import kotlinx.coroutines.launch
 
 @Composable
 fun BookingDetailsScreen(
@@ -84,12 +93,14 @@ fun BookingDetailsScreen(
   onRebook: (ShootCategory) -> Unit,
   onBookSameCrew: (Booking) -> Unit,
   onContactSupport: () -> Unit,
+  onPayBooking: (Booking) -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   val bookings by FameGoRepository.bookings.collectAsState()
   val ratings by FameGoRepository.ratings.collectAsState()
   val liveSharing by FameGoRepository.liveSharing.collectAsState()
   val livePoints by FameGoRepository.livePoints.collectAsState()
+  val currentUser by FameGoRepository.currentUser.collectAsState()
   // A stale deep link must not silently display a different booking.
   val booking = bookings.firstOrNull { it.id == bookingId }
 
@@ -357,6 +368,38 @@ fun BookingDetailsScreen(
           Spacer(modifier = Modifier.height(20.dp))
         }
 
+        // Pay to lock in: crew accepted, money moves only now.
+        if (booking.status == BookingStatus.CONFIRMED &&
+          booking.paymentStatus == com.example.model.PaymentStatus.PENDING &&
+          currentUser.role == com.example.model.Role.CLIENT
+        ) {
+          val crewName = booking.assignedCrew.firstOrNull()?.name ?: "Your crew"
+          SoftCard(isElevated = true, testTag = "pay_to_lock_card") {
+            Column(modifier = Modifier.padding(18.dp)) {
+              Text(
+                text = "$crewName accepted your shoot",
+                color = FameGoWhite,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+              )
+              Text(
+                text = "Pay now to lock the date. Nothing was charged before this.",
+                color = FameGoTextSecondary,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 4.dp)
+              )
+              Spacer(modifier = Modifier.height(12.dp))
+              com.example.ui.components.FameGoButton(
+                text = "Pay ₹${"%,d".format(booking.priceRupees)}",
+                onClick = { onPayBooking(booking) },
+                modifier = Modifier.fillMaxWidth(),
+                testTag = "pay_to_lock_button"
+              )
+            }
+          }
+          Spacer(modifier = Modifier.height(20.dp))
+        }
+
         // Live crew location (visible once crew is assigned and shoot is active)
         if (booking.assignedCrew.isNotEmpty() &&
           (booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS)
@@ -376,6 +419,21 @@ fun BookingDetailsScreen(
             longitude = livePoints[booking.id]?.longitude,
             statusLabel = livePoints[booking.id]?.label
               ?: if (sharing) "Locating crew…" else "Waiting for crew to share location"
+          )
+          Spacer(modifier = Modifier.height(20.dp))
+        }
+
+        // Bluetooth proximity Shoot-Done: no more one-tap "it's done".
+        // Client + crew each press below, standing together with Bluetooth
+        // on. Discovery proves the wrap happened at the venue.
+        if (booking.assignedCrew.isNotEmpty() &&
+          (booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS) &&
+          currentUser.role != com.example.model.Role.ADMIN
+        ) {
+          ShootDonePanel(
+            bookingId = booking.id,
+            bookingCompleted = booking.status == BookingStatus.COMPLETED,
+            onContactSupport = onContactSupport
           )
           Spacer(modifier = Modifier.height(20.dp))
         }
@@ -411,19 +469,39 @@ fun BookingDetailsScreen(
           Spacer(modifier = Modifier.height(8.dp))
           val rateable = booking.assignedCrew.first()
           val existingRating = ratings["${booking.id}:${rateable.crewId}"]
+          val favoriteIds by FameGoRepository.favoriteCrewIds.collectAsState()
+          val isFav = rateable.crewId in favoriteIds
           SoftCard(
             isElevated = true,
             testTag = "rate_crew_card"
           ) {
             Column(modifier = Modifier.padding(18.dp)) {
-              Text(
-                text = rateable.crewName,
-                color = FameGoWhite,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-              )
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                  text = rateable.crewName,
+                  color = FameGoWhite,
+                  fontSize = 15.sp,
+                  fontWeight = FontWeight.Bold,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
+                  modifier = Modifier.weight(1f)
+                )
+                IconButton(
+                  onClick = { FameGoRepository.toggleFavoriteCrew(rateable.crewId) },
+                  modifier = Modifier
+                    .size(36.dp)
+                    .testTag("favorite_crew_toggle")
+                ) {
+                  com.example.ui.components.FameGoPop(target = isFav) { fav ->
+                    Icon(
+                      imageVector = if (fav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                      contentDescription = if (fav) "Remove from favorites" else "Save crew to favorites",
+                      tint = if (fav) FameGoGold else FameGoTextMuted,
+                      modifier = Modifier.size(20.dp)
+                    )
+                  }
+                }
+              }
               if (existingRating != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 RatingStars(stars = existingRating.stars, onSelect = {}, enabled = false)
@@ -527,6 +605,7 @@ private fun RatingStars(
     horizontalArrangement = Arrangement.spacedBy(4.dp)
   ) {
     (1..5).forEach { value ->
+      val lit = value <= stars
       IconButton(
         onClick = { onSelect(value) },
         enabled = enabled,
@@ -534,11 +613,15 @@ private fun RatingStars(
           .size(40.dp)
           .testTag("rate_star_$value")
       ) {
+        // Lit stars pop in with a spring the moment they're tapped.
+        val pop = com.example.ui.components.fameGoToggleScale(lit)
         Icon(
-          imageVector = if (value <= stars) Icons.Default.Star else Icons.Default.StarBorder,
+          imageVector = if (lit) Icons.Default.Star else Icons.Default.StarBorder,
           contentDescription = "$value star",
-          tint = if (value <= stars) FameGoGold else FameGoTextMuted,
-          modifier = Modifier.size(28.dp)
+          tint = if (lit) FameGoGold else FameGoTextMuted,
+          modifier = Modifier
+            .size(28.dp)
+            .scale(pop)
         )
       }
     }
@@ -656,6 +739,213 @@ private fun LiveLocationMap(
             overflow = TextOverflow.Ellipsis
           )
         }
+      }
+    }
+  }
+}
+
+private enum class ShootDonePhase { IDLE, SEARCHING, WAITING, DONE, ERROR }
+
+/**
+ * Proximity-verified wrap: both phones broadcast + scan a booking-specific
+ * BLE id. Discovery (only possible ~10-30m apart) records this side's tap;
+ * when both sides have tapped, the booking completes and both get
+ * "Shoot is Done". No pairing, no personal data over the air.
+ */
+@Composable
+private fun ShootDonePanel(
+  bookingId: String,
+  bookingCompleted: Boolean,
+  onContactSupport: () -> Unit
+) {
+  val context = LocalContext.current
+  val scope = rememberCoroutineScope()
+  var phase by remember(bookingId) { mutableStateOf(ShootDonePhase.IDLE) }
+  var statusText by remember(bookingId) { mutableStateOf("") }
+  var session by remember { mutableStateOf<com.example.data.ShootDoneProximity.Session?>(null) }
+  var worker by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
+  fun cleanup() {
+    session?.stop()
+    session = null
+    worker?.cancel()
+    worker = null
+  }
+  DisposableEffect(bookingId) { onDispose { cleanup() } }
+  // Remote completion (peer tapped second): stop searching, show done.
+  LaunchedEffect(bookingCompleted) {
+    if (bookingCompleted) {
+      cleanup()
+      phase = ShootDonePhase.DONE
+      statusText = "Shoot is Done — wrap confirmed by both sides."
+    }
+  }
+
+  fun fail(message: String) {
+    cleanup()
+    phase = ShootDonePhase.ERROR
+    statusText = message
+  }
+
+  fun beginSearch() {
+    cleanup()
+    phase = ShootDonePhase.SEARCHING
+    statusText = "Broadcasting… keep both phones close, Bluetooth on."
+    worker = scope.launch {
+      try {
+        session = com.example.data.ShootDoneProximity.start(
+          context = context,
+          bookingId = bookingId,
+          onPeerFound = {
+            scope.launch {
+              phase = ShootDonePhase.WAITING
+              statusText = "Other phone found — recording your confirmation…"
+              FameGoRepository.signalShootDone(bookingId)
+                .onSuccess { result ->
+                  if (result == FameGoRepository.ShootDoneResult.COMPLETED) {
+                    cleanup()
+                    phase = ShootDonePhase.DONE
+                    statusText = "Shoot is Done — wrap confirmed by both sides."
+                  } else {
+                    // Other side hasn't tapped yet: poll until they do.
+                    statusText = "You confirmed. Waiting for the other side…"
+                    worker = scope.launch {
+                      repeat(15) {
+                        kotlinx.coroutines.delay(4000)
+                        if (FameGoRepository.countShootDoneSignals(bookingId) >= 2) {
+                          FameGoRepository.completeShoot(bookingId)
+                          cleanup()
+                          phase = ShootDonePhase.DONE
+                          statusText = "Shoot is Done — wrap confirmed by both sides."
+                          return@launch
+                        }
+                      }
+                      fail("The other side hasn't confirmed yet. Ask them to press Shoot Done nearby, then retry.")
+                    }
+                  }
+                }
+                .onFailure { fail(FameGoRepository.friendlyMessage(it)) }
+            }
+          },
+          onError = { fail(it) }
+        )
+        // Give up searching after 60s so we never drain battery silently.
+        kotlinx.coroutines.delay(60_000)
+        if (phase == ShootDonePhase.SEARCHING) {
+          fail("Couldn't find the other phone nearby. Stand together with Bluetooth on and retry.")
+        }
+      } catch (e: Exception) {
+        fail(e.message ?: "Couldn't start nearby search.")
+      }
+    }
+  }
+
+  val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+    androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+  ) { grants ->
+    if (grants.values.all { it }) beginSearch()
+    else fail("Nearby-devices permission denied — allow it so the phones can find each other.")
+  }
+  val btEnableLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+    androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+  ) { result ->
+    if (result.resultCode == android.app.Activity.RESULT_OK) beginSearch()
+    else fail("Bluetooth stayed off — turn it on so the phones can find each other.")
+  }
+
+  fun press() {
+    if (phase == ShootDonePhase.SEARCHING || phase == ShootDonePhase.WAITING) {
+      cleanup()
+      phase = ShootDonePhase.IDLE
+      statusText = ""
+      return
+    }
+    if (phase == ShootDonePhase.DONE) return
+    val missing = com.example.data.ShootDoneProximity.missingPermissions(context)
+    if (missing.isNotEmpty()) {
+      permissionLauncher.launch(missing.toTypedArray())
+      return
+    }
+    if (!com.example.data.ShootDoneProximity.isBluetoothOn(context)) {
+      runCatching {
+        btEnableLauncher.launch(
+          android.content.Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_ENABLE)
+        )
+      }.onFailure { fail("Couldn't open Bluetooth settings — enable Bluetooth manually and retry.") }
+      return
+    }
+    beginSearch()
+  }
+
+  SoftCard(isElevated = true, testTag = "shoot_done_card") {
+    Column(modifier = Modifier.padding(18.dp)) {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+          imageVector = Icons.Default.Bluetooth,
+          contentDescription = null,
+          tint = FameGoGold,
+          modifier = Modifier.size(22.dp)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+          text = "Shoot Done — together",
+          color = FameGoWhite,
+          fontSize = 15.sp,
+          fontWeight = FontWeight.Bold
+        )
+      }
+      Text(
+        text = "Both of you press below, standing together with Bluetooth on. Your phones find each other only when truly nearby — that's the proof the shoot really wrapped.",
+        color = FameGoTextSecondary,
+        fontSize = 12.sp,
+        lineHeight = 17.sp,
+        modifier = Modifier.padding(top = 8.dp)
+      )
+      if (phase == ShootDonePhase.SEARCHING || phase == ShootDonePhase.WAITING) {
+        com.example.ui.components.FameGoPulse(enabled = true) {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(top = 12.dp)
+          ) {
+            androidx.compose.material3.CircularProgressIndicator(
+              color = FameGoGold, strokeWidth = 2.dp, modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(text = statusText, color = FameGoGold, fontSize = 13.sp)
+          }
+        }
+      } else if (statusText.isNotBlank()) {
+        Text(
+          text = statusText,
+          color = if (phase == ShootDonePhase.DONE) FameGoSuccessGreen else FameGoTextSecondary,
+          fontSize = 13.sp,
+          modifier = Modifier.padding(top = 12.dp)
+        )
+      }
+      Spacer(modifier = Modifier.height(14.dp))
+      com.example.ui.components.FameGoButton(
+        text = when (phase) {
+          ShootDonePhase.IDLE -> "Shoot Done"
+          ShootDonePhase.SEARCHING -> "Searching… tap to stop"
+          ShootDonePhase.WAITING -> "Waiting… tap to stop"
+          ShootDonePhase.DONE -> "Shoot is Done ✓"
+          ShootDonePhase.ERROR -> "Retry Shoot Done"
+        },
+        onClick = { press() },
+        enabled = phase != ShootDonePhase.DONE,
+        modifier = Modifier.fillMaxWidth(),
+        testTag = "shoot_done_button"
+      )
+      if (phase == ShootDonePhase.ERROR) {
+        Text(
+          text = "Stuck? Contact helpline",
+          color = FameGoGold,
+          fontSize = 13.sp,
+          fontWeight = FontWeight.SemiBold,
+          modifier = Modifier
+            .padding(top = 10.dp)
+            .clickable { onContactSupport() }
+        )
       }
     }
   }

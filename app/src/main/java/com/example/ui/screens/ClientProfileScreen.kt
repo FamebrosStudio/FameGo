@@ -20,11 +20,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -62,12 +60,13 @@ fun ClientProfileScreen(
   onOpenSupport: () -> Unit,
   onOpenBookings: () -> Unit,
   onLogout: () -> Unit,
+  onEditProfile: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   val currentUser by FameGoRepository.currentUser.collectAsState()
   val bookings by FameGoRepository.bookings.collectAsState()
   val scrollState = rememberScrollState()
-  var showCancellation by remember { mutableStateOf(false) }
+  var showRules by remember { mutableStateOf(false) }
 
   Box(
     modifier = modifier
@@ -203,6 +202,11 @@ fun ClientProfileScreen(
       SoftCard {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
           ProfileRow(
+            label = "Edit profile",
+            value = currentUser.name.ifBlank { "Set your details" },
+            onClick = onEditProfile
+          )
+          ProfileRow(
             label = "Email",
             value = currentUser.email.ifBlank { "Not set" },
             onClick = null
@@ -235,21 +239,16 @@ fun ClientProfileScreen(
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
           ProfileRow(
             label = "Help desk",
-            value = "24/7 support",
+            value = "Talk to us",
             onClick = onOpenSupport
           )
           ProfileRow(
-            label = "Cancellation policy",
-            value = "Flexible 12h",
-            onClick = { showCancellation = true }
+            label = "House rules",
+            value = "Read before you book",
+            onClick = { showRules = true }
           )
         }
       }
-
-      Spacer(modifier = Modifier.height(20.dp))
-
-      // Credits & inspiration.
-      com.example.ui.components.CreditsCard()
 
       Spacer(modifier = Modifier.height(20.dp))
 
@@ -276,33 +275,8 @@ fun ClientProfileScreen(
       Spacer(modifier = Modifier.height(130.dp))
     }
 
-    if (showCancellation) {
-      AlertDialog(
-        onDismissRequest = { showCancellation = false },
-        title = {
-          Text(
-            text = "Cancellation & Refund Terms",
-            color = FameGoWhite,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Bold
-          )
-        },
-        text = {
-          Text(
-            text = "• Free cancellation up to 12 hours before call time.\n• Within 12 hours: 50% crew compensation fee.\n• Within 2 hours or on-set call: full day rate applies to protect crew scheduling.",
-            color = FameGoTextSecondary,
-            fontSize = 13.sp,
-            lineHeight = 18.sp
-          )
-        },
-        confirmButton = {
-          TextButton(onClick = { showCancellation = false }) {
-            Text("Done", color = FameGoGold, fontWeight = FontWeight.Bold)
-          }
-        },
-        containerColor = FameGoCard,
-        shape = RoundedCornerShape(20.dp)
-      )
+    if (showRules) {
+      com.example.ui.components.HouseRulesDialog(onDismiss = { showRules = false })
     }
   }
 }

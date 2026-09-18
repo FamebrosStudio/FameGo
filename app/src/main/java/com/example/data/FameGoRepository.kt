@@ -25,6 +25,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -38,7 +40,10 @@ object FameGoRepository {
   val activeRole: StateFlow<Role> = _activeRole.asStateFlow()
   private val _activeSearchingBookingId = MutableStateFlow<String?>(null)
   val activeSearchingBookingId: StateFlow<String?> = _activeSearchingBookingId.asStateFlow()
-  val savedLocations: List<SavedLocation> = emptyList()
+  private val _savedLocations = MutableStateFlow<List<SavedLocation>>(emptyList())
+  val savedLocations: StateFlow<List<SavedLocation>> = _savedLocations.asStateFlow()
+  private val _favoriteCrewIds = MutableStateFlow<Set<String>>(emptySet())
+  val favoriteCrewIds: StateFlow<Set<String>> = _favoriteCrewIds.asStateFlow()
   private val _crewProfiles = MutableStateFlow<List<CrewProfile>>(emptyList())
   val crewProfiles: StateFlow<List<CrewProfile>> = _crewProfiles.asStateFlow()
   private val _ratings = MutableStateFlow<Map<String, CrewRating>>(emptyMap())
@@ -67,19 +72,45 @@ object FameGoRepository {
   private val _crewApplications = MutableStateFlow<List<CrewApplication>>(emptyList())
   val crewApplications: StateFlow<List<CrewApplication>> = _crewApplications.asStateFlow()
   private val seenApplicationIds = mutableSetOf<String>()
+  /** User the bell/list sockets are bound to. Stale bindings leak cross-user events. */
+  private var realtimeBoundUserId: String = ""
+  /** Last chat send failure for UI surfacing (cleared on consume/next send). */
+  private val _chatErrors = MutableStateFlow<String?>(null)
+  val chatErrors: StateFlow<String?> = _chatErrors.asStateFlow()
+  /** Temp ids of optimistic messages awaiting a server echo (per booking). */
+  private val pendingChatIds = mutableMapOf<String, MutableSet<String>>()
+  private val pendingChatAt = mutableMapOf<String, Long>()
 
   fun setCurrentUser(user: User) {
     val previousId = _currentUser.value.id
+    val switched = previousId.isNotBlank() && previousId != user.id
     _currentUser.value = user
     _activeRole.value = user.role
     // Persist the profile: this is what keeps the user signed in across restarts.
     SupabaseSession.saveProfile(user)
-    if (previousId.isNotBlank() && previousId != user.id) clearLocalState()
-    else declinedRequestIds.value = emptySet()
+    if (switched) {
+      // Drop the previous user's sockets + pending chat state before binding
+      // the new ones: otherwise A's bell keeps refreshing B's lists (and A's
+      // filtered rows keep arriving on B's socket).
+      SupabaseRealtimeClient.closeAll()
+      realtimeBoundUserId = ""
+      synchronized(pendingChatIds) {
+        pendingChatIds.clear()
+        pendingChatAt.clear()
+      }
+      clearLocalState()
+    } else declinedRequestIds.value = emptySet()
     if (user.id.isNotBlank() && SupabaseConfig.isConfigured) {
-      // Famebook-style live pipeline: bell + lists refresh on server events.
-      SupabaseRealtimeClient.subscribeToNotifications(user.id) { onPushEvent() }
-      SupabaseRealtimeClient.subscribeToBookings("user_${user.id}") { onPushEvent() }
+      if (realtimeBoundUserId != user.id) {
+        // Famebook-style live pipeline: bell + lists refresh on server events.
+        SupabaseRealtimeClient.subscribeToNotifications(user.id) { onPushEvent() }
+        SupabaseRealtimeClient.subscribeToBookings("user_${user.id}") { onPushEvent() }
+        realtimeBoundUserId = user.id
+        // Re-bind an open chat that was dropped by the closeAll above.
+        _activeChatId.value?.let { chatId ->
+          SupabaseRealtimeClient.subscribeToChat(chatId) { loadChatMessages(chatId) }
+        }
+      }
     }
     ioScope.launch { refreshFromSupabase(user) }
   }
@@ -98,6 +129,8 @@ object FameGoRepository {
         // An open chat reloads on ANY push (bell, booking flip): the dedicated
         // chat socket may be dead while this one lives.
         _activeChatId.value?.let { loadChatMessages(it) }
+        // Support threads have no dedicated socket: keep them live here.
+        if (user.role == Role.ADMIN) loadAllSupport() else loadSupportThread()
       }
     }
   }
@@ -177,6 +210,8 @@ object FameGoRepository {
     _ratings.value = emptyMap()
     _liveSharing.value = emptySet()
     _livePoints.value = emptyMap()
+    _savedLocations.value = emptyList()
+    _favoriteCrewIds.value = emptySet()
     _incomingShootRequests.value = emptyList()
     _crewApplications.value = emptyList()
     seenApplicationIds.clear()
@@ -193,6 +228,12 @@ object FameGoRepository {
   fun logout() {
     SupabaseSession.clear()
     SupabaseRealtimeClient.closeAll()
+    realtimeBoundUserId = ""
+    synchronized(pendingChatIds) {
+      pendingChatIds.clear()
+      pendingChatAt.clear()
+    }
+    _chatErrors.value = null
     FameGoPush.unregisterToken()
     _currentUser.value = User(id = "", name = "", email = "", phone = "")
     _activeRole.value = Role.CLIENT
@@ -214,7 +255,8 @@ object FameGoRepository {
           phone = profile.optString("phone"),
           companyName = profile.optString("company_name"),
           role = role,
-          avatarInitials = profile.optString("avatar_initials").ifBlank { "FG" }
+          avatarInitials = profile.optString("avatar_initials").ifBlank { "FG" },
+          dob = profile.optString("dob")
         ).also(::setCurrentUser)
       }
     }
@@ -257,6 +299,110 @@ object FameGoRepository {
           }.toString())
         }
       }
+    }
+  }
+
+  // -- Saved shoot locations (connected backend, was hardcoded empty) ---------
+  private fun parseSavedLocations(array: JSONArray): List<SavedLocation> = buildList {
+    for (i in 0 until array.length()) {
+      val o = array.getJSONObject(i)
+      val venue = o.optString("venue_name")
+      val address = o.optString("address")
+      if (venue.isBlank() && address.isBlank()) continue
+      add(
+        SavedLocation(
+          id = o.optString("id"),
+          label = o.optString("label").ifBlank { venue.ifBlank { "Saved spot" } },
+          venueName = venue,
+          address = address
+        )
+      )
+    }
+  }
+
+  fun loadSavedLocations() {
+    val userId = _currentUser.value.id
+    if (userId.isBlank() || !SupabaseConfig.isConfigured) return
+    ioScope.launch {
+      SupabaseRestClient.get("saved_locations?select=*&user_id=eq.$userId&order=created_at.desc&limit=50")
+        .onSuccess { raw ->
+          _savedLocations.value = runCatching { parseSavedLocations(JSONArray(raw)) }.getOrDefault(emptyList())
+        }
+    }
+  }
+
+  /**
+   * Remembers a venue+address after a booking so the location step can offer
+   * it as a one-tap chip next time. Dedupes locally; server write is
+   * best-effort and reconciled on the next load.
+   */
+  fun rememberLocation(venueName: String, address: String) {
+    val venue = venueName.trim()
+    val addr = address.trim()
+    if (addr.isBlank()) return
+    if (_savedLocations.value.any {
+      it.address.equals(addr, ignoreCase = true) && it.venueName.equals(venue, ignoreCase = true)
+    }) return
+    val userId = _currentUser.value.id
+    val temp = SavedLocation(
+      id = UUID.randomUUID().toString(),
+      label = venue.ifBlank { "Saved spot" },
+      venueName = venue,
+      address = addr
+    )
+    _savedLocations.value = listOf(temp) + _savedLocations.value
+    if (userId.isBlank() || !SupabaseConfig.isConfigured) return
+    ioScope.launch {
+      SupabaseRestClient.post("saved_locations", JSONObject().apply {
+        put("user_id", userId)
+        put("label", temp.label)
+        put("venue_name", venue)
+        put("address", addr)
+      }.toString()).onSuccess { loadSavedLocations() }
+    }
+  }
+
+  // -- Favorite crew (connected backend, was never touched) ------------------
+  fun isFavoriteCrew(crewId: String): Boolean = crewId in _favoriteCrewIds.value
+
+  fun toggleFavoriteCrew(crewId: String) {
+    if (crewId.isBlank()) return
+    val userId = _currentUser.value.id
+    val adding = crewId !in _favoriteCrewIds.value
+    _favoriteCrewIds.value =
+      if (adding) _favoriteCrewIds.value + crewId else _favoriteCrewIds.value - crewId
+    if (userId.isBlank() || !SupabaseConfig.isConfigured) return
+    ioScope.launch {
+      val result = if (adding) {
+        SupabaseRestClient.post("favorite_crew", JSONObject().apply {
+          put("client_id", userId)
+          put("crew_id", crewId)
+        }.toString())
+      } else {
+        SupabaseRestClient.delete("favorite_crew?client_id=eq.$userId&crew_id=eq.$crewId")
+      }
+      if (result.isFailure) {
+        _favoriteCrewIds.value =
+          if (adding) _favoriteCrewIds.value - crewId else _favoriteCrewIds.value + crewId
+      }
+    }
+  }
+
+  private fun loadFavoriteCrew() {
+    val userId = _currentUser.value.id
+    if (userId.isBlank() || !SupabaseConfig.isConfigured) return
+    ioScope.launch {
+      SupabaseRestClient.get("favorite_crew?select=crew_id&client_id=eq.$userId&limit=200")
+        .onSuccess { raw ->
+          _favoriteCrewIds.value = runCatching {
+            val array = JSONArray(raw)
+            buildSet {
+              for (i in 0 until array.length()) {
+                array.optJSONObject(i)?.optString("crew_id")?.ifBlank { null }?.let { add(it) }
+              }
+            }
+          }.getOrDefault(emptySet())
+        }
     }
   }
 
@@ -381,8 +527,8 @@ object FameGoRepository {
     refreshIncomingRequests()
     addNotification(
       NotificationItem(
-        title = "Shoot completed",
-        message = "Your shoot has wrapped. Rate your crew and book them again.",
+        title = "Shoot is Done",
+        message = "Both sides confirmed the wrap. Rate your crew and book them again.",
         timestampText = "Just now",
         targetRole = Role.CLIENT,
         bookingId = bookingId
@@ -390,9 +536,54 @@ object FameGoRepository {
     )
     ioScope.launch { SupabaseRestClient.patch("bookings?id=eq.$bookingId", "{\"status\":\"COMPLETED\"}")
       .onSuccess {
-        fanoutToPeers(bookingId, "Shoot completed", "Your shoot has wrapped. Rate your crew!")
+        fanoutToPeers(bookingId, "Shoot is Done", "Both sides confirmed on Bluetooth — wrap complete. Rate your crew!")
       }
     }
+  }
+
+  /** Outcome of recording this phone's Shoot-Done tap. */
+  enum class ShootDoneResult { WAITING_FOR_PEER, COMPLETED }
+
+  /**
+   * Records this phone's proximity-verified tap, then checks whether BOTH
+   * sides have tapped. The completer flips the booking; the peer's poll (or
+   * push) picks it up within seconds. Requires 011_shoot_done_signals.sql.
+   */
+  suspend fun signalShootDone(bookingId: String): Result<ShootDoneResult> {
+    val user = _currentUser.value
+    if (user.id.isBlank()) return Result.failure(IllegalStateException("Your session has expired"))
+    if (!SupabaseConfig.isConfigured) return Result.failure(IllegalStateException("Service unavailable"))
+    if (bookingId.isBlank()) return Result.failure(IllegalStateException("Unknown booking"))
+    val saved = SupabaseRestClient.upsert(
+      "shoot_done_signals?on_conflict=booking_id,user_id",
+      JSONObject().apply {
+        put("booking_id", bookingId)
+        put("user_id", user.id)
+        put("role", user.role.name)
+      }.toString()
+    )
+    if (saved.isFailure) return Result.failure(saved.exceptionOrNull() ?: IllegalStateException("Couldn't record confirmation"))
+    val count = countShootDoneSignals(bookingId)
+    if (count >= 2) {
+      completeShoot(bookingId)
+      return Result.success(ShootDoneResult.COMPLETED)
+    }
+    return Result.success(ShootDoneResult.WAITING_FOR_PEER)
+  }
+
+  /** How many distinct sides (0-2+) tapped Shoot Done for this booking. */
+  suspend fun countShootDoneSignals(bookingId: String): Int {
+    if (bookingId.isBlank() || !SupabaseConfig.isConfigured) return 0
+    val raw = SupabaseRestClient.get("shoot_done_signals?select=user_id&booking_id=eq.$bookingId").getOrNull()
+      ?: return 0
+    return runCatching {
+      val array = JSONArray(raw)
+      buildSet {
+        for (i in 0 until array.length()) {
+          array.optJSONObject(i)?.optString("user_id")?.ifBlank { null }?.let { add(it) }
+        }
+      }.size
+    }.getOrDefault(0)
   }
 
   fun toggleCrewAvailability(crewId: String? = null) {
@@ -426,6 +617,7 @@ object FameGoRepository {
     _bookings.value = listOf(withPlan) + _bookings.value
     _activeSearchingBookingId.value = withPlan.id
     refreshIncomingRequests()
+    rememberLocation(withPlan.venueName, withPlan.fullAddress)
     addNotification(
       NotificationItem(
         title = "Finding your crew",
@@ -463,6 +655,7 @@ object FameGoRepository {
         _bookings.value = listOf(saved) + _bookings.value.filterNot { it.id == saved.id }
         _activeSearchingBookingId.value = saved.id
         refreshIncomingRequests()
+        rememberLocation(saved.venueName, saved.fullAddress)
         addNotification(
           NotificationItem(
             title = "Payment confirmed",
@@ -473,6 +666,88 @@ object FameGoRepository {
           )
         )
       }
+  }
+
+  /**
+   * Crew-first pipeline: creates the booking UNPAID and returns the server
+   * row (canonical id). Crew finds and accepts it; money moves only after
+   * that via payForBooking. No crew, no charge — the paradox is gone.
+   */
+  suspend fun createUnpaidBooking(booking: Booking): Result<Booking> {
+    val user = _currentUser.value
+    if (user.id.isBlank()) return Result.failure(IllegalStateException("Your session has expired"))
+    if (!SupabaseConfig.isConfigured) return Result.failure(IllegalStateException("Service unavailable"))
+    val payload = bookingPayload(booking.copy(paymentStatus = PaymentStatus.PENDING, paymentReference = ""), user.id)
+    return postBookingResilient(payload, "select=*,booking_assignments(*)")
+      .mapCatching { raw ->
+        val rows = parseBookings(JSONArray(raw))
+        rows.firstOrNull() ?: error("Booking was not returned by the server")
+      }
+      .onSuccess { saved ->
+        _bookings.value = listOf(saved) + _bookings.value.filterNot { it.id == saved.id }
+        _activeSearchingBookingId.value = saved.id
+        refreshIncomingRequests()
+        rememberLocation(saved.venueName, saved.fullAddress)
+        addNotification(
+          NotificationItem(
+            title = "Finding your crew",
+            message = "${saved.shootTitle} • ${saved.venueName}. You pay only after a crew accepts.",
+            timestampText = "Just now",
+            targetRole = Role.CLIENT,
+            bookingId = saved.id
+          )
+        )
+      }
+  }
+
+  /**
+   * Charges nothing itself (demo gateway): marks an accepted CONFIRMED
+   * booking PAID after the crew said yes. Fails unless the booking is
+   * CONFIRMED — paying for a crew-less search is impossible by design.
+   */
+  suspend fun payForBooking(bookingId: String): Result<Booking> {
+    val user = _currentUser.value
+    if (user.id.isBlank()) return Result.failure(IllegalStateException("Your session has expired"))
+    if (!SupabaseConfig.isConfigured) return Result.failure(IllegalStateException("Service unavailable"))
+    val local = _bookings.value.firstOrNull { it.id == bookingId }
+      ?: return Result.failure(IllegalStateException("Booking not found"))
+    if (local.status != BookingStatus.CONFIRMED || local.assignedCrew.isEmpty()) {
+      return Result.failure(IllegalStateException("Pay only after a crew accepts your shoot."))
+    }
+    val reference = "DEMO-${System.currentTimeMillis()}"
+    val patched = SupabaseRestClient.patch(
+      "bookings?id=eq.$bookingId&select=*,booking_assignments(*)",
+      JSONObject().apply {
+        put("payment_status", PaymentStatus.PAID.name)
+        put("payment_reference", reference)
+      }.toString()
+    )
+    return patched.mapCatching { raw ->
+      val rows = parseBookings(JSONArray(raw))
+      rows.firstOrNull()?.copy(paymentReference = reference)
+        ?: error("Booking was not returned by the server")
+    }.onSuccess { saved ->
+      _bookings.value = _bookings.value.map { if (it.id == saved.id) saved else it }
+      addNotification(
+        NotificationItem(
+          title = "Payment confirmed",
+          message = "${saved.shootTitle} is locked in with ${saved.assignedCrew.firstOrNull()?.name ?: "your crew"}.",
+          timestampText = "Just now",
+          targetRole = Role.CLIENT,
+          bookingId = saved.id
+        )
+      )
+    }
+  }
+
+  /**
+   * Free-cancel window: 10 minutes from booking creation. Inside it the
+   * client can cancel alone; after it, no refund — support only.
+   */
+  fun canCancelFree(bookingId: String): Boolean {
+    val booking = _bookings.value.firstOrNull { it.id == bookingId } ?: return false
+    if (booking.status == BookingStatus.COMPLETED || booking.status == BookingStatus.CANCELLED) return false
+    return System.currentTimeMillis() - booking.createdAtMillis <= 10 * 60 * 1000L
   }
 
   private fun bookingPayload(booking: Booking, clientId: String) = JSONObject().apply {
@@ -566,6 +841,7 @@ object FameGoRepository {
     _bookings.value = _bookings.value.map {
       if (it.id == bookingId) it.copy(status = BookingStatus.CONFIRMED, assignedCrew = listOf(member)) else it
     }
+    if (_activeSearchingBookingId.value == bookingId) _activeSearchingBookingId.value = null
     _crewProfiles.value = _crewProfiles.value.map { if (it.id == member.crewId) it.copy(isAvailable = false) else it }
     _isCrewAvailable.value = false
     refreshIncomingRequests()
@@ -674,8 +950,34 @@ object FameGoRepository {
   fun assignCrewToBooking(bookingId: String, crew: AssignedCrewMember) {
     val booking = _bookings.value.firstOrNull { it.id == bookingId } ?: return
     if (booking.status != BookingStatus.SEARCHING_CREW) return
+    val previous = _bookings.value
     _bookings.value = _bookings.value.map { if (it.id == bookingId) it.copy(status = BookingStatus.CONFIRMED, assignedCrew = listOf(crew)) else it }
     refreshIncomingRequests()
+    // Persist: admins insert the assignment row + flip the booking (the old
+    // code only changed local state, so the assignment vanished on refresh).
+    if (SupabaseConfig.isConfigured) {
+      ioScope.launch {
+        val inserted = SupabaseRestClient.post("booking_assignments", JSONObject().apply {
+          put("booking_id", bookingId)
+          put("crew_id", crew.crewId)
+          put("role", crew.role.name)
+          put("name_snapshot", crew.name)
+          put("phone_snapshot", crew.phone)
+          put("gear_snapshot", crew.gear)
+          put("rating_snapshot", crew.rating)
+          put("is_verified_snapshot", crew.isVerified)
+        }.toString())
+        val flipped = SupabaseRestClient.patch(
+          "bookings?id=eq.$bookingId", "{\"status\":\"CONFIRMED\"}"
+        )
+        if (inserted.isFailure || flipped.isFailure) {
+          _bookings.value = previous
+          refreshIncomingRequests()
+        } else {
+          fanoutToPeers(bookingId, "Crew confirmed", "${crew.name} is locked in for your shoot.")
+        }
+      }
+    }
   }
 
   fun adminUpdateBookingStatus(bookingId: String, newStatus: BookingStatus) {
@@ -684,11 +986,36 @@ object FameGoRepository {
       completeShoot(bookingId)
       return
     }
+    val previous = _bookings.value
     _bookings.value = _bookings.value.map { if (it.id == bookingId) it.copy(status = newStatus) else it }
     refreshIncomingRequests()
+    if (SupabaseConfig.isConfigured) {
+      ioScope.launch {
+        val patched = SupabaseRestClient.patch(
+          "bookings?id=eq.$bookingId", "{\"status\":\"${newStatus.name}\"}"
+        )
+        if (patched.isFailure) {
+          _bookings.value = previous
+          refreshIncomingRequests()
+        }
+      }
+    }
   }
   fun updateBookingStatus(bookingId: String, status: BookingStatus) = adminUpdateBookingStatus(bookingId, status)
-  fun adminVerifyCrew(crewId: String, status: VerificationStatus) { _crewProfiles.value = _crewProfiles.value.map { if (it.id == crewId) it.copy(verificationStatus = status) else it } }
+  fun adminVerifyCrew(crewId: String, status: VerificationStatus) {
+    val previous = _crewProfiles.value
+    _crewProfiles.value = _crewProfiles.value.map { if (it.id == crewId) it.copy(verificationStatus = status) else it }
+    // The old code never left the device: persist so verification survives.
+    if (SupabaseConfig.isConfigured) {
+      ioScope.launch {
+        val patched = SupabaseRestClient.patch(
+          "crew_profiles?id=eq.$crewId",
+          JSONObject().put("verification_status", status.name).toString()
+        )
+        if (patched.isFailure) _crewProfiles.value = previous
+      }
+    }
+  }
 
   // -- Admin user management -------------------------------------------------
   private val _allUsers = MutableStateFlow<List<User>>(emptyList())
@@ -740,22 +1067,52 @@ object FameGoRepository {
   fun sendChatMessage(bookingId: String, text: String, senderRole: Role, senderName: String) {
     val message = text.trim()
     if (message.isEmpty() || bookingId.isBlank()) return
+    _chatErrors.value = null
     val resolvedName = senderName.ifBlank { _currentUser.value.name.ifBlank { "You" } }
-    val updated = (_chatMessages.value[bookingId] ?: emptyList()) + ChatMessage(bookingId = bookingId, senderName = resolvedName, senderRole = senderRole, message = message, timeText = "Just now", isFromMe = true)
+    val tempId = UUID.randomUUID().toString()
+    val optimistic = ChatMessage(
+      id = tempId, bookingId = bookingId, senderName = resolvedName,
+      senderRole = senderRole, message = message, timeText = "Just now",
+      isFromMe = true, isRead = false
+    )
+    synchronized(pendingChatIds) {
+      pendingChatIds.getOrPut(bookingId) { mutableSetOf() } += tempId
+      pendingChatAt[tempId] = System.currentTimeMillis()
+    }
+    val updated = (_chatMessages.value[bookingId] ?: emptyList()) + optimistic
     _chatMessages.value = _chatMessages.value + (bookingId to updated)
     val senderId = _currentUser.value.id
-    if (senderId.isNotBlank() && SupabaseConfig.isConfigured) {
-      ioScope.launch {
-        SupabaseRestClient.post("chat_messages", JSONObject().apply {
-          put("booking_id", bookingId)
-          put("sender_id", senderId)
-          put("message", message)
-        }.toString()).onSuccess {
+    if (senderId.isBlank() || !SupabaseConfig.isConfigured) {
+      // Offline/demo: keep the optimistic row; it reconciles on next load.
+      return
+    }
+    ioScope.launch {
+      SupabaseRestClient.post("chat_messages", JSONObject().apply {
+        put("booking_id", bookingId)
+        put("sender_id", senderId)
+        put("message", message)
+      }.toString())
+        .onSuccess {
           fanoutToPeers(bookingId, "New message", "$resolvedName: ${message.take(120)}")
+          // Drop the optimistic twin once the server echoes it back.
+          loadChatMessages(bookingId)
         }
-      }
+        .onFailure { e ->
+          // RLS denies chat before crew assignment: say why instead of a
+          // ghost "Sent" bubble that never arrives.
+          synchronized(pendingChatIds) {
+            pendingChatIds[bookingId]?.remove(tempId)
+            pendingChatAt.remove(tempId)
+          }
+          _chatMessages.value = _chatMessages.value + (
+            bookingId to ((_chatMessages.value[bookingId] ?: emptyList()).filterNot { it.id == tempId })
+          )
+          _chatErrors.value = friendlyMessage(e)
+        }
     }
   }
+
+  fun consumeChatError() { _chatErrors.value = null }
 
   fun submitSupportMessage(text: String): Boolean {
     val message = text.trim()
@@ -864,41 +1221,182 @@ object FameGoRepository {
     return SupabaseRestClient.post("crew_applications", payload).map { }
   }
 
+  // -- Self profile edit + real account delete -------------------------------
+  /**
+   * Full profile edit: persists name/phone/company/dob to profiles and
+   * refreshes the local session copy. Returns server error on failure.
+   */
+  suspend fun updateProfile(
+    name: String,
+    phone: String,
+    companyName: String,
+    dobIso: String
+  ): Result<Unit> {
+    val user = _currentUser.value
+    if (user.id.isBlank()) return Result.failure(IllegalStateException("Your session has expired"))
+    if (!SupabaseConfig.isConfigured) return Result.failure(IllegalStateException("Service unavailable"))
+    if (name.trim().length < 2) return Result.failure(IllegalStateException("Enter your full name"))
+    if (phone.filter(Char::isDigit).length < 10) {
+      return Result.failure(IllegalStateException("Enter a valid phone number"))
+    }
+    val patched = SupabaseRestClient.patch(
+      "profiles?id=eq.${user.id}",
+      JSONObject().apply {
+        put("full_name", name.trim())
+        put("phone", phone.trim())
+        put("company_name", companyName.trim())
+        if (dobIso.isNotBlank()) put("dob", dobIso)
+      }.toString()
+    )
+    if (patched.isFailure) {
+      return Result.failure(patched.exceptionOrNull() ?: IllegalStateException("Save failed"))
+    }
+    val freshName = name.trim()
+    val updated = user.copy(
+      name = freshName,
+      phone = phone.trim(),
+      companyName = companyName.trim(),
+      dob = dobIso.ifBlank { user.dob },
+      avatarInitials = freshName.split(" ").filter { it.isNotBlank() }.take(2)
+        .joinToString("") { it.first().uppercase() }.ifEmpty { "FG" }
+    )
+    _currentUser.value = updated
+    SupabaseSession.saveProfile(updated)
+    return Result.success(Unit)
+  }
+
+  /**
+   * REAL backend delete: the delete-account Edge Function (service role)
+   * wipes device tokens, favorites, saved spots, notifications, ratings,
+   * signals, chats, locations, assignments, bookings, crew + auth rows —
+   * then this device signs out. Requires
+   * supabase/functions/delete-account deployed.
+   */
+  suspend fun deleteAccount(): Result<Unit> {
+    val token = SupabaseSession.accessToken
+    if (!SupabaseConfig.isConfigured || token.isNullOrBlank()) {
+      return Result.failure(IllegalStateException("Your session has expired. Sign in again."))
+    }
+    val request = okhttp3.Request.Builder()
+      .url("${SupabaseConfig.baseUrl}/functions/v1/delete-account")
+      .header("apikey", SupabaseConfig.publishableKey)
+      .header("Authorization", "Bearer $token")
+      .header("Content-Type", "application/json")
+      .post("{}".toRequestBody("application/json".toMediaType()))
+      .build()
+    val result = runCatching {
+      SupabaseNetwork.http.newCall(request).execute().use { response ->
+        val raw = response.body?.string().orEmpty()
+        if (!response.isSuccessful) error(raw.take(240).ifBlank { "Delete failed (${response.code})" })
+      }
+    }
+    if (result.isFailure) return Result.failure(result.exceptionOrNull() ?: IllegalStateException("Delete failed"))
+    logout()
+    return Result.success(Unit)
+  }
+
   fun addNotification(item: NotificationItem) { _notifications.value = listOf(item) + _notifications.value }
   fun loadChatMessages(bookingId: String) {
-    if (!SupabaseConfig.isConfigured) return
+    if (bookingId.isBlank() || !SupabaseConfig.isConfigured) return
     ioScope.launch {
-      SupabaseRestClient.get("chat_messages?select=*&booking_id=eq.$bookingId&order=created_at.asc")
+      SupabaseRestClient.get("chat_messages?select=*&booking_id=eq.$bookingId&order=created_at.asc&limit=200")
         .onSuccess { raw ->
-          val userId = _currentUser.value.id
+          val me = _currentUser.value
           val messages = runCatching {
             val array = JSONArray(raw)
             buildList {
               for (i in 0 until array.length()) {
                 val o = array.getJSONObject(i)
-                val isMine = o.optString("sender_id") == userId
-                val senderRole = if (isMine) _currentUser.value.role else Role.CREW
-                val senderName = o.optString("sender_name").ifBlank {
-                  if (isMine) _currentUser.value.name.ifBlank { "You" } else "Crew"
-                }
-                add(ChatMessage(o.optString("id"), bookingId, senderName, senderRole, o.optString("message"), o.optString("created_at").take(16).replace("T", " "), isMine, o.optString("read_at").isNotBlank()))
+                val senderId = o.optString("sender_id")
+                val isMine = senderId.isNotBlank() && senderId == me.id
+                val (peerName, peerRole) = resolveChatPeer(bookingId, senderId, isMine)
+                add(ChatMessage(
+                  o.optString("id"), bookingId, peerName, peerRole,
+                  o.optString("message"), formatChatTime(o.optString("created_at")),
+                  isMine, o.optString("read_at").isNotBlank()
+                ))
               }
             }
           }.getOrDefault(emptyList())
-          if (messages.isNotEmpty()) {
-            // Merge: keep optimistic local messages that the server hasn't echoed yet.
-            // Match by stable id first; fall back to text match for just-sent rows
-            // that have no server id yet.
-            val remoteIds = messages.map { it.id }.toSet()
-            val localOnly = (_chatMessages.value[bookingId] ?: emptyList()).filter { local ->
-              local.id !in remoteIds && messages.none { remote ->
-                remote.message == local.message && remote.isFromMe == local.isFromMe
+          // Always reconcile (never skip on empty): an empty server thread
+          // clears stale rows, while unexpired optimistic sends survive until
+          // the echo arrives or they time out (90s) instead of lingering.
+          val now = System.currentTimeMillis()
+          val remoteKey = messages.map { "${it.id}|${it.message}|${it.isFromMe}" }.toSet()
+          val keptLocal = (_chatMessages.value[bookingId] ?: emptyList()).filter { local ->
+            val pending = synchronized(pendingChatIds) { pendingChatIds[bookingId]?.contains(local.id) } == true
+            if (!pending) return@filter false
+            val age = now - (synchronized(pendingChatAt) { pendingChatAt[local.id] } ?: now)
+            if (age > 90_000) {
+              synchronized(pendingChatIds) {
+                pendingChatIds[bookingId]?.remove(local.id)
+                pendingChatAt.remove(local.id)
               }
+              return@filter false
             }
-            _chatMessages.value = _chatMessages.value + (bookingId to (messages + localOnly))
+            // One-to-one consume: each server echo absorbs exactly one twin,
+            // so sending the same text twice no longer wipes both bubbles.
+            remoteKey.none { key ->
+              val parts = key.split("|", limit = 3)
+              parts.size == 3 && parts[1] == local.message &&
+                (parts[2] == "true") == local.isFromMe
+            }
           }
+          _chatMessages.value = _chatMessages.value + (bookingId to (messages + keptLocal))
         }
     }
+  }
+
+  /**
+   * chat_messages has no sender_name column, so the peer label is resolved
+   * from local caches: own profile, the booking's assigned crew, else role
+   * hints. Never returns blank.
+   */
+  private fun resolveChatPeer(bookingId: String, senderId: String, isMine: Boolean): Pair<String, Role> {
+    val me = _currentUser.value
+    if (isMine) return (me.name.ifBlank { "You" } to me.role)
+    if (senderId.isBlank()) return ("Crew" to Role.CREW)
+    val booking = _bookings.value.firstOrNull { it.id == bookingId }
+    booking?.assignedCrew?.firstOrNull { it.crewId.isNotBlank() }?.let { member ->
+      // Peer is whoever isn't me: crew member name, or generic client label.
+      if (me.role == Role.CLIENT) return (member.name.ifBlank { "Crew" } to Role.CREW)
+    }
+    // Crew-side peer is the client; profile names aren't in the bookings
+    // payload, so fall back to a stable generic label.
+    val peerRole = if (me.role == Role.CLIENT) Role.CREW else Role.CLIENT
+    val peerName = if (me.role == Role.CLIENT) "Crew" else "Client"
+    return (peerName to peerRole)
+  }
+
+  /** ISO instant -> local "02:05 PM". Legacy parser: minSdk 24 has no java.time. */
+  private fun formatChatTime(iso: String): String {
+    if (iso.isBlank()) return "Just now"
+    val parsed = runCatching {
+      val patterns = listOf(
+        "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+        "yyyy-MM-dd'T'HH:mm:ssXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss'Z'"
+      )
+      var date: java.util.Date? = null
+      val candidates = listOf(iso, iso.replace("Z$", "+00:00"))
+      for (raw in candidates) {
+        for (p in patterns) {
+          date = runCatching {
+            java.text.SimpleDateFormat(p, java.util.Locale.US).apply {
+              timeZone = java.util.TimeZone.getTimeZone("UTC")
+            }.parse(raw)
+          }.getOrNull()
+          if (date != null) break
+        }
+        if (date != null) break
+      }
+      date ?: return iso.take(16).replace("T", " ")
+      java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US).apply {
+        timeZone = java.util.TimeZone.getDefault()
+      }.format(date)
+    }.getOrNull()
+    return parsed ?: iso.take(16).replace("T", " ")
   }
 
   fun startChatRealtime(bookingId: String) {
@@ -974,8 +1472,18 @@ object FameGoRepository {
           refreshIncomingRequests()
         }
     }
-    SupabaseRestClient.get("notifications?select=*&target_user_id=eq.${user.id}&order=created_at.desc")
-      .onSuccess { raw -> _notifications.value = runCatching { parseNotifications(JSONArray(raw), user.role) }.getOrDefault(emptyList()) }
+    SupabaseRestClient.get("notifications?select=*&target_user_id=eq.${user.id}&order=created_at.desc&limit=100")
+      .onSuccess { raw ->
+        val server = runCatching { parseNotifications(JSONArray(raw), user.role) }.getOrDefault(emptyList())
+        // Merge, don't replace: local-only toasts ("Finding your crew",
+        // "Crew confirmed") share the id space with server rows, so keep
+        // Just-now locals the server hasn't echoed yet instead of wiping them.
+        val serverIds = server.map { it.id }.toSet()
+        val keptLocal = _notifications.value.filter { local ->
+          local.id !in serverIds && local.timestampText == "Just now"
+        }
+        _notifications.value = (keptLocal + server).distinctBy { it.id }.take(150)
+      }
     SupabaseRestClient.get("crew_ratings?select=*&client_id=eq.${user.id}")
       .onSuccess { raw ->
         _ratings.value = runCatching {
@@ -992,6 +1500,38 @@ object FameGoRepository {
           }
         }.getOrDefault(emptyMap())
       }
+    // Crew never saw ratings ABOUT them (query above is client-scoped): load
+    // rows on this shooter's own crew profile so Crew Profile can show them.
+    if (user.role == Role.CREW) {
+      ioScope.launch {
+        val cached = _crewProfiles.value.firstOrNull { it.userId == user.id }?.id
+        val crewId = if (!cached.isNullOrBlank()) cached else {
+          SupabaseRestClient.get("crew_profiles?select=id&user_id=eq.${user.id}&limit=1")
+            .getOrNull()?.let { raw ->
+              runCatching { JSONArray(raw).optJSONObject(0)?.optString("id") }.getOrNull()
+            }.orEmpty()
+        }
+        if (crewId.isBlank()) return@launch
+        SupabaseRestClient.get("crew_ratings?select=*&crew_id=eq.$crewId&order=created_at.desc&limit=50")
+          .onSuccess { raw ->
+            runCatching {
+              val array = JSONArray(raw)
+              buildMap {
+                for (i in 0 until array.length()) {
+                  val o = array.getJSONObject(i)
+                  val rating = CrewRating(
+                    o.optString("booking_id"), o.optString("crew_id"),
+                    o.optInt("stars", 5).coerceIn(1, 5), o.optString("review")
+                  )
+                  put("${rating.bookingId}:${rating.crewId}", rating)
+                }
+              }
+            }.onSuccess { mine -> _ratings.value = _ratings.value + mine }
+          }
+      }
+    }
+    loadSavedLocations()
+    loadFavoriteCrew()
     val bookingIds = _bookings.value.map { it.id }.filter { it.isNotBlank() }
     if (bookingIds.isNotEmpty()) {
       val filter = bookingIds.joinToString(",", prefix = "(", postfix = ")")
@@ -1012,7 +1552,9 @@ object FameGoRepository {
           }
         }
     }
-    SupabaseRestClient.get("crew_profiles?select=*&order=rating.desc")
+    // Names live on profiles (crew_profiles has no name columns): embed the
+    // parent row so crew lists stop showing blank names / "CR" initials.
+    SupabaseRestClient.get("crew_profiles?select=*,profiles(full_name,email,phone)&order=rating.desc")
       .onSuccess { raw -> _crewProfiles.value = runCatching { parseCrewProfiles(JSONArray(raw)) }.getOrDefault(emptyList()) }
     // Admins pull the crew-application inbox so new forms ping their phone.
     if (user.role == Role.ADMIN) refreshCrewApplications()
@@ -1136,9 +1678,33 @@ object FameGoRepository {
         brandName = o.optString("brand_name"), referenceLink = o.optString("reference_link"),
         plan = plan, priceRupees = (o.optInt("plan_price_paise", plan.priceRupees * 100) / 100).coerceAtLeast(0),
         paymentStatus = payment, paymentReference = o.optString("payment_reference"),
-        status = status, assignedCrew = assignedCrew
+        status = status, assignedCrew = assignedCrew,
+        createdAtMillis = parseServerTime(o.optString("created_at"))
       ))
     }
+  }
+
+  /** Server created_at ISO -> millis. Falls back to now so age rules stay safe. */
+  private fun parseServerTime(iso: String): Long {
+    if (iso.isBlank()) return System.currentTimeMillis()
+    val candidates = listOf(iso, iso.replace("Z$", "+00:00"))
+    val patterns = listOf(
+      "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+      "yyyy-MM-dd'T'HH:mm:ssXXX",
+      "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+      "yyyy-MM-dd'T'HH:mm:ss'Z'"
+    )
+    for (raw in candidates) {
+      for (p in patterns) {
+        val parsed = runCatching {
+          java.text.SimpleDateFormat(p, java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+          }.parse(raw)?.time
+        }.getOrNull()
+        if (parsed != null) return parsed
+      }
+    }
+    return System.currentTimeMillis()
   }
 
   private fun parseUsers(array: JSONArray): List<User> = buildList {
@@ -1202,13 +1768,37 @@ object FameGoRepository {
       val o = array.getJSONObject(i)
       val role = runCatching { com.example.model.CrewRoleType.valueOf(o.optString("primary_role")) }.getOrDefault(com.example.model.CrewRoleType.ASSISTANT)
       val verification = runCatching { VerificationStatus.valueOf(o.optString("verification_status")) }.getOrDefault(VerificationStatus.PENDING_VERIFICATION)
-      // crew_profiles has no name columns; names may arrive via join aliases.
-      val fullName = o.optString("full_name").ifBlank { o.optString("display_name").ifBlank { o.optString("name") } }
-      val phone = o.optString("phone")
-      val email = o.optString("email")
+      // crew_profiles has no name columns — they arrive via the embedded
+      // profiles row (see refreshFromSupabase). Legacy join aliases kept as
+      // fallback so older cached payloads still resolve.
+      val parent = o.optJSONObject("profiles")
+      val fullName = o.optString("full_name").ifBlank {
+        parent?.optString("full_name").orEmpty().ifBlank {
+          o.optString("display_name").ifBlank { o.optString("name") }
+        }
+      }
+      val phone = o.optString("phone").ifBlank { parent?.optString("phone").orEmpty() }
+      val email = o.optString("email").ifBlank { parent?.optString("email").orEmpty() }
       val initials = fullName.split(" ").filter { it.isNotBlank() }.take(2)
         .joinToString("") { it.first().uppercase() }.ifEmpty { "CR" }
-      add(CrewProfile(o.optString("id"), o.optString("user_id"), fullName, phone, email, o.optString("city").ifBlank { "Mumbai" }, role, emptyList(), o.optInt("experience_years"), o.optString("bio"), o.optString("gear_summary"), o.optString("portfolio_url"), o.optString("instagram_handle"), verification, o.optBoolean("is_available", true), o.optDouble("rating", 4.9), o.optInt("total_shoots_completed"), initials))
+      add(CrewProfile(o.optString("id"), o.optString("user_id"), fullName, phone, email, o.optString("city").ifBlank { "Mumbai" }, role, parseRoleList(o), o.optInt("experience_years"), o.optString("bio"), o.optString("gear_summary"), o.optString("portfolio_url"), o.optString("instagram_handle"), verification, o.optBoolean("is_available", true), o.optDouble("rating", 4.9), o.optInt("total_shoots_completed"), initials))
     }
+  }
+
+  /** secondary_roles arrives as a JSON array or a Postgres "{A,B}" literal. */
+  private fun parseRoleList(o: JSONObject): List<com.example.model.CrewRoleType> {
+    val rawArray = o.optJSONArray("secondary_roles")
+    if (rawArray != null) {
+      return buildList {
+        for (i in 0 until rawArray.length()) {
+          runCatching { com.example.model.CrewRoleType.valueOf(rawArray.optString(i)) }
+            .getOrNull()?.let { add(it) }
+        }
+      }
+    }
+    return o.optString("secondary_roles").trim().removePrefix("{").removeSuffix("}")
+      .split(",").mapNotNull {
+        runCatching { com.example.model.CrewRoleType.valueOf(it.trim()) }.getOrNull()
+      }
   }
 }

@@ -44,6 +44,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import com.example.ui.components.fameGoTapBounce
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -86,10 +88,12 @@ fun BookingChatScreen(
     onDispose { FameGoRepository.stopChatRealtime(bookingId) }
   }
   // Safety net: realtime sockets can silently drop (expired token, doze).
-  // A fast poll guarantees messages land even when the socket is dead.
+  // A slow poll guarantees messages land even when the socket is dead.
+  // The dedicated socket + push-event reload carry the live path, so this
+  // stays at 8s (not 3s) to save radio/battery.
   LaunchedEffect(bookingId) {
     while (true) {
-      kotlinx.coroutines.delay(3000)
+      kotlinx.coroutines.delay(8000)
       FameGoRepository.loadChatMessages(bookingId)
     }
   }
@@ -107,10 +111,14 @@ fun BookingChatScreen(
 
   var messageInput by remember { mutableStateOf("") }
   val listState = rememberLazyListState()
+  val chatError by FameGoRepository.chatErrors.collectAsState()
 
   LaunchedEffect(messages.size) {
     if (messages.isNotEmpty()) {
-      listState.animateScrollToItem(messages.size - 1)
+      // animateScroll can throw when the list isn't laid out yet (rotation,
+      // fast open); fall back to an instant jump instead of crashing chat.
+      runCatching { listState.animateScrollToItem(messages.size - 1) }
+        .onFailure { runCatching { listState.scrollToItem(messages.size - 1) } }
     }
   }
 
@@ -169,7 +177,7 @@ fun BookingChatScreen(
                 )
                 Spacer(modifier = Modifier.width(5.dp))
                 Text(
-                  text = if (booking?.status == com.example.model.BookingStatus.COMPLETED) "Chat history" else "Online • replies instantly",
+                  text = if (booking?.status == com.example.model.BookingStatus.COMPLETED) "Chat history" else "Online",
                   color = FameGoGold,
                   fontSize = 11.sp,
                   fontWeight = FontWeight.SemiBold
@@ -206,7 +214,7 @@ fun BookingChatScreen(
           Spacer(modifier = Modifier.height(10.dp))
           Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Text(
-              text = "Production chat encrypted • Famebros Studio Dispatch",
+              text = "Shoot chat",
               color = FameGoTextMuted,
               fontSize = 11.sp
             )
@@ -219,6 +227,38 @@ fun BookingChatScreen(
 
         item {
           Spacer(modifier = Modifier.height(8.dp))
+        }
+      }
+
+      // Send failures used to vanish silently (ghost "Sent" bubble).
+      // Surface the reason inline so the user can retry.
+      chatError?.let { error ->
+        Surface(
+          shape = RoundedCornerShape(10.dp),
+          color = FameGoCard,
+          border = androidx.compose.foundation.BorderStroke(1.dp, FameGoGold.copy(alpha = 0.5f)),
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+        ) {
+          Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Text(
+              text = error,
+              color = FameGoGold,
+              fontSize = 12.sp,
+              modifier = Modifier.weight(1f)
+            )
+            Text(
+              text = "Dismiss",
+              color = FameGoTextSecondary,
+              fontSize = 12.sp,
+              fontWeight = FontWeight.Bold,
+              modifier = Modifier.clickable { FameGoRepository.consumeChatError() }
+            )
+          }
         }
       }
 
@@ -235,7 +275,7 @@ fun BookingChatScreen(
             shape = RoundedCornerShape(12.dp),
             color = FameGoCard,
             border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorder),
-            modifier = Modifier.clickable {
+            modifier = Modifier.fameGoTapBounce {
               FameGoRepository.sendChatMessage(
                 bookingId = bookingId,
                 text = text,
@@ -304,11 +344,14 @@ fun BookingChatScreen(
               },
             contentAlignment = Alignment.Center
           ) {
+            // Send arrow pops alive the moment there's text to send.
+            val ready = messageInput.isNotBlank()
+            val pop = com.example.ui.components.fameGoToggleScale(ready)
             Icon(
               imageVector = Icons.AutoMirrored.Filled.Send,
               contentDescription = "Send",
-              tint = if (messageInput.isNotBlank()) FameGoBg else FameGoTextMuted,
-              modifier = Modifier.size(20.dp)
+              tint = if (ready) FameGoBg else FameGoTextMuted,
+              modifier = Modifier.size(20.dp).scale(pop)
             )
           }
         }

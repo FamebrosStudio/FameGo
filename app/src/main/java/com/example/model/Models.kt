@@ -142,7 +142,9 @@ data class User(
   val phone: String,
   val companyName: String = "",
   val role: Role = Role.CLIENT,
-  val avatarInitials: String = "FG"
+  val avatarInitials: String = "FG",
+  /** ISO date of birth (yyyy-MM-dd), required at signup. */
+  val dob: String = ""
 ) {
   val company: String get() = companyName
 }

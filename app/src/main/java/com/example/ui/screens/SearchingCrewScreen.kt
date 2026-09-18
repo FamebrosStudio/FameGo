@@ -66,6 +66,7 @@ import com.example.model.BookingStatus
 import com.example.model.CrewRoleType
 import com.example.ui.components.FlowPill
 import com.example.ui.components.FlowPillState
+import com.example.ui.components.FameGoOutlinedButton
 import com.example.ui.components.LiveOrb
 import com.example.ui.components.SoftCard
 import com.example.ui.theme.FameGoAccentCyan
@@ -94,12 +95,25 @@ fun SearchingCrewScreen(
   onCancelSearch: () -> Unit,
   onOpenChat: (String) -> Unit,
   onOpenDetails: (String) -> Unit,
+  onContactSupport: () -> Unit = {},
+  onExploreApp: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   val bookings by FameGoRepository.bookings.collectAsState()
   // Do not show or mutate an unrelated booking when a notification contains a
   // stale ID.
   val booking = bookings.firstOrNull { it.id == bookingId }
+  // Free cancel lives for 10 minutes after booking. Inside it the client can
+  // cancel alone; after it, no refund — support only.
+  var showHelplineDialog by remember { mutableStateOf(false) }
+  fun requestCancel() {
+    if (FameGoRepository.canCancelFree(booking?.id ?: bookingId)) {
+      FameGoRepository.cancelBooking(booking?.id ?: bookingId)
+      onCancelSearch()
+    } else {
+      showHelplineDialog = true
+    }
+  }
 
   val isConfirmed = booking?.status == BookingStatus.CONFIRMED || (booking?.assignedCrew?.isNotEmpty() == true)
 
@@ -126,10 +140,7 @@ fun SearchingCrewScreen(
       ) {
         if (!isConfirmed) {
           IconButton(
-            onClick = {
-              FameGoRepository.cancelBooking(booking?.id ?: bookingId)
-              onCancelSearch()
-            },
+            onClick = { requestCancel() },
             modifier = Modifier.size(36.dp)
           ) {
             Icon(
@@ -142,10 +153,7 @@ fun SearchingCrewScreen(
             text = "Cancel",
             color = FameGoTextMuted,
             fontSize = 13.sp,
-            modifier = Modifier.clickable {
-              FameGoRepository.cancelBooking(booking?.id ?: bookingId)
-              onCancelSearch()
-            }
+            modifier = Modifier.clickable { requestCancel() }
           )
         } else {
           Spacer(modifier = Modifier.size(36.dp))
@@ -213,6 +221,25 @@ fun SearchingCrewScreen(
               color = FameGoTextMuted,
               fontSize = 12.sp,
               modifier = Modifier.padding(top = 4.dp)
+            )
+
+            Text(
+              text = "No payment yet — you pay only after a crew accepts.",
+              color = FameGoGold,
+              fontSize = 12.sp,
+              fontWeight = FontWeight.SemiBold,
+              modifier = Modifier.padding(top = 6.dp)
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Find in background: the search keeps running, the user is free
+            // to explore the app. A banner + notification bring them back.
+            com.example.ui.components.FameGoOutlinedButton(
+              text = "Explore app meanwhile",
+              onClick = onExploreApp,
+              modifier = Modifier.fillMaxWidth(),
+              testTag = "searching_explore_bg"
             )
 
             Spacer(modifier = Modifier.height(28.dp))
@@ -467,6 +494,36 @@ fun SearchingCrewScreen(
         )
         Spacer(modifier = Modifier.height(24.dp))
       }
+    }
+    // The 10-minute free window has passed: support only, no refund.
+    if (showHelplineDialog) {
+      androidx.compose.material3.AlertDialog(
+        onDismissRequest = { showHelplineDialog = false },
+        title = {
+          Text(
+            "Free cancellation ended",
+            color = FameGoWhite, fontWeight = FontWeight.Bold, fontSize = 18.sp
+          )
+        },
+        text = {
+          Text(
+            "Shoots cancel free only within 10 minutes of booking. After that there is no refund — talk to the Famebros helpline and we'll review your case.",
+            color = FameGoTextSecondary, fontSize = 14.sp
+          )
+        },
+        confirmButton = {
+          androidx.compose.material3.TextButton(
+            onClick = { showHelplineDialog = false; onContactSupport() }
+          ) { Text("Contact helpline", color = FameGoGold, fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = {
+          androidx.compose.material3.TextButton(onClick = { showHelplineDialog = false }) {
+            Text("Keep booking", color = FameGoTextSecondary)
+          }
+        },
+        containerColor = FameGoCard,
+        shape = RoundedCornerShape(20.dp)
+      )
     }
   }
 }

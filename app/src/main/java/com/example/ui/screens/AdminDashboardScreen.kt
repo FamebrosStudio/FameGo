@@ -55,6 +55,7 @@ import com.example.ui.theme.FameGoAccentCyan
 import com.example.ui.theme.FameGoBg
 import com.example.ui.theme.FameGoBorderSubtle
 import com.example.ui.theme.FameGoCard
+import com.example.ui.theme.FameGoBorder
 import com.example.ui.theme.FameGoCardElevated
 import com.example.ui.theme.FameGoGold
 import com.example.ui.theme.FameGoGoldContainer
@@ -294,7 +295,7 @@ fun AdminDashboardScreen(
                     Text(
                       text = when (shoot.status) {
                         BookingStatus.IN_PROGRESS -> "Shoot in progress"
-                        BookingStatus.CONFIRMED -> "Crew on the way"
+                        BookingStatus.CONFIRMED -> "Crew confirmed"
                         BookingStatus.COMPLETED -> "Wrap completed"
                         else -> "Confirmed"
                       },
@@ -555,7 +556,7 @@ fun AdminPeopleScreen(
       if (pendingApplications.isEmpty()) {
         SoftCard {
           Text(
-            text = "No applications under review. New crew forms appear here instantly.",
+            text = "No applications under review. New crew forms show up here.",
             color = FameGoTextMuted,
             fontSize = 13.sp,
             modifier = Modifier.padding(16.dp)
@@ -585,10 +586,12 @@ fun AdminPeopleScreen(
 @Composable
 fun AdminProfileScreen(
   onLogout: () -> Unit,
+  onEditProfile: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   val currentUser by FameGoRepository.currentUser.collectAsState()
   val scrollState = rememberScrollState()
+  var showAdminRules by remember { mutableStateOf(false) }
 
   Box(
     modifier = modifier
@@ -652,9 +655,47 @@ fun AdminProfileScreen(
 
       Spacer(modifier = Modifier.height(20.dp))
 
-      com.example.ui.components.CreditsCard()
+      Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = FameGoCard,
+        border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorder),
+        modifier = Modifier
+          .fillMaxWidth()
+          .clickable { showAdminRules = true }
+          .testTag("admin_rules_button")
+      ) {
+        Box(modifier = Modifier.padding(vertical = 15.dp), contentAlignment = Alignment.Center) {
+          Text(
+            text = "House rules",
+            color = FameGoTextSecondary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold
+          )
+        }
+      }
 
-      Spacer(modifier = Modifier.height(20.dp))
+      Spacer(modifier = Modifier.height(12.dp))
+
+      Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = FameGoCard,
+        border = androidx.compose.foundation.BorderStroke(1.dp, FameGoGold.copy(alpha = 0.5f)),
+        modifier = Modifier
+          .fillMaxWidth()
+          .clickable { onEditProfile() }
+          .testTag("admin_edit_profile_button")
+      ) {
+        Box(modifier = Modifier.padding(vertical = 15.dp), contentAlignment = Alignment.Center) {
+          Text(
+            text = "Edit profile",
+            color = FameGoGold,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold
+          )
+        }
+      }
+
+      Spacer(modifier = Modifier.height(12.dp))
 
       Surface(
         shape = RoundedCornerShape(16.dp),
@@ -676,6 +717,10 @@ fun AdminProfileScreen(
       }
 
       Spacer(modifier = Modifier.height(110.dp))
+    }
+
+    if (showAdminRules) {
+      com.example.ui.components.HouseRulesDialog(onDismiss = { showAdminRules = false })
     }
   }
 }

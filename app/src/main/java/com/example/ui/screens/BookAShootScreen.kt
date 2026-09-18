@@ -73,6 +73,7 @@ import com.example.ui.components.FlowPillState
 import com.example.ui.components.FameGoOutlinedButton
 import com.example.ui.components.AddressSuggestList
 import com.example.ui.components.LocalityChips
+import com.example.ui.components.SavedLocationChips
 import com.example.ui.components.MapPreviewCard
 import com.example.ui.components.FameGoRadialTimePickerDialog
 import com.example.ui.components.RoleCounter
@@ -110,7 +111,7 @@ private fun isCallTimeValid(
 fun BookAShootScreen(
   plan: ShootPlan,
   preselectedCategory: ShootCategory? = null,
-  onBookingReadyForPayment: (Booking) -> Unit,
+  onBookingReadyForSearch: (Booking) -> Unit,
   onCancel: () -> Unit,
   modifier: Modifier = Modifier
 ) {
@@ -403,7 +404,7 @@ fun BookAShootScreen(
                   priceRupees = activePlan.priceRupees,
                   status = BookingStatus.SEARCHING_CREW
                 )
-                onBookingReadyForPayment(newBooking)
+                onBookingReadyForSearch(newBooking)
               },
               modifier = Modifier.weight(1.6f),
               testTag = "wizard_find_crew_button"
@@ -675,7 +676,7 @@ private fun PlanPickerDialog(
           fontWeight = FontWeight.Bold
         )
         Text(
-          text = "Price and duration update instantly",
+          text = "Price changes with the plan you pick",
           color = FameGoTextMuted,
           fontSize = 12.sp,
           modifier = Modifier.padding(top = 2.dp, bottom = 14.dp)
@@ -857,23 +858,18 @@ private fun StepWhere(
     Spacer(modifier = Modifier.height(24.dp))
 
     // MapTiler address options — one tap fills the full address below notes.
+    // NOTE: no auto-recenter while typing (the old onResults jump yanked the
+    // map on every keystroke and fought user pans). The map moves only on an
+    // explicit pick: suggestion tap, locality chip, or map "Use this spot".
     AddressSuggestList(
       query = address,
       onPick = ::applyPlace,
-      onResults = { list ->
-        list.firstOrNull { it.latitude != null && it.longitude != null }?.let { first ->
-          mapLng = first.longitude!!
-          mapLat = first.latitude!!
-          mapZoom = 13
-          mapLabel = first.short.ifBlank { "Top match" }
-        }
-      },
       modifier = Modifier.fillMaxWidth()
     )
 
     Spacer(modifier = Modifier.height(14.dp))
 
-    // Always-visible map: real MapTiler tiles when allowed, styled art otherwise.
+    // Movable map: pan/zoom, tap to drop a pin, "Use this spot" fills the address.
     MapPreviewCard(
       centerLng = mapLng,
       centerLat = mapLat,
@@ -890,10 +886,20 @@ private fun StepWhere(
       modifier = Modifier.fillMaxWidth()
     )
 
+    Spacer(modifier = Modifier.height(14.dp))
+
+    SavedLocationChips(
+      onPick = { saved ->
+        onVenueNameChange(saved.venueName)
+        onAddressChange(saved.address)
+      },
+      modifier = Modifier.fillMaxWidth()
+    )
+
     Spacer(modifier = Modifier.height(12.dp))
 
     Text(
-      text = "Type the street above and pick the exact spot — or enter the venue and full address manually. Saved locations will appear here once connected.",
+      text = "Type the street above and pick the exact spot — or enter the venue and full address manually. Past shoot spots are remembered above for one-tap refill.",
       color = FameGoTextMuted,
       fontSize = 12.sp,
       lineHeight = 17.sp

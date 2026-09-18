@@ -29,6 +29,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -102,10 +104,13 @@ import com.example.ui.screens.AdminPeopleScreen
 import com.example.ui.screens.AdminProfileScreen
 import com.example.ui.screens.AdminSupportScreen
 import com.example.ui.screens.AuthScreen
+import com.example.ui.screens.SetNewPasswordScreen
+import com.example.ui.screens.EditProfileScreen
 import com.example.ui.screens.BookAShootScreen
 import com.example.ui.screens.BookShootLaunchpadScreen
 import com.example.ui.screens.ShootPlanScreen
 import com.example.ui.screens.PaymentDemoScreen
+import com.example.ui.screens.PaymentConfirmScreen
 import com.example.ui.screens.PaymentSuccessScreen
 import com.example.ui.screens.BookingChatScreen
 import com.example.ui.screens.BookingDetailsScreen
@@ -141,10 +146,13 @@ sealed class Screen {
   object Splash : Screen()
   object Welcome : Screen()
   data class Auth(val startInSignUp: Boolean = false) : Screen()
+  data class SetNewPassword(val email: String = "") : Screen()
+  data class EditProfile(val returnTo: Screen = Main("profile")) : Screen()
   data class Main(val tab: String = "home") : Screen()
   data class ShootPlans(val preselectedCategory: ShootCategory? = null) : Screen()
   data class BookAShoot(val plan: ShootPlan, val preselectedCategory: ShootCategory? = null) : Screen()
   data class Payment(val booking: Booking) : Screen()
+  data class PaymentConfirm(val bookingId: String, val amountRupees: Int, val planTitle: String) : Screen()
   data class PaymentSuccess(val bookingId: String, val amountRupees: Int, val planTitle: String) : Screen()
   data class SearchingCrew(val bookingId: String) : Screen()
   data class BookingDetails(val bookingId: String, val returnTab: String = "bookings") : Screen()
@@ -247,11 +255,15 @@ fun FameGoApp() {
   var screenHistory by remember { mutableStateOf(listOf<Screen>()) }
   val currentUser by FameGoRepository.currentUser.collectAsState()
   val notifications by FameGoRepository.notifications.collectAsState()
+  val bookings by FameGoRepository.bookings.collectAsState()
   val incomingAlert by FameGoRepository.incomingAlert.collectAsState()
   val pendingLink by AuthDeepLinkInbox.link.collectAsState()
   val pendingBookingAlert by BookingAlertInbox.bookingId.collectAsState()
   var linkStatus by remember { mutableStateOf<String?>(null) }
   var showSignOutDialog by remember { mutableStateOf(false) }
+  // One-time strict warning: every account sees the house rules once, right
+  // after the first sign-in, and must accept before using the app.
+  var showRulesGate by remember { mutableStateOf(false) }
   var lastLocalAlertId by remember { mutableStateOf<String?>(null) }
   val isCrewAvailable by FameGoRepository.isCrewAvailable.collectAsState()
   // Brief inter-page shimmer on tab switches only: visible long enough to
@@ -260,6 +272,16 @@ fun FameGoApp() {
   val appScope = rememberCoroutineScope()
   val appContext = LocalContext.current
   val appHaptic = LocalHapticFeedback.current
+  // Rules gate check needs appContext above: first signed-in session per
+  // device must accept the house rules once.
+  LaunchedEffect(currentUser.id, appContext) {
+    if (currentUser.id.isNotBlank()) {
+      val prefs = appContext.getSharedPreferences("famego_rules", Context.MODE_PRIVATE)
+      if (!prefs.getBoolean("accepted_v1", false)) showRulesGate = true
+    } else {
+      showRulesGate = false
+    }
+  }
   // Online-only app: track connectivity live; the No-Internet screen takes
   // over the moment the network drops.
   var isOnline by remember { mutableStateOf(true) }
@@ -268,7 +290,16 @@ fun FameGoApp() {
     val manager = appContext.getSystemService(Context.CONNECTIVITY_SERVICE)
       as? android.net.ConnectivityManager
     val callback = object : android.net.ConnectivityManager.NetworkCallback() {
-      override fun onAvailable(network: android.net.Network) { isOnline = true }
+      override fun onAvailable(network: android.net.Network) {
+        val wasOffline = !isOnline
+        isOnline = true
+        // The realtime socket dies offline and (without a close frame) may
+        // never fire onFailure — force a rejoin so chat/bell go live again.
+        if (wasOffline) {
+          runCatching { com.example.data.SupabaseRealtimeClient.reconnectNow() }
+          runCatching { FameGoRepository.onPushEvent() }
+        }
+      }
       override fun onLost(network: android.net.Network) {
         isOnline = com.example.data.SupabaseNetwork.isDeviceOnline(appContext)
       }
@@ -345,6 +376,8 @@ fun FameGoApp() {
     }
     linkStatus = "Confirming your email…"
     val result = SupabaseAuthClient.confirmEmailLink(query, fragment)
+    // Password-reset links ride the same deep link with type=recovery.
+    val isRecovery = query["type"] == "recovery" || fragment["type"] == "recovery"
     result.onSuccess { auth ->
       // Pull profile so role/name resolve correctly, then drop the user home.
       val raw = SupabaseRestClient.get("profiles?select=*&id=eq.${auth.id}").getOrNull()
@@ -363,16 +396,22 @@ fun FameGoApp() {
           companyName = profile?.optString("company_name").orEmpty(),
           role = role,
           avatarInitials = displayName.split(" ").filter { it.isNotBlank() }.take(2)
-            .joinToString("") { it.first().uppercase() }.ifEmpty { "FG" }
+            .joinToString("") { it.first().uppercase() }.ifEmpty { "FG" },
+          dob = profile?.optString("dob").orEmpty()
         )
       )
       linkStatus = null
       screenHistory = emptyList()
-      currentScreen = Screen.Main("home")
-      linkStatus = "Email verified — welcome to FameGo. You can continue booking."
-      appScope.launch {
-        kotlinx.coroutines.delay(5000)
-        linkStatus = null
+      if (isRecovery) {
+        // Recovery session is live: land on the new-password form, not home.
+        currentScreen = Screen.SetNewPassword(auth.email)
+      } else {
+        currentScreen = Screen.Main("home")
+        linkStatus = "Email verified — welcome to FameGo. You can continue booking."
+        appScope.launch {
+          kotlinx.coroutines.delay(5000)
+          linkStatus = null
+        }
       }
     }.onFailure { e ->
       linkStatus = e.message ?: "That link didn't work. Please sign in again."
@@ -432,9 +471,19 @@ fun FameGoApp() {
     when (val current = currentScreen) {
       is Screen.Welcome -> { /* exit or stay */ }
       is Screen.Auth -> currentScreen = Screen.Welcome
+      is Screen.SetNewPassword -> navigateTo(Screen.Main("home"))
       is Screen.ShootPlans -> goBack(Screen.Main("home"))
       is Screen.BookAShoot -> goBack(Screen.ShootPlans(current.preselectedCategory))
       is Screen.Payment -> goBack(Screen.BookAShoot(current.booking.plan, current.booking.category))
+      // System back inside the 5s window must NOT cancel a paid booking:
+      // it advances to the receipt, same as letting the clock run out.
+      is Screen.PaymentConfirm -> navigateTo(
+        Screen.PaymentSuccess(
+          bookingId = current.bookingId,
+          amountRupees = current.amountRupees,
+          planTitle = current.planTitle
+        )
+      )
       is Screen.PaymentSuccess -> goBack(Screen.Main("home"))
       is Screen.SearchingCrew -> goBack(Screen.Main("home"))
       is Screen.BookingDetails -> goBack(Screen.Main(current.returnTab))
@@ -446,6 +495,7 @@ fun FameGoApp() {
       }
       is Screen.CustomerSupport -> goBack(current.returnTo)
       is Screen.AdminSupport -> goBack(current.returnTo)
+      is Screen.EditProfile -> goBack(current.returnTo)
       is Screen.Main -> { /* handled by tab */ }
       Screen.Splash -> {}
     }
@@ -483,6 +533,13 @@ fun FameGoApp() {
               navigateTo(Screen.Main(tab = "home"))
             },
             onBack = { navigateTo(Screen.Welcome) },
+          )
+        }
+
+        is Screen.SetNewPassword -> {
+          SetNewPasswordScreen(
+            onDone = { navigateTo(Screen.Main("home")) },
+            onBack = { goBack(Screen.Main("home")) }
           )
         }
 
@@ -574,7 +631,8 @@ fun FameGoApp() {
                   "profile" -> ClientProfileScreen(
                     onOpenSupport = { navigateTo(Screen.CustomerSupport(Screen.Main("profile"))) },
                     onOpenBookings = { navigateTo(Screen.Main("bookings")) },
-                    onLogout = { showSignOutDialog = true }
+                    onLogout = { showSignOutDialog = true },
+                    onEditProfile = { navigateTo(Screen.EditProfile(Screen.Main("profile"))) }
                   )
                   else -> ClientHomeScreen(
                     onBookAShoot = { cat -> navigateTo(Screen.ShootPlans(cat)) },
@@ -592,7 +650,10 @@ fun FameGoApp() {
                       onViewRequestDetail = { id -> navigateTo(Screen.CrewRequestDetail(id)) }
                     )
                     "bookings" -> CrewJobsScreen(onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "bookings")) })
-                    "profile" -> CrewProfileScreen(onLogout = { showSignOutDialog = true })
+                    "profile" -> CrewProfileScreen(
+                      onLogout = { showSignOutDialog = true },
+                      onEditProfile = { navigateTo(Screen.EditProfile(Screen.Main("profile"))) }
+                    )
                     "notifications" -> NotificationsScreen(
                       onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "notifications")) }
                     )
@@ -613,10 +674,66 @@ fun FameGoApp() {
                     "notifications" -> NotificationsScreen(
                       onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "notifications")) }
                     )
-                    "profile" -> AdminProfileScreen(onLogout = { showSignOutDialog = true })
+                    "profile" -> AdminProfileScreen(
+                      onLogout = { showSignOutDialog = true },
+                      onEditProfile = { navigateTo(Screen.EditProfile(Screen.Main("profile"))) }
+                    )
                     else -> AdminDashboardScreen(
                       onOpenBooking = { id -> navigateTo(Screen.BookingDetails(id, "dashboard")) },
                       onOpenSupport = { navigateTo(Screen.CustomerSupport(Screen.Main("dashboard"))) }
+                    )
+                  }
+                }
+              }
+
+              // Background crew search: while a shoot is still finding crew,
+              // a slim banner floats above the tab bar so the user can
+              // explore the app and jump back in one tap.
+              val bgSearchId by FameGoRepository.activeSearchingBookingId.collectAsState()
+              val bgSearch = bookings.firstOrNull {
+                it.id == bgSearchId && it.status == BookingStatus.SEARCHING_CREW
+              }
+              if (currentUser.role == Role.CLIENT && bgSearch != null) {
+                Surface(
+                  shape = RoundedCornerShape(14.dp),
+                  color = Color(0xFF1E1A10).copy(alpha = 0.97f),
+                  border = androidx.compose.foundation.BorderStroke(1.dp, FameGoGold.copy(alpha = 0.55f)),
+                  shadowElevation = 8.dp,
+                  modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 112.dp, start = 20.dp, end = 20.dp)
+                    .fillMaxWidth()
+                    .clickable { navigateTo(Screen.SearchingCrew(bgSearch.id)) }
+                    .testTag("bg_search_banner")
+                ) {
+                  Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                  ) {
+                    com.example.ui.components.LiveOrb(
+                      color = FameGoGold,
+                      size = 8.dp
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                      Text(
+                        text = "Finding your crew…",
+                        color = FameGoWhite,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                      )
+                      Text(
+                        text = bgSearch.shootTitle,
+                        color = FameGoTextSecondary,
+                        fontSize = 11.sp,
+                        maxLines = 1
+                      )
+                    }
+                    Text(
+                      text = "View",
+                      color = FameGoGold,
+                      fontSize = 13.sp,
+                      fontWeight = FontWeight.Bold
                     )
                   }
                 }
@@ -665,7 +782,20 @@ fun FameGoApp() {
           BookAShootScreen(
             plan = screen.plan,
             preselectedCategory = screen.preselectedCategory,
-            onBookingReadyForPayment = { booking -> navigateTo(Screen.Payment(booking)) },
+            onBookingReadyForSearch = { booking ->
+              // Crew-first: create UNPAID, find crew, pay only after accept.
+              appScope.launch {
+                FameGoRepository.createUnpaidBooking(booking)
+                  .onSuccess { saved -> navigateTo(Screen.SearchingCrew(saved.id)) }
+                  .onFailure {
+                    linkStatus = FameGoRepository.friendlyMessage(it)
+                    appScope.launch {
+                      kotlinx.coroutines.delay(5000)
+                      linkStatus = null
+                    }
+                  }
+              }
+            },
             onCancel = { goBack(Screen.ShootPlans(screen.preselectedCategory)) }
           )
           }
@@ -679,7 +809,7 @@ fun FameGoApp() {
             booking = screen.booking,
             onPaid = { paid ->
               navigateTo(
-                Screen.PaymentSuccess(
+                Screen.PaymentConfirm(
                   bookingId = paid.id,
                   amountRupees = paid.priceRupees,
                   planTitle = paid.plan.title
@@ -691,12 +821,28 @@ fun FameGoApp() {
           }
         }
 
+        is Screen.PaymentConfirm -> {
+          PaymentConfirmScreen(
+            bookingId = screen.bookingId,
+            onExpired = {
+              navigateTo(
+                Screen.PaymentSuccess(
+                  bookingId = screen.bookingId,
+                  amountRupees = screen.amountRupees,
+                  planTitle = screen.planTitle
+                )
+              )
+            },
+            onCancelled = { navigateTo(Screen.Main("home")) }
+          )
+        }
+
         is Screen.PaymentSuccess -> {
           PaymentSuccessScreen(
             bookingId = screen.bookingId,
             amountRupees = screen.amountRupees,
             planTitle = screen.planTitle,
-            onContinue = { navigateTo(Screen.SearchingCrew(screen.bookingId)) }
+            onContinue = { navigateTo(Screen.BookingDetails(screen.bookingId, "home")) }
           )
         }
 
@@ -706,7 +852,9 @@ fun FameGoApp() {
             onConfirmed = { navigateTo(Screen.BookingDetails(screen.bookingId, "home")) },
             onCancelSearch = { goBack(Screen.Main("home")) },
             onOpenChat = { bId -> navigateTo(Screen.BookingChat(bId, Screen.SearchingCrew(screen.bookingId))) },
-            onOpenDetails = { bId -> navigateTo(Screen.BookingDetails(bId, "home")) }
+            onOpenDetails = { bId -> navigateTo(Screen.BookingDetails(bId, "home")) },
+            onContactSupport = { navigateTo(Screen.CustomerSupport(Screen.SearchingCrew(screen.bookingId))) },
+            onExploreApp = { navigateTo(Screen.Main("home")) }
           )
         }
 
@@ -717,7 +865,8 @@ fun FameGoApp() {
             onOpenChat = { bId -> navigateTo(Screen.BookingChat(bId, Screen.BookingDetails(screen.bookingId, screen.returnTab))) },
             onRebook = { cat -> navigateTo(Screen.ShootPlans(cat)) },
             onBookSameCrew = { booking -> navigateTo(Screen.Payment(booking)) },
-            onContactSupport = { navigateTo(Screen.CustomerSupport(Screen.BookingDetails(screen.bookingId, screen.returnTab))) }
+            onContactSupport = { navigateTo(Screen.CustomerSupport(Screen.BookingDetails(screen.bookingId, screen.returnTab))) },
+            onPayBooking = { booking -> navigateTo(Screen.Payment(booking)) }
           )
         }
 
@@ -785,6 +934,16 @@ fun FameGoApp() {
             onBack = { goBack(screen.returnTo) }
           )
         }
+
+        is Screen.EditProfile -> {
+          EditProfileScreen(
+            onBack = { goBack(screen.returnTo) },
+            onDeleted = {
+              screenHistory = emptyList()
+              currentScreen = Screen.Welcome
+            }
+          )
+        }
       }
     }
     // Inter-page shimmer: mini snake, pass-through touches, auto-gone.
@@ -814,9 +973,52 @@ fun FameGoApp() {
         }
       )
     }
-    // Sign-out confirmation — never log out on a stray tap.
-    if (showSignOutDialog) {
+    // First-run gate: strict warning shown once per device. Blocking — no
+    // dismiss without accepting, so every user really reads it.
+    if (showRulesGate) {
       AlertDialog(
+        onDismissRequest = { },
+        title = {
+          Text(
+            "Read this first. It's strict.",
+            color = FameGoWhite, fontWeight = FontWeight.Bold, fontSize = 19.sp
+          )
+        },
+        text = {
+          Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            Text(
+              "FameGo runs on a few hard rules. Breaking them can cost you the booking or the account.",
+              color = FameGoTextSecondary, fontSize = 13.sp
+            )
+            com.example.ui.components.FameGoHouseRules.forEach { (title, body) ->
+              Text(
+                text = title,
+                color = FameGoGold, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 10.dp)
+              )
+              Text(
+                text = body,
+                color = FameGoTextSecondary, fontSize = 13.sp, lineHeight = 18.sp,
+                modifier = Modifier.padding(top = 2.dp)
+              )
+            }
+          }
+        },
+        confirmButton = {
+          TextButton(
+            onClick = {
+              appContext.getSharedPreferences("famego_rules", Context.MODE_PRIVATE)
+                .edit().putBoolean("accepted_v1", true).apply()
+              showRulesGate = false
+            }
+          ) { Text("I agree — let's go", color = FameGoGold, fontWeight = FontWeight.Bold) }
+        },
+        containerColor = FameGoCard,
+        shape = RoundedCornerShape(20.dp)
+      )
+    }
+    // Sign-out confirmation — never log out on a stray tap.
+    if (showSignOutDialog) {      AlertDialog(
         onDismissRequest = { showSignOutDialog = false },
         title = { Text("Sign out?", color = FameGoWhite, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
         text = {

@@ -41,8 +41,8 @@ class FameGoDispatchService : Service() {
 
     private const val POLL_INTERVAL_MS = 20_000L
     private const val OPEN_POOL_SELECT =
-      "bookings?select=id,booking_code,shoot_title,venue_name,shoot_date,shoot_time,plan_price_paise" +
-        "&status=eq.SEARCHING_CREW&payment_status=eq.PAID&order=created_at.desc&limit=25"
+      "bookings?select=id,booking_code,shoot_title,venue_name,shoot_date,shoot_time,plan_price_paise,payment_status" +
+        "&status=eq.SEARCHING_CREW&payment_status=in.(PENDING,PAID)&order=created_at.desc&limit=25"
 
     fun start(context: Context, crewUserId: String, crewName: String) {
       FameGoDispatchStore(context).setDispatch(crewUserId, crewName)
@@ -168,8 +168,9 @@ class FameGoDispatchService : Service() {
       val date = o.optString("shoot_date").ifBlank { "" }
       val time = FameGoTime.toDisplay(o.optString("shoot_time"))
       val price = (o.optInt("plan_price_paise", 0) / 100).coerceAtLeast(0)
+      val payNote = if (o.optString("payment_status") == "PENDING") "pay on accept" else "paid"
       val details = listOf(venue, listOf(date, time).filter { it.isNotBlank() }.joinToString(" • "))
-        .filter { it.isNotBlank() }.joinToString(" • ") + " • ₹${"%,d".format(price)}"
+        .filter { it.isNotBlank() }.joinToString(" • ") + " • ₹${"%,d".format(price)} • $payNote"
       FameGoPush.showIncomingShootRequest(
         context = this,
         bookingId = id,

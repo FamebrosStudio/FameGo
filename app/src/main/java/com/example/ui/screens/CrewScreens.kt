@@ -253,7 +253,7 @@ fun CrewEvolvingJobCard(
           Spacer(modifier = Modifier.width(8.dp))
           Text(
             text = when (booking.status) {
-              BookingStatus.CONFIRMED -> "Crew on the way"
+              BookingStatus.CONFIRMED -> "Crew confirmed"
               BookingStatus.IN_PROGRESS -> "Shoot in progress"
               BookingStatus.COMPLETED -> "Wrap completed"
               else -> "Confirmed"
@@ -731,6 +731,7 @@ private fun CrewJobRow(
 @Composable
 fun CrewProfileScreen(
   onLogout: () -> Unit = {},
+  onEditProfile: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
   val currentUser by FameGoRepository.currentUser.collectAsState()
@@ -751,6 +752,7 @@ fun CrewProfileScreen(
   val initials = displayName.split(" ").filter { it.isNotBlank() }.take(2)
     .joinToString("") { it.first().uppercase() }.ifEmpty { "CR" }
   val dispatchOn = com.example.data.FameGoDispatchStore(appContext).isDispatchOn()
+  var showCrewRules by remember { mutableStateOf(false) }
 
   Column(
     modifier = modifier
@@ -872,9 +874,37 @@ fun CrewProfileScreen(
 
     Spacer(modifier = Modifier.height(20.dp))
 
-    com.example.ui.components.CreditsCard()
+    Surface(
+      shape = RoundedCornerShape(16.dp),
+      color = FameGoCard,
+      border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorder),
+      modifier = Modifier
+        .fillMaxWidth()
+        .clickable { showCrewRules = true }
+        .testTag("crew_rules_button")
+    ) {
+      Box(modifier = Modifier.padding(vertical = 15.dp), contentAlignment = Alignment.Center) {
+        Text(text = "House rules", color = FameGoTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+      }
+    }
 
-    Spacer(modifier = Modifier.height(20.dp))
+    Spacer(modifier = Modifier.height(12.dp))
+
+    Surface(
+      shape = RoundedCornerShape(16.dp),
+      color = FameGoCard,
+      border = androidx.compose.foundation.BorderStroke(1.dp, FameGoBorder),
+      modifier = Modifier
+        .fillMaxWidth()
+        .clickable { onEditProfile() }
+        .testTag("crew_edit_profile_button")
+    ) {
+      Box(modifier = Modifier.padding(vertical = 15.dp), contentAlignment = Alignment.Center) {
+        Text(text = "Edit profile", color = FameGoGold, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+      }
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
 
     Surface(
       shape = RoundedCornerShape(16.dp),
@@ -891,6 +921,10 @@ fun CrewProfileScreen(
     }
 
     Spacer(modifier = Modifier.height(110.dp))
+  }
+
+  if (showCrewRules) {
+    com.example.ui.components.HouseRulesDialog(onDismiss = { showCrewRules = false })
   }
 }
 

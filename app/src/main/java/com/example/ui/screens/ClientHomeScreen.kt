@@ -195,7 +195,7 @@ fun ClientHomeScreen(
           FameGoLivingHeroCard(
             state = CharacterState.SHOOT_COMPLETED,
             title = recentBooking.shootTitle,
-            subtitle = "Shoot wrapped • Footage delivered to media vault",
+            subtitle = "Shoot done • Rate your crew",
             primaryActionLabel = "Book Again",
             onPrimaryAction = { onBookAShoot(recentBooking.category) },
             secondaryActionLabel = "View Summary",
@@ -213,7 +213,7 @@ fun ClientHomeScreen(
           FameGoLivingHeroCard(
             state = CharacterState.NOTHING_BOOKED,
             title = "Ready for your next shoot",
-            subtitle = "Verified cinema and photo crew with guaranteed equipment ready in minutes.",
+            subtitle = "Checked crew with their own gear. You pay only after someone accepts.",
             primaryActionLabel = "Book a Shoot",
             onPrimaryAction = { onBookAShoot(null) },
             modifier = Modifier

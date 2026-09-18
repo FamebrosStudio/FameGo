@@ -35,7 +35,8 @@ object SupabaseAuthClient {
     name: String,
     phone: String,
     role: String,
-    companyName: String
+    companyName: String,
+    dobIso: String = ""
   ): Result<SupabaseAuthResult> = withContext(Dispatchers.IO) {
     if (!SupabaseConfig.isConfigured) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
     // redirect_to MUST be a URL query param (GoTrue rejects it in the body
@@ -56,6 +57,7 @@ object SupabaseAuthClient {
           put("phone", phone)
           put("role", role)
           put("company_name", companyName)
+          if (dobIso.isNotBlank()) put("dob", dobIso)
         })
       }
     }.toString().toRequestBody(jsonType)
@@ -95,6 +97,78 @@ object SupabaseAuthClient {
           accessToken = accessToken,
           refreshToken = root.optString("refresh_token")
         ).also { SupabaseSession.save(it.accessToken, it.refreshToken) }
+      }
+    }
+  }
+
+  /**
+   * Starts "forgot password": Supabase mails a reset link that opens the app
+   * (redirect_to famego://auth/callback, allowlisted) for a fresh password.
+   */
+  suspend fun sendPasswordReset(email: String): Result<Unit> = withContext(Dispatchers.IO) {
+    if (!SupabaseConfig.isConfigured) {
+      return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
+    }
+    val endpoint = "${SupabaseConfig.baseUrl}/auth/v1/recover" +
+      "?redirect_to=${java.net.URLEncoder.encode(EMAIL_REDIRECT_URI, "UTF-8")}"
+    val body = JSONObject().apply { put("email", email.trim()) }
+      .toString().toRequestBody(jsonType)
+    val request = Request.Builder()
+      .url(endpoint)
+      .header("apikey", SupabaseConfig.publishableKey)
+      .header("Authorization", "Bearer ${SupabaseConfig.publishableKey}")
+      .header("Content-Type", "application/json")
+      .post(body).build()
+    runCatching {
+      http.newCall(request).execute().use { response ->
+        val raw = response.body?.string().orEmpty()
+        if (!response.isSuccessful) error(raw.take(240).ifBlank { "Reset failed (${response.code})" })
+      }
+    }
+  }
+
+  /**
+   * Sets a new password for the current recovery session (user tapped the
+   * reset link and the app holds a fresh access token).
+   */
+  suspend fun updatePassword(newPassword: String): Result<Unit> = withContext(Dispatchers.IO) {
+    val token = SupabaseSession.accessToken
+    if (!SupabaseConfig.isConfigured || token.isNullOrBlank()) {
+      return@withContext Result.failure(IllegalStateException("That reset link expired. Request a fresh one."))
+    }
+    val body = JSONObject().apply { put("password", newPassword) }
+      .toString().toRequestBody(jsonType)
+    val request = Request.Builder()
+      .url("${SupabaseConfig.baseUrl}/auth/v1/user")
+      .header("apikey", SupabaseConfig.publishableKey)
+      .header("Authorization", "Bearer $token")
+      .header("Content-Type", "application/json")
+      .put(body).build()
+    runCatching {
+      http.newCall(request).execute().use { response ->
+        val raw = response.body?.string().orEmpty()
+        if (!response.isSuccessful) error(raw.take(240).ifBlank { "Update failed (${response.code})" })
+      }
+    }
+  }
+  suspend fun resendConfirmation(email: String): Result<Unit> = withContext(Dispatchers.IO) {
+    if (!SupabaseConfig.isConfigured) {
+      return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
+    }
+    val body = JSONObject().apply {
+      put("type", "signup")
+      put("email", email.trim())
+    }.toString().toRequestBody(jsonType)
+    val request = Request.Builder()
+      .url("${SupabaseConfig.baseUrl}/auth/v1/resend")
+      .header("apikey", SupabaseConfig.publishableKey)
+      .header("Authorization", "Bearer ${SupabaseConfig.publishableKey}")
+      .header("Content-Type", "application/json")
+      .post(body).build()
+    runCatching {
+      http.newCall(request).execute().use { response ->
+        val raw = response.body?.string().orEmpty()
+        if (!response.isSuccessful) error(raw.take(240).ifBlank { "Resend failed (${response.code})" })
       }
     }
   }

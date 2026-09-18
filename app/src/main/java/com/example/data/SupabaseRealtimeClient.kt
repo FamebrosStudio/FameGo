@@ -28,6 +28,41 @@ object SupabaseRealtimeClient {
       if (socket == null && channels.isNotEmpty()) connectLocked()
     }
   }
+  private val heartbeatRunnable = object : Runnable {
+    override fun run() {
+      val ws = synchronized(lock) { socket } ?: return
+      // Supabase drops idle sockets (~60s). A heartbeat keeps the single
+      // multiplexed socket alive without rejoining every channel.
+      runCatching {
+        ws.send(
+          JSONObject().apply {
+            put("event", "heartbeat")
+            put("topic", "phoenix")
+            put("ref", refCounter.getAndIncrement().toString())
+            put("payload", JSONObject())
+          }.toString()
+        )
+      }
+      mainHandler.removeCallbacks(this)
+      mainHandler.postDelayed(this, 25_000)
+    }
+  }
+
+  /** Force a reconnect (network regain, fresh token). Safe to call anytime. */
+  fun reconnectNow() {
+    synchronized(lock) {
+      runCatching { socket?.close(1000, "reconnect") }
+      socket = null
+      mainHandler.removeCallbacks(reconnectRunnable)
+      mainHandler.removeCallbacks(heartbeatRunnable)
+      if (channels.isNotEmpty()) connectLocked()
+    }
+  }
+
+  private fun scheduleReconnect() {
+    mainHandler.removeCallbacks(reconnectRunnable)
+    mainHandler.postDelayed(reconnectRunnable, 3000)
+  }
 
   fun subscribeToChat(bookingId: String, onChanged: () -> Unit) {
     if (!SupabaseConfig.isConfigured || SupabaseSession.accessToken.isNullOrBlank() || bookingId.isBlank()) return
@@ -89,9 +124,27 @@ object SupabaseRealtimeClient {
   }
 
   private fun removeChannel(key: String) {
-    channels.remove(key)
+    val removed = channels.remove(key)
     synchronized(lock) {
+      // Tell the server to stop pushing this topic; otherwise it keeps
+      // sending events for a chat the user already left.
+      if (removed != null) {
+        socket?.let { ws ->
+          runCatching {
+            ws.send(
+              JSONObject().apply {
+                put("event", "phx_leave")
+                put("topic", removed.topic)
+                put("ref", refCounter.getAndIncrement().toString())
+                put("payload", JSONObject())
+              }.toString()
+            )
+          }
+        }
+      }
       if (channels.isEmpty()) {
+        mainHandler.removeCallbacks(heartbeatRunnable)
+        mainHandler.removeCallbacks(reconnectRunnable)
         socket?.close(1000, "idle")
         socket = null
       }
@@ -106,26 +159,62 @@ object SupabaseRealtimeClient {
       override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
         // (Re)join every channel on the single socket.
         channels.values.forEach { sendJoin(webSocket, it.topic, it.changes) }
+        mainHandler.removeCallbacks(heartbeatRunnable)
+        mainHandler.postDelayed(heartbeatRunnable, 25_000)
       }
 
       override fun onMessage(webSocket: WebSocket, text: String) {
         runCatching {
           val root = JSONObject(text)
-          if (root.optString("event") != "postgres_changes") return
+          val event = root.optString("event")
+          // Join results / errors: a rejected join (expired JWT, RLS) needs
+          // a rejoin with a fresh token, not silence.
+          if (event == "phx_reply") {
+            val status = root.optJSONObject("payload")?.optString("status")
+            if (status != null && status != "ok") {
+              synchronized(lock) {
+                if (socket === webSocket) socket = null
+              }
+              scheduleReconnect()
+            }
+            return
+          }
+          if (event != "postgres_changes") return
           val topic = root.optString("topic")
-          val targets = if (topic.isBlank()) channels.values
-          else channels.values.filter { it.topic == topic }.ifEmpty { channels.values }
-          targets.forEach { runCatching { it.onChanged() } }
+          if (topic.isBlank()) return
+          // Exact topic match only. The old ifEmpty-fallback fanned one
+          // booking's event out to every chat + bell + list (refresh storm).
+          channels.values.firstOrNull { it.topic == topic }?.let { target ->
+            runCatching { target.onChanged() }
+          }
         }
       }
 
-      override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) {
+      private fun dropAndReconnect(webSocket: WebSocket) {
         synchronized(lock) {
           if (socket === webSocket) socket = null
         }
+        mainHandler.removeCallbacks(heartbeatRunnable)
         // One delayed reconnect for all channels (network blips, sleep/wake).
-        mainHandler.removeCallbacks(reconnectRunnable)
-        mainHandler.postDelayed(reconnectRunnable, 3000)
+        scheduleReconnect()
+      }
+
+      override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) {
+        dropAndReconnect(webSocket)
+      }
+
+      // A clean server close does NOT call onFailure — without this the
+      // socket reference stays non-null but dead forever.
+      override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+        dropAndReconnect(webSocket)
+      }
+
+      override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+        synchronized(lock) {
+          if (socket === webSocket) socket = null
+        }
+        mainHandler.removeCallbacks(heartbeatRunnable)
+        scheduleReconnect()
       }
     })
   }
@@ -137,9 +226,13 @@ object SupabaseRealtimeClient {
       put("ref", refCounter.getAndIncrement().toString())
       put("payload", JSONObject().apply {
         put("config", JSONObject().apply {
-          put("private", false)
+          // private:true enforces RLS on the socket. The old false value
+          // broadcast every subscribed row to any authenticated client.
+          put("private", true)
           put("postgres_changes", changes)
         })
+        // Read the token fresh on every (re)join so a refreshed session
+        // heals an expired-token kick without an app restart.
         put("access_token", SupabaseSession.accessToken)
       })
     }
@@ -149,6 +242,7 @@ object SupabaseRealtimeClient {
   /** Call on logout so no socket keeps firing callbacks for the old session. */
   fun closeAll() {
     mainHandler.removeCallbacks(reconnectRunnable)
+    mainHandler.removeCallbacks(heartbeatRunnable)
     synchronized(lock) {
       socket?.close(1000, "logout")
       socket = null

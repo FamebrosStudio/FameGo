@@ -146,7 +146,7 @@ fun CustomerSupportScreen(
         SupportChannelCard(
           icon = Icons.Default.Phone,
           title = "Call support",
-          subtitle = "+91 98200 FAMEGO • Available 24/7",
+          subtitle = "+91 98200 FAMEGO",
           accentColor = FameGoGold,
           onClick = { activeChannelDialog = "phone" }
         )
@@ -373,16 +373,16 @@ fun CustomerSupportScreen(
           title = null,
           items = listOf(
             VengeanceFaqItem(
-              question = "What happens if a call time is delayed by weather?",
-              answer = "FameGo allows client-initiated standby hold up to 2 hours without additional charges. Simply notify via chat."
+              question = "What happens if call time is delayed by weather?",
+              answer = "Message the crew in chat and agree a new time. If the shoot can't happen, cancel free within 10 minutes of booking — after that, talk to support."
             ),
             VengeanceFaqItem(
-              question = "What gear is guaranteed on verified shoots?",
-              answer = "Every verified cinematographer brings a minimum 4K 10-bit cinema camera (FX3/A7SIII/R5C), prime lenses, and audio wireless transmitters."
+              question = "What gear does the crew bring?",
+              answer = "Each crew member lists their own kit on their profile, and the confirmed booking shows a gear snapshot. Check it before you pay."
             ),
             VengeanceFaqItem(
-              question = "How are shoot cancellations processed?",
-              answer = "Cancellations made 12 hours prior to call time receive 100% credit for future shoots. Emergency studio dispatch replaces crew immediately if unavailable."
+              question = "How do cancellations and refunds work?",
+              answer = "Cancel free within 10 minutes of booking. After that there is no refund — contact support and we'll review your case."
             )
           )
         )
@@ -411,9 +411,9 @@ fun CustomerSupportScreen(
         text = {
           Text(
             text = when (channel) {
-              "phone" -> "Calling FameGo Operations at +91 98200 FAMEGO (326346).\n\nDirect access to Mumbai & Delhi studio coordinators with 24/7 priority line for live on-set assistance."
-              "whatsapp" -> "WhatsApp direct channel connected.\n\nSend location pins, callsheet updates, parking passes, or gear replacement tickets instantly with 30-second average response time."
-              "concierge" -> "VIP Concierge service active for registered studios.\n\nAssisting with multi-camera live events, commercial rigs, RED/ARRI kit upgrades, and multi-day permits."
+              "phone" -> "Call us at +91 98200 FAMEGO (326346) for help during a live shoot."
+              "whatsapp" -> "Message us on WhatsApp with location pins, call-sheet changes, or gear issues."
+              "concierge" -> "For multi-camera events and multi-day shoots, write to us here and we'll plan it with you."
               else -> ""
             },
             color = FameGoTextSecondary,

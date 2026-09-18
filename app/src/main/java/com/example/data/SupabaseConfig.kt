@@ -64,6 +64,7 @@ object SupabaseSession {
       put("company_name", user.companyName)
       put("role", user.role.name)
       put("avatar_initials", user.avatarInitials)
+      put("dob", user.dob)
     }.toString()
     context?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)?.edit()
       ?.putString(PROFILE, json)?.apply()
@@ -82,7 +83,8 @@ object SupabaseSession {
       companyName = o.optString("company_name"),
       role = runCatching { com.example.model.Role.valueOf(o.optString("role")) }
         .getOrDefault(com.example.model.Role.CLIENT),
-      avatarInitials = o.optString("avatar_initials").ifBlank { "FG" }
+      avatarInitials = o.optString("avatar_initials").ifBlank { "FG" },
+      dob = o.optString("dob")
     )
   }.getOrNull()
 

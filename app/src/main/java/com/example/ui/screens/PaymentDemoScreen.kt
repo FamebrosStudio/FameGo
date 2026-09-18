@@ -127,10 +127,6 @@ fun PaymentDemoScreen(
         text = "Pay now",
         onClick = {
           submitting = true; error = null
-          val paidBooking = booking.copy(
-            paymentStatus = PaymentStatus.PAID,
-            paymentReference = "DEMO-${System.currentTimeMillis()}"
-          )
           scope.launch {
             // Fully online: no local demo fallback. Offline means stop here
             // with a clear message instead of a phantom booking.
@@ -144,7 +140,9 @@ fun PaymentDemoScreen(
               submitting = false
               return@launch
             }
-            FameGoRepository.createPaidBooking(paidBooking)
+            // Crew-first: this booking is already CONFIRMED by an accepted
+            // crew. Paying just flips it PAID — never creates a new one.
+            FameGoRepository.payForBooking(booking.id)
               .onSuccess { onPaid(it) }
               .onFailure {
                 error = FameGoRepository.friendlyMessage(it); submitting = false
@@ -158,9 +156,93 @@ fun PaymentDemoScreen(
 }
 
 /**
- * Fake "payment done" receipt shown until Razorpay is connected.
- * No real money moves; the booking is already marked PAID.
+ * 5-second confirmation window right after Pay Now.
+ * The booking is already PAID: the user can still cancel free inside this
+ * window. Once it expires, cancellation needs the Famebros helpline.
  */
+@Composable
+fun PaymentConfirmScreen(
+  bookingId: String,
+  onExpired: () -> Unit,
+  onCancelled: () -> Unit,
+  modifier: Modifier = Modifier
+) {
+  val bookings by FameGoRepository.bookings.collectAsState()
+  val booking = remember(bookingId, bookings) {
+    bookings.firstOrNull { it.id == bookingId }
+  }
+  var secondsLeft by remember { mutableStateOf(5) }
+  var done by remember { mutableStateOf(false) }
+  // One-shot clock: 5 -> 0, then advance exactly once.
+  LaunchedEffect(bookingId) {
+    while (secondsLeft > 0) {
+      kotlinx.coroutines.delay(1000)
+      secondsLeft--
+    }
+    if (!done) {
+      done = true
+      onExpired()
+    }
+  }
+  Column(
+    modifier = modifier.fillMaxSize().background(Color.Transparent).statusBarsPadding()
+      .navigationBarsPadding().padding(horizontal = 20.dp),
+    horizontalAlignment = Alignment.CenterHorizontally
+  ) {
+    Spacer(Modifier.height(48.dp))
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(120.dp)) {
+      Canvas(modifier = Modifier.fillMaxSize()) {
+        drawArc(
+          color = FameGoGold.copy(alpha = 0.25f),
+          startAngle = -90f, sweepAngle = 360f, useCenter = false,
+          style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
+        )
+        drawArc(
+          color = FameGoGold,
+          startAngle = -90f, sweepAngle = 360f * (secondsLeft / 5f), useCenter = false,
+          style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
+        )
+      }
+      // Tick pop: every second lands with a spring.
+      com.example.ui.components.FameGoPop(target = secondsLeft) { tick ->
+        Text(
+          text = "${tick}s",
+          color = FameGoWhite, fontSize = 30.sp, fontWeight = FontWeight.Bold
+        )
+      }
+    }
+    Spacer(Modifier.height(20.dp))
+    Text("Booking locked in", color = FameGoWhite, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+    Text(
+      text = booking?.let { "${it.plan.title} • ₹${"%,d".format(it.priceRupees)}" } ?: "Confirming your payment…",
+      color = FameGoGold, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+      modifier = Modifier.padding(top = 6.dp)
+    )
+    Text(
+      text = "Changed your mind? Cancel free in the next few seconds.\nAfter that, cancellation needs the Famebros helpline.",
+      color = FameGoTextMuted, fontSize = 13.sp, textAlign = TextAlign.Center,
+      lineHeight = 19.sp, modifier = Modifier.padding(top = 10.dp, start = 12.dp, end = 12.dp)
+    )
+    Spacer(Modifier.weight(1f))
+    FameGoButton(
+      text = "Cancel booking",
+      onClick = {
+        if (done) return@FameGoButton
+        done = true
+        FameGoRepository.cancelBooking(bookingId)
+        onCancelled()
+      },
+      enabled = !done && secondsLeft > 0,
+      modifier = Modifier.fillMaxWidth().testTag("payment_confirm_cancel")
+    )
+    Spacer(Modifier.height(10.dp))
+    Text(
+      text = "Waiting locks your shoot in…",
+      color = FameGoTextMuted, fontSize = 11.sp,
+      modifier = Modifier.padding(bottom = 22.dp)
+    )
+  }
+}
 @Composable
 fun PaymentSuccessScreen(
   bookingId: String,
@@ -261,7 +343,7 @@ fun PaymentSuccessScreen(
       modifier = Modifier.padding(top = 6.dp)
     )
     Text(
-      "Crew matching starts now — relaxed, your shooter is on the way.",
+      "Your crew is locked in — see you on set.",
       color = FameGoTextMuted, fontSize = 13.sp, textAlign = TextAlign.Center,
       lineHeight = 19.sp, modifier = Modifier.padding(top = 8.dp, start = 16.dp, end = 16.dp)
     )
@@ -291,7 +373,7 @@ fun PaymentSuccessScreen(
     )
     Spacer(Modifier.weight(1f))
     FameGoButton(
-      text = "Find my crew",
+      text = "View my shoot",
       onClick = onContinue,
       modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
       testTag = "payment_success_continue"
