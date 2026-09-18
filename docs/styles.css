@@ -301,6 +301,56 @@ section[id],div[id].hero{scroll-margin-top:70px}
   .stack-card{min-height:0;position:static}
   .mega{font-size:clamp(40px,12vw,64px)}
 }
+/* ————————————————————————————————
+   AWARD LEVEL (index only; static-safe without JS)
+   ———————————————————————————————— */
+/* preloader */
+#loader{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:10px;transition:transform .8s var(--ease),visibility .8s}
+#loader.done{transform:translateY(-100%);visibility:hidden}
+#loader .l-word{font-size:clamp(44px,9vw,96px);font-weight:800;letter-spacing:.14em;animation:lrise .8s var(--ease) both}
+#loader .l-word span{color:var(--gold)}
+#loader .l-sub{font-size:10px;letter-spacing:5px;color:var(--faint);font-weight:600}
+#loader .l-count{position:absolute;bottom:34px;right:40px;font-size:13px;letter-spacing:2px;color:var(--gold);font-variant-numeric:tabular-nums}
+#loader .l-bar{position:absolute;bottom:0;left:0;height:2px;background:var(--gold);width:0%}
+body.loading{overflow:hidden}
+@keyframes lrise{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+/* custom cursor (index only, fine pointers) */
+.cur-dot,.cur-ring{display:none;position:fixed;top:0;left:0;pointer-events:none;z-index:99;border-radius:50%}
+body.cur-on .cur-dot{display:block;width:6px;height:6px;margin:-3px 0 0 -3px;background:var(--gold)}
+body.cur-on .cur-ring{display:block;width:34px;height:34px;margin:-17px 0 0 -17px;
+  border:1px solid rgba(246,185,65,.55);transition:width .25s,height .25s,margin .25s,border-color .25s,background .25s}
+body.cur-on .cur-ring.big{width:58px;height:58px;margin:-29px 0 0 -29px;border-color:var(--gold);background:rgba(246,185,65,.08)}
+body.cur-on,body.cur-on a,body.cur-on button,body.cur-on summary{cursor:none}
+/* editorial chapters */
+.chap{display:grid;grid-template-columns:120px 1fr;gap:24px}
+.chap-num{font-size:12px;font-weight:800;letter-spacing:2.5px;color:var(--faint);
+  position:sticky;top:110px;align-self:start;padding-top:8px}
+.chap-num b{display:block;font-size:26px;color:var(--gold);letter-spacing:0;margin-bottom:4px}
+/* fullscreen interlude */
+.full{min-height:92vh;display:flex;align-items:center;position:relative;overflow:hidden;
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  background:radial-gradient(700px 420px at 50% 60%,rgba(246,185,65,.07),transparent 65%)}
+.full .mega{font-size:clamp(52px,11vw,150px)}
+.full .principles{display:flex;gap:34px;margin-top:30px;flex-wrap:wrap}
+.full .principles div b{display:block;font-size:15px}
+.full .principles div span{color:var(--faint);font-size:12.5px}
+/* giant footer */
+.giant{font-size:clamp(70px,17.5vw,240px);font-weight:800;letter-spacing:.02em;line-height:.9;
+  text-align:center;color:transparent;-webkit-text-stroke:1px #262c35;user-select:none;
+  margin:60px 0 -10px;white-space:nowrap}
+/* word-by-word manifesto reveal */
+.words .w{display:inline-block;opacity:.14;transform:translateY(8px);transition:opacity .5s,transform .5s}
+.words.in .w{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){
+  #loader{display:none}.cur-dot,.cur-ring{display:none!important}
+  .words .w{opacity:1;transform:none;transition:none}
+}
+@media(max-width:940px){
+  .chap{grid-template-columns:1fr;gap:6px}
+  .chap-num{position:static;display:flex;gap:12px;align-items:baseline}
+  .giant{margin-top:40px}
+}
 /* reveal on scroll — web version of fameGoRise */
 .rv{opacity:0;transform:translateY(16px);transition:opacity .38s var(--ease),transform .38s var(--ease)}
 .rv.in{opacity:1;transform:none}

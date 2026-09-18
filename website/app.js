@@ -34,6 +34,47 @@
 
   var fine = window.matchMedia("(pointer: fine)").matches;
   var calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var isIndex = !!document.getElementById("loader");
+
+  // Preloader (index only) — counter + curtain lift, failsafe included
+  (function loader() {
+    var l = document.getElementById("loader");
+    if (!l) { document.body.classList.remove("loading"); return; }
+    if (calm) { l.style.display = "none"; document.body.classList.remove("loading"); return; }
+    var n = document.getElementById("lcount"), bar = document.getElementById("lbar");
+    var t0 = null, dur = 950, done = false;
+    function finish() {
+      if (done) return; done = true;
+      l.classList.add("done");
+      document.body.classList.remove("loading");
+      setTimeout(function () { l.style.display = "none"; }, 900);
+    }
+    function frame(t) {
+      if (done) return;
+      if (!t0) t0 = t;
+      var p = Math.min(1, (t - t0) / dur);
+      if (n) n.textContent = String(Math.round(p * 100)).padStart(2, "0");
+      if (bar) bar.style.width = (p * 100).toFixed(1) + "%";
+      if (p < 1) requestAnimationFrame(frame); else setTimeout(finish, 120);
+    }
+    requestAnimationFrame(frame);
+    setTimeout(finish, 2600); // failsafe
+  })();
+
+  // Word-by-word manifesto reveal
+  (function words() {
+    var m = document.getElementById("mani");
+    if (!m) return;
+    var text = m.textContent.trim().split(/\s+/);
+    m.innerHTML = text.map(function (w) { return '<span class="w">' + w + "</span>"; }).join(" ");
+    var spans = m.querySelectorAll(".w");
+    if (calm || !("IntersectionObserver" in window)) { m.classList.add("in"); return; }
+    spans.forEach(function (s, i) { s.style.transitionDelay = Math.min(i * 28, 900) + "ms"; });
+    var o = new IntersectionObserver(function (es) {
+      es.forEach(function (en) { if (en.isIntersecting) { m.classList.add("in"); o.disconnect(); } });
+    }, { threshold: 0.35 });
+    o.observe(m);
+  })();
 
   // Count-up stats — ticker-style numerals on first view (instant if reduced motion)
   var counters = document.querySelectorAll("[data-count]");
@@ -67,6 +108,26 @@
   }
 
   if (!fine || calm) return; // touch users + reduced motion: stay still and minimal
+
+  // Custom cursor (index only) — dot + trailing ring, grows on interactives
+  if (isIndex) {
+    var dot = document.getElementById("curDot"), ring = document.getElementById("curRing");
+    document.body.classList.add("cur-on");
+    var cx = -100, cy = -100, rx2 = cx, ry2 = cy;
+    document.addEventListener("pointermove", function (e) {
+      cx = e.clientX; cy = e.clientY;
+      if (dot) dot.style.transform = "translate(" + cx + "px," + cy + "px)";
+    }, { passive: true });
+    (function cur() {
+      rx2 += (cx - rx2) * 0.16; ry2 += (cy - ry2) * 0.16;
+      if (ring) ring.style.transform = "translate(" + rx2.toFixed(1) + "px," + ry2.toFixed(1) + "px)";
+      requestAnimationFrame(cur);
+    })();
+    document.addEventListener("mouseover", function (e) {
+      if (!ring) return;
+      ring.classList.toggle("big", !!(e.target.closest && e.target.closest("a,button,summary,.plan,.hcard")));
+    });
+  }
 
   // Cursor-following aura — one soft light trailing the pointer
   var glow = document.createElement("div");

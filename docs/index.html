@@ -8,7 +8,15 @@
 <link rel="stylesheet" href="styles.css" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23070809'/><text x='50' y='68' font-size='42' text-anchor='middle' fill='%23F6B941' font-family='Arial' font-weight='bold'>FG</text></svg>" />
 </head>
-<body>
+<body class="loading">
+<div id="loader" aria-hidden="true">
+  <div class="l-word">FAME<span>GO</span></div>
+  <div class="l-sub">FAMEBROS STUDIO</div>
+  <div class="l-count" id="lcount">00</div>
+  <div class="l-bar" id="lbar"></div>
+</div>
+<div class="cur-dot" id="curDot" aria-hidden="true"></div>
+<div class="cur-ring" id="curRing" aria-hidden="true"></div>
 <div class="ambient" aria-hidden="true"></div>
 <canvas id="dust" aria-hidden="true"></canvas>
 <div class="scrollbar" aria-hidden="true"><i id="scrollbarFill"></i></div>
@@ -81,25 +89,27 @@
     <span>VERIFIED CREW <i>—</i></span><span class="fill">BOOK IN MINUTES <i>—</i></span><span>REALTIME MATCHING <i>—</i></span><span class="fill">CHAT + TRACKING <i>—</i></span>
   </div></div>
 
-  <!-- PRODUCT · sticky stacking cards -->
-  <section class="sec" id="product"><div class="wrap">
-    <div class="rv">
-      <span class="kicker">THE PRODUCT</span>
-      <h2 class="mega"><span class="line"><i>One loop:</i></span><span class="line"><i><span class="hollow">client · crew ·</span> <span class="gold">studio.</span></i></span></h2>
-      <p class="lead">No brokers. No endless chat threads. One booking everyone sees the same way — every crew profile visibly Verified, Pending or Suspended.</p>
-    </div>
-    <div class="stack">
-      <div class="stack-card rv"><div class="bignum">01</div><h3>Clients — Book a Shoot</h3><p>Six questions: what, when, where, who, details, confirm. Bronze, Silver or Gold. Then track, chat and pay — all inside the booking.</p></div>
-      <div class="stack-card hot rv"><div class="bignum">02</div><h3>Crew — ready, accept, shoot</h3><p>Toggle <i>Ready for shoots</i>. Paid requests arrive full-screen with distance and gear match. One tap to accept, maps and chat built in.</p></div>
-      <div class="stack-card rv"><div class="bignum">03</div><h3>Studio — always watching</h3><p>Admins see active requests, today's shoots, available crew and stuck bookings — and step in before anything slips.</p></div>
+  <!-- 01 PRODUCT · sticky stacking cards -->
+  <section class="sec" id="product"><div class="wrap chap">
+    <div class="chap-num"><b>01</b>PRODUCT</div>
+    <div>
+      <div class="rv">
+        <h2 class="mega"><span class="line"><i>One loop:</i></span><span class="line"><i><span class="hollow">client · crew ·</span> <span class="gold">studio.</span></i></span></h2>
+        <p class="lead">No brokers. No endless chat threads. One booking everyone sees the same way — every crew profile visibly Verified, Pending or Suspended.</p>
+      </div>
+      <div class="stack">
+        <div class="stack-card rv"><div class="bignum">01</div><h3>Clients — Book a Shoot</h3><p>Six questions: what, when, where, who, details, confirm. Bronze, Silver or Gold. Then track, chat and pay — all inside the booking.</p></div>
+        <div class="stack-card hot rv"><div class="bignum">02</div><h3>Crew — ready, accept, shoot</h3><p>Toggle <i>Ready for shoots</i>. Paid requests arrive full-screen with distance and gear match. One tap to accept, maps and chat built in.</p></div>
+        <div class="stack-card rv"><div class="bignum">03</div><h3>Studio — always watching</h3><p>Admins see active requests, today's shoots, available crew and stuck bookings — and step in before anything slips.</p></div>
+      </div>
     </div>
   </div></section>
 
-  <!-- HOW · pinned horizontal strip (JS) / grid fallback -->
+  <!-- 02 PROCESS · pinned horizontal strip -->
   <section class="sec" id="how" style="padding-left:0;padding-right:0"><div class="hwrap" id="hwrap"><div class="hpin">
     <div class="wrap" style="width:100%">
-      <div class="rv">
-        <span class="kicker">HOW IT WORKS</span>
+      <div class="rv chap">
+        <div class="chap-num"><b>02</b>PROCESS</div>
         <h2 class="mega"><span class="line"><i>Six questions.</i></span><span class="line"><i><span class="gold">One</span> <span class="hollow">confirmed crew.</span></i></span></h2>
       </div>
     </div>
@@ -114,45 +124,65 @@
     <div class="hprog" id="hprog" hidden><i></i></div>
   </div></div></section>
 
-  <!-- PLANS -->
-  <section class="sec" id="plans"><div class="wrap">
-    <div class="sec-head rv" data-plx-x="0.04"><span class="kicker">PRICING</span><h2>Three plans. Nothing hidden.</h2><p>Pick coverage by hours. Crew rates are already inside the price.</p></div>
-    <div class="plans">
-      <div class="plan rv"><h3>BRONZE · SPRINT</h3><div class="price">₹1,999</div><div class="per">1 hr shoot + 30-min buffer</div>
-        <ul><li>1–2 crew roles</li><li>Reels &amp; focused shoots</li><li>Chat + live tracking</li></ul>
-        <a class="btn ghost" href="#download">Choose Bronze</a></div>
-      <div class="plan hot rv"><span class="ptag">MOST BOOKED</span><h3>SILVER · COVER</h3><div class="price">₹2,999</div><div class="per">3 hrs + 30-min buffer</div>
-        <ul><li>Multi-role combos</li><li>Products, reels, campaigns</li><li>Priority matching</li></ul>
-        <a class="btn" href="#download">Choose Silver</a></div>
-      <div class="plan rv"><h3>GOLD · PRODUCTION</h3><div class="price">₹8,999</div><div class="per">6 hrs + 30-min buffer</div>
-        <ul><li>Full crew incl. drone</li><li>Events &amp; large sets</li><li>Studio check-in</li></ul>
-        <a class="btn ghost" href="#download">Choose Gold</a></div>
-    </div>
-    <p class="rv" style="color:var(--faint);font-size:12.5px;margin-top:16px">Cancellations &amp; refunds follow <a href="terms.html" style="color:var(--gold2)">Terms §5</a>.</p>
-  </div></section>
-
-  <!-- FAQ -->
-  <section class="sec" id="faq"><div class="wrap">
-    <div class="sec-head rv"><span class="kicker">FAQ</span><h2>Asked often.</h2></div>
-    <div class="faq rv">
-      <details open><summary>Is the app free to download?</summary><div class="a">Yes. You pay only when you confirm a shoot plan. Browsing, support and chat on an active booking are free.</div></details>
-      <details><summary>How fast will crew respond?</summary><div class="a">Paid requests notify nearby available crew instantly. Most get a first response within minutes; the studio also monitors stuck requests.</div></details>
-      <details><summary>Can I cancel or reschedule?</summary><div class="a">Yes, from Booking Details. Refund windows depend on proximity to shoot time — see Terms §5.</div></details>
-      <details><summary>How does crew verification work?</summary><div class="a">Crew submit city, role, experience, gear and portfolio. The studio reviews and marks them Verified before they receive paid requests.</div></details>
-      <details><summary>Which phones are supported?</summary><div class="a">Android 7.0 (API 24) and above. Push notifications need Google Play services.</div></details>
-      <details><summary>How do I delete my account?</summary><div class="a">In-app: Profile → Delete Account. Or email famebros.studio@gmail.com with “Delete my FameGo account”. Details in Privacy.</div></details>
+  <!-- INTERLUDE · manifesto -->
+  <section class="full"><div class="wrap">
+    <div class="rv">
+      <span class="kicker">THE PROMISE</span>
+      <h2 class="mega"><span class="line"><i>Shoot day,</i></span><span class="line"><i class="gold">handled.</i></span></h2>
+      <p class="lead words" id="mani" style="max-width:640px;font-size:clamp(17px,2.4vw,22px);color:var(--text)">Anyone can list freelancers. We put our name on the crew that walks onto your set — verified, reachable, and backed by a studio that watches every booking until wrap.</p>
+      <div class="principles">
+        <div><b>Verified first</b><span>ID · portfolio · gear</span></div>
+        <div><b>Minutes, not days</b><span>realtime matching</span></div>
+        <div><b>One record</b><span>client · crew · studio</span></div>
+      </div>
     </div>
   </div></section>
 
-  <!-- DOWNLOAD -->
-  <section id="download"><div class="wrap">
-    <div class="band rv">
+  <!-- 03 PRICING -->
+  <section class="sec" id="plans"><div class="wrap chap">
+    <div class="chap-num"><b>03</b>PRICING</div>
+    <div>
+      <div class="sec-head rv" data-plx-x="0.04"><h2>Three plans. Nothing hidden.</h2><p>Pick coverage by hours. Crew rates are already inside the price.</p></div>
+      <div class="plans">
+        <div class="plan rv"><h3>BRONZE · SPRINT</h3><div class="price">₹1,999</div><div class="per">1 hr shoot + 30-min buffer</div>
+          <ul><li>1–2 crew roles</li><li>Reels &amp; focused shoots</li><li>Chat + live tracking</li></ul>
+          <a class="btn ghost" href="#download">Choose Bronze</a></div>
+        <div class="plan hot rv"><span class="ptag">MOST BOOKED</span><h3>SILVER · COVER</h3><div class="price">₹2,999</div><div class="per">3 hrs + 30-min buffer</div>
+          <ul><li>Multi-role combos</li><li>Products, reels, campaigns</li><li>Priority matching</li></ul>
+          <a class="btn" href="#download">Choose Silver</a></div>
+        <div class="plan rv"><h3>GOLD · PRODUCTION</h3><div class="price">₹8,999</div><div class="per">6 hrs + 30-min buffer</div>
+          <ul><li>Full crew incl. drone</li><li>Events &amp; large sets</li><li>Studio check-in</li></ul>
+          <a class="btn ghost" href="#download">Choose Gold</a></div>
+      </div>
+      <p class="rv" style="color:var(--faint);font-size:12.5px;margin-top:16px">Cancellations &amp; refunds follow <a href="terms.html" style="color:var(--gold2)">Terms §5</a>.</p>
+    </div>
+  </div></section>
+
+  <!-- 04 FAQ -->
+  <section class="sec" id="faq"><div class="wrap chap">
+    <div class="chap-num"><b>04</b>FAQ</div>
+    <div>
+      <div class="sec-head rv"><h2>Asked often.</h2></div>
+      <div class="faq rv">
+        <details open><summary>Is the app free to download?</summary><div class="a">Yes. You pay only when you confirm a shoot plan. Browsing, support and chat on an active booking are free.</div></details>
+        <details><summary>How fast will crew respond?</summary><div class="a">Paid requests notify nearby available crew instantly. Most get a first response within minutes; the studio also monitors stuck requests.</div></details>
+        <details><summary>Can I cancel or reschedule?</summary><div class="a">Yes, from Booking Details. Refund windows depend on proximity to shoot time — see Terms §5.</div></details>
+        <details><summary>How does crew verification work?</summary><div class="a">Crew submit city, role, experience, gear and portfolio. The studio reviews and marks them Verified before they receive paid requests.</div></details>
+        <details><summary>Which phones are supported?</summary><div class="a">Android 7.0 (API 24) and above. Push notifications need Google Play services.</div></details>
+        <details><summary>How do I delete my account?</summary><div class="a">In-app: Profile → Delete Account. Or email famebros.studio@gmail.com with “Delete my FameGo account”. Details in Privacy.</div></details>
+      </div>
+    </div>
+  </div></section>
+
+  <!-- 05 GET -->
+  <section id="download"><div class="wrap chap" style="padding-top:76px">
+    <div class="chap-num"><b>05</b>GET THE APP</div>
+    <div class="band rv" style="margin-top:0">
       <div>
-        <span class="kicker">GET THE APP</span>
         <h2>FameGo for Android</h2>
         <p>vOSEM A.1.1 · com.famebros.famego · Android 7.0+. Installing means you agree to the <a href="terms.html" style="color:var(--gold2)">Terms</a> and <a href="privacy.html" style="color:var(--gold2)">Privacy Policy</a>.</p>
         <div class="cta-row" style="margin-top:20px">
-          <a class="btn" href="https://github.com/FamebrosStudio/FameGo/releases" target="_blank" rel="noopener">Download APK</a>
+          <a class="btn sheen" href="https://github.com/FamebrosStudio/FameGo/releases" target="_blank" rel="noopener">Download APK</a>
           <a class="btn ghost" href="mailto:famebros.studio@gmail.com?subject=FameGo%20invite">Request invite</a>
         </div>
       </div>
@@ -164,6 +194,8 @@
     </div>
   </div></section>
 </main>
+
+<div class="giant" aria-hidden="true">FAMEGO</div>
 
 <footer><div class="wrap foot">
   <div>
