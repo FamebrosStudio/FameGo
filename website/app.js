@@ -377,9 +377,9 @@
     })();
   })();
 
-  // Roaming companion: swims the whole screen like the site's fish,
-  // leans toward your cursor, changes state with scroll depth,
-  // and hands off to the big journey phone while that section is on screen.
+  // Chasing companion: trails your cursor across the whole page like a curious
+  // fish — buttery slow pursuit with a swim wobble, banking into every turn.
+  // Changes state with scroll depth; hands off to the journey phone on stage.
   (function companion() {
     var fp = document.getElementById("floatphone");
     if (!fp) return;
@@ -401,7 +401,7 @@
       }, { threshold: 0.12 });
       ho.observe(journeySec);
     }
-    var mx = window.innerWidth / 2, my = window.innerHeight / 2;
+    var mx = window.innerWidth * 0.72, my = window.innerHeight * 0.38;
     document.addEventListener("pointermove", function (e) { mx = e.clientX; my = e.clientY; }, { passive: true });
     var demoTop = 0, matchTop = 0;
     function measure() {
@@ -418,25 +418,20 @@
       if (hidden) return;
       t += 0.016;
       var W = window.innerWidth, H = window.innerHeight;
-      var x0 = 24, x1 = Math.max(x0 + 1, W - 212);
-      var y0 = 84, y1 = Math.max(y0 + 1, H - 450);
-      // slow multi-sine wander across the full viewport
-      var nx = 0.5 + 0.36 * Math.sin(t * 0.27 + 1.2) + 0.10 * Math.sin(t * 0.83);
-      var ny = 0.5 + 0.34 * Math.sin(t * 0.21 + 4.0) + 0.10 * Math.sin(t * 0.71 + 2.0);
-      var ax = x0 + clamp(nx, 0, 1) * (x1 - x0);
-      var ay = y0 + clamp(ny, 0, 1) * (y1 - y0);
-      // gentle pull toward the cursor, like a curious fish
-      var dx = clamp((mx - (ax + 94)) * 0.12, -130, 130);
-      var dy = clamp((my - (ay + 220)) * 0.12, -110, 110);
-      var gx = clamp(ax + dx, x0 - 8, x1 + 8);
-      var gy = clamp(ay + dy, y0 - 8, y1 + 8);
+      var x0 = 20, x1 = Math.max(x0 + 1, W - 208);
+      var y0 = 76, y1 = Math.max(y0 + 1, H - 456);
+      // swim wobble so it feels alive even when the cursor rests
+      var wx = Math.sin(t * 0.9) * 26 + Math.sin(t * 0.31 + 2) * 14;
+      var wy = Math.cos(t * 0.7 + 1) * 22 + Math.sin(t * 0.23) * 12;
+      // chase a point trailing just below-right of the cursor
+      var gx = clamp(mx - 40 + wx, x0, x1);
+      var gy = clamp(my - 140 + wy, y0, y1);
       if (!started) { px = gx; py = gy; started = true; }
       var vx = gx - px, vy = gy - py;
       px += vx * 0.045;
       py += vy * 0.045;
-      // bank into the swim direction
-      var targetRot = clamp(vx * 0.35, -11, 11);
-      rot += (targetRot - rot) * 0.06;
+      var targetRot = clamp(vx * 0.3, -12, 12);
+      rot += (targetRot - rot) * 0.07;
       var y = window.scrollY;
       setState(y < demoTop - 300 ? 0 : y < matchTop - 300 ? 1 : 2);
       fp.style.transform = "translate3d(" + px.toFixed(1) + "px," + py.toFixed(1) + "px,0) rotate(" + rot.toFixed(2) + "deg)";
@@ -453,6 +448,29 @@
     });
     b.addEventListener("pointerleave", function () { b.style.transform = ""; });
   });
+
+  // Viewfinder cursor — gold lens ring chasing a center dot (index only)
+  (function cursor() {
+    var dot = document.getElementById("curDot"), ring = document.getElementById("curRing");
+    if (!dot || !ring) return;
+    var cx = -100, cy = -100, rx = cx, ry = cy, on = false, hidden = false;
+    document.addEventListener("visibilitychange", function () { hidden = document.hidden; });
+    document.addEventListener("pointermove", function (e) {
+      cx = e.clientX; cy = e.clientY;
+      if (!on) { on = true; document.body.classList.add("cur-on"); }
+      dot.style.transform = "translate(" + cx + "px," + cy + "px)";
+    }, { passive: true });
+    (function loop() {
+      requestAnimationFrame(loop);
+      if (hidden) return;
+      rx += (cx - rx) * 0.2; ry += (cy - ry) * 0.2;
+      ring.style.transform = "translate(" + rx.toFixed(1) + "px," + ry.toFixed(1) + "px)";
+    })();
+    document.addEventListener("mouseover", function (e) {
+      if (!e.target.closest) return;
+      ring.classList.toggle("big", !!e.target.closest("a,button,summary,.opt,.shot,.tier"));
+    });
+  })();
 
   // Card spotlight — soft light follows the cursor over interactive surfaces
   document.addEventListener("pointermove", function (e) {

@@ -251,6 +251,7 @@ body.loading{overflow:hidden}
 @media(prefers-reduced-motion:reduce){
   #loader{display:none}
   .grain,#sea{display:none}
+  .cur-dot,.cur-ring{display:none!important}
 }
 @media(max-width:940px){
   .sec{padding:56px 0 4px}
@@ -368,6 +369,18 @@ body.menu-open .topbar{z-index:90;background:transparent;border-bottom-color:tra
   -webkit-text-stroke:1px #3a3f47;padding-right:34px;text-transform:uppercase}
 .ribbon span.solid{color:var(--gold);-webkit-text-stroke:0}
 @media(prefers-reduced-motion:reduce){.spin-badge svg,.ribbon .rtrack{animation:none}}
+/* viewfinder cursor — golden lens ring + crosshair (index, fine pointers) */
+.cur-dot,.cur-ring{display:none;position:fixed;top:0;left:0;pointer-events:none;z-index:99}
+body.cur-on .cur-dot{display:block;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:var(--gold)}
+body.cur-on .cur-ring{display:block;width:36px;height:36px;margin:-18px 0 0 -18px;border-radius:50%;
+  border:1px solid rgba(246,185,65,.6);
+  transition:width .25s,height .25s,margin .25s,background .25s,border-radius .25s}
+body.cur-on .cur-ring::before,body.cur-on .cur-ring::after{content:"";position:absolute;background:rgba(246,185,65,.85)}
+body.cur-on .cur-ring::before{left:50%;top:5px;bottom:5px;width:1px}
+body.cur-on .cur-ring::after{top:50%;left:5px;right:5px;height:1px}
+body.cur-on .cur-ring.big{width:60px;height:60px;margin:-30px 0 0 -30px;
+  background:rgba(246,185,65,.07);border-radius:12px}
+body.cur-on,body.cur-on a,body.cur-on button,body.cur-on summary{cursor:none}
 /* travelling companion phone — rides the whole page like the site's fish */
 .floatphone{position:fixed;left:0;top:0;width:188px;z-index:65;
   pointer-events:none;transition:opacity .5s var(--ease);will-change:transform;display:none}
