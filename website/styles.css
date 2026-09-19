@@ -646,3 +646,119 @@ h2.disp.rl.in .rl-line > span{transform:none}
   .mmenu{transition:none}
   .demo-result.show,.matchcard.show,.scr.on{display:block;animation:none}
 }
+
+/* ═══════════════════════════════════════════════════════════
+   FAMEGO ALIVE — 3D + movement layer (vanilla, static-safe)
+   - transform/opacity only, pointer-fine gated via JS (.alive)
+   - everything degrades to static layout without JS
+   ═══════════════════════════════════════════════════════════ */
+.orbs{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.orb{position:absolute;border-radius:50%;filter:blur(2px);will-change:transform,opacity;
+  background:radial-gradient(circle at 35% 35%,rgba(246,185,65,.55),rgba(246,185,65,.06) 60%,transparent 70%);
+  animation:orbPulse 5s ease-in-out infinite}
+@keyframes orbPulse{0%,100%{opacity:.5}50%{opacity:1}}
+.cursor-glow{position:fixed;left:0;top:0;width:340px;height:340px;margin:-170px 0 0 -170px;z-index:1;
+  pointer-events:none;opacity:0;transition:opacity .5s;will-change:transform;
+  background:radial-gradient(circle,rgba(246,185,65,.13),rgba(246,185,65,.04) 45%,transparent 68%)}
+body.alive .cursor-glow{opacity:1}
+@media(pointer:coarse){.cursor-glow{display:none}}
+
+/* ——— hero 3D stage ——— */
+.hero3d{position:absolute;inset:0;pointer-events:none;z-index:0;perspective:1200px;overflow:hidden}
+.lensflare{position:absolute;left:8%;top:-120px;width:420px;height:420px;opacity:.5;will-change:transform;
+  background:radial-gradient(circle,rgba(255,255,255,.14),rgba(246,185,65,.10) 30%,transparent 62%)}
+.cube-stage{position:absolute;right:6%;top:120px;width:110px;height:110px;transform-style:preserve-3d}
+.cube{position:relative;width:100%;height:100%;transform-style:preserve-3d;animation:cubespin 14s linear infinite}
+.cube .f{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--disp);font-size:22px;letter-spacing:1px;
+  background:rgba(12,14,17,.82);border:1px solid var(--gold-line);color:var(--gold);border-radius:14px;backface-visibility:visible}
+.cube .front{transform:translateZ(55px)}.cube .back{transform:rotateY(180deg) translateZ(55px)}
+.cube .right{transform:rotateY(90deg) translateZ(55px)}.cube .left{transform:rotateY(-90deg) translateZ(55px)}
+.cube .top{transform:rotateX(90deg) translateZ(55px)}.cube .bottom{transform:rotateX(-90deg) translateZ(55px)}
+@keyframes cubespin{from{transform:rotateX(-16deg) rotateY(0)}to{transform:rotateX(-16deg) rotateY(360deg)}}
+.reel-spin{position:absolute;left:4%;bottom:120px;width:130px;height:130px;opacity:.55;animation:reelspin 9s linear infinite}
+.reel-spin i{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;
+  border:2px dashed rgba(246,185,65,.5)}
+.reel-spin i:nth-child(2){transform:rotate(45deg) scale(.82)}.reel-spin i:nth-child(3){transform:rotate(90deg) scale(.64)}
+.reel-spin i:nth-child(4){width:16px;height:16px;margin:-8px 0 0 -8px;background:var(--gold);border:0}
+@keyframes reelspin{to{transform:rotate(360deg)}}
+.drone{position:absolute;left:50%;top:150px;transform:translateX(-50%);text-align:center;will-change:transform;opacity:.9}
+.drone .dbody{font-family:var(--mono);font-size:10px;letter-spacing:3px;color:var(--text);background:rgba(11,13,16,.7);
+  border:1px solid var(--border);border-radius:999px;padding:6px 14px;display:inline-block}
+.drone .rotor{position:absolute;top:-14px;width:46px;height:10px;border-radius:999px;background:rgba(246,185,65,.25);
+  border:1px solid var(--gold-line);animation:rotor .28s linear infinite}
+.drone .rotor.l{left:-32px}.drone .rotor.r{right:-32px}
+@keyframes rotor{0%{transform:scaleX(1)}50%{transform:scaleX(.4)}100%{transform:scaleX(1)}}
+.drone .beam{display:block;width:2px;height:90px;margin:6px auto 0;background:linear-gradient(180deg,rgba(246,185,65,.5),transparent)}
+.float-chip{position:absolute;font-family:var(--mono);font-size:10px;letter-spacing:2px;padding:8px 14px;border-radius:999px;
+  background:rgba(11,13,16,.78);border:1px solid var(--border);color:var(--muted);backdrop-filter:blur(8px);
+  animation:chipfloat 6s ease-in-out infinite;will-change:transform;white-space:nowrap}
+.float-chip.c1{left:6%;top:200px;color:var(--green);border-color:rgba(67,209,158,.4)}
+.float-chip.c2{right:26%;top:230px;color:var(--gold);border-color:var(--gold-line);animation-delay:-2s}
+.float-chip.c3{left:42%;bottom:90px;animation-delay:-4s}
+@keyframes chipfloat{0%,100%{transform:translateY(0) rotate(-1.5deg)}50%{transform:translateY(-16px) rotate(1.5deg)}}
+.hero-desk .hero-grid2,.hero-desk .scroll-cue{position:relative;z-index:2}
+@media(max-width:1180px){.cube-stage,.reel-spin,.drone{display:none}.float-chip.c1{left:12px}.float-chip.c2{right:12px}}
+
+/* ——— global 3D tilt (JS adds [data-tilt]) ——— */
+body.alive [data-tilt]{transform-style:preserve-3d;will-change:transform;transition:transform .18s ease-out,border-color .2s,box-shadow .25s}
+body.alive [data-tilt] .tilt-glare{position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .25s;
+  background:radial-gradient(420px circle at var(--mx,50%) var(--my,50%),rgba(255,255,255,.10),transparent 60%)}
+body.alive [data-tilt]:hover .tilt-glare{opacity:1}
+body.alive .tier{box-shadow:0 0 0 rgba(0,0,0,0)}
+body.alive .tier:hover{box-shadow:0 24px 60px rgba(0,0,0,.45),0 0 0 1px rgba(246,185,65,.15)}
+body.alive .shot:hover{box-shadow:0 18px 50px rgba(0,0,0,.5)}
+
+/* ——— magnetic buttons ——— */
+body.alive .btn{will-change:transform}
+body.alive .btn.magnet{transition:transform .16s ease-out,background .2s,box-shadow .2s}
+
+/* ——— scroll velocity skew on display headings ——— */
+body.alive h1.hero-h,body.alive h2.disp{will-change:transform;transform:skewY(var(--skew,0deg))}
+
+/* ——— filmstrip 3D depth ——— */
+body.alive .filmstrip{perspective:900px}
+body.alive .filmstrip .strip{transform:rotateX(8deg);transform-origin:center;animation-duration:var(--strip-speed,30s)}
+body.alive .frame{transform-style:preserve-3d;transition:transform .3s var(--ease)}
+body.alive .frame:hover{transform:translateZ(26px) rotateY(-6deg) scale(1.04);z-index:2}
+
+/* ——— gallery shots pop in Z ——— */
+body.alive .shot{transform-style:preserve-3d;will-change:transform}
+body.alive .shot:hover{transform:translateZ(18px) scale(1.015)}
+
+/* ——— stamps elastic ——— */
+body.alive .stamp{transition:transform .45s cubic-bezier(.34,1.56,.64,1),opacity .35s,border-color .3s,color .3s,box-shadow .3s}
+body.alive .stamp.stamped{animation:stampop .5s cubic-bezier(.34,1.56,.64,1)}
+@keyframes stampop{0%{transform:scale(1.6) rotate(4deg)}60%{transform:scale(.94) rotate(-5deg)}100%{transform:scale(1.03) rotate(-4deg)}}
+
+/* ——— finale pulse ——— */
+.finale{position:relative}
+.finale .pulse-ring{position:absolute;left:50%;top:60px;width:420px;height:420px;transform:translateX(-50%);
+  border-radius:50%;pointer-events:none;opacity:0;z-index:0;
+  border:1px solid rgba(246,185,65,.35)}
+body.alive .finale .pulse-ring.go{opacity:1;animation:pulsering 2.6s ease-out infinite}
+@keyframes pulsering{0%{transform:translateX(-50%) scale(.5);opacity:.8}100%{transform:translateX(-50%) scale(1.25);opacity:0}}
+.finale>*{position:relative;z-index:1}
+
+/* ——— demo opts alive ——— */
+body.alive .opt{will-change:transform}
+body.alive .opt:hover{transform:translateY(-3px) scale(1.02)}
+body.alive .demo-crew{animation:crewfloat 5s ease-in-out infinite}
+@keyframes crewfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+
+/* ——— journey phone extra life ——— */
+body.alive .p3d .phone{box-shadow:0 40px 90px rgba(0,0,0,.65),0 0 60px rgba(246,185,65,.07),inset 0 0 0 1px rgba(255,255,255,.04)}
+body.alive .j-step{transition:transform .3s var(--ease)}
+body.alive .j-step.active h3{color:var(--gold)}
+
+/* ——— match dots orbit ——— */
+body.alive #mapSvg .dotc{transform-box:fill-box;transform-origin:center;animation:dotpulse 2.2s ease-in-out infinite}
+body.alive #mapSvg .dotc:nth-child(2){animation-delay:-.5s}
+@keyframes dotpulse{0%,100%{opacity:.55}50%{opacity:1}}
+
+/* ——— reduced motion kills alive layer ——— */
+@media(prefers-reduced-motion:reduce){
+  .orbs,.cursor-glow,.hero3d,.finale .pulse-ring{display:none!important}
+  .cube,.reel-spin,.drone .rotor,.float-chip,.orb{animation:none!important}
+  body.alive h1.hero-h,body.alive h2.disp{transform:none}
+  body.alive [data-tilt]{transform:none!important}
+}

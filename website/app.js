@@ -452,6 +452,187 @@
   window.addEventListener("resize", onScroll);
   render();
 
+  // ═══ FAMEGO ALIVE — central motion bus (transform/opacity only) ═══
+  (function alive() {
+    if (calm) return;
+    document.body.classList.add("alive");
+    var px = 0, py = 0, tx = 0, ty = 0, cx = 0, cy = 0;
+    var lastY = window.scrollY, vel = 0, skew = 0, hidden = false;
+    var glow = document.getElementById("cursorGlow");
+    var flare = document.getElementById("lensFlare");
+    var drone = document.getElementById("heroDrone");
+    var cube = document.getElementById("heroCube");
+    var strip = document.querySelector(".filmstrip .strip");
+    document.addEventListener("visibilitychange", function () { hidden = document.hidden; });
+
+    // orbs: felt-not-seen gold dust
+    var orbBox = document.getElementById("orbs"), orbs = [];
+    if (orbBox) {
+      var n = wide ? 10 : 5;
+      for (var i = 0; i < n; i++) {
+        var d = document.createElement("div");
+        d.className = "orb";
+        var s = 60 + Math.random() * 160;
+        d.style.width = s + "px"; d.style.height = s + "px";
+        d.style.left = (Math.random() * 100) + "vw";
+        d.style.top = (Math.random() * 100) + "vh";
+        d.style.animationDelay = (-Math.random() * 5) + "s";
+        orbBox.appendChild(d);
+        orbs.push({ el: d, x0: Math.random() * window.innerWidth, y0: Math.random() * window.innerHeight, ph: Math.random() * 6.28, amp: 30 + Math.random() * 70, sp: 0.0004 + Math.random() * 0.0008 });
+      }
+    }
+
+    if (fine) {
+      document.addEventListener("pointermove", function (e) {
+        tx = e.clientX / window.innerWidth - 0.5;
+        ty = e.clientY / window.innerHeight - 0.5;
+        px = e.clientX; py = e.clientY;
+      }, { passive: true });
+    }
+
+    // 3D tilt: auto-tag cards (adds glare node once)
+    var tiltEls = Array.prototype.slice.call(document.querySelectorAll(".tier,.shot,.opt,.demo-crew,.mcard,.stamp"));
+    tiltEls.forEach(function (el) {
+      if (!el.hasAttribute("data-tilt")) el.setAttribute("data-tilt", "");
+      if (!el.querySelector(".tilt-glare") && el.classList.contains("tier")) {
+        var g = document.createElement("span"); g.className = "tilt-glare"; g.setAttribute("aria-hidden", "true"); el.appendChild(g);
+      }
+      if (fine) {
+        el.addEventListener("pointermove", function (e) {
+          var r = el.getBoundingClientRect();
+          var dx = (e.clientX - r.left) / r.width - 0.5;
+          var dy = (e.clientY - r.top) / r.height - 0.5;
+          el.style.transform = "perspective(900px) rotateX(" + (-dy * 10).toFixed(2) + "deg) rotateY(" + (dx * 12).toFixed(2) + "deg) translateZ(6px)";
+        });
+        el.addEventListener("pointerleave", function () { el.style.transform = ""; });
+      }
+    });
+
+    // magnetic buttons
+    var mags = Array.prototype.slice.call(document.querySelectorAll(".btn.sheen,.btn"));
+    if (fine) mags.forEach(function (b) {
+      b.classList.add("magnet");
+      b.addEventListener("pointermove", function (e) {
+        var r = b.getBoundingClientRect();
+        var dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+        b.style.transform = "translate(" + (dx * 0.12).toFixed(1) + "px," + (dy * 0.18).toFixed(1) + "px) scale(1.03)";
+      });
+      b.addEventListener("pointerleave", function () { b.style.transform = ""; });
+    });
+
+    // journey active step highlight
+    var jsteps = Array.prototype.slice.call(document.querySelectorAll(".j-step"));
+    if ("IntersectionObserver" in window && jsteps.length) {
+      var jo = new IntersectionObserver(function (es) {
+        es.forEach(function (en) {
+          if (en.isIntersecting) {
+            jsteps.forEach(function (s) { s.classList.remove("active"); });
+            en.target.classList.add("active");
+          }
+        });
+      }, { threshold: 0.6 });
+      jsteps.forEach(function (s) { jo.observe(s); });
+    }
+
+    // finale pulse ring
+    var finale = document.querySelector(".finale");
+    if (finale && !finale.querySelector(".pulse-ring")) {
+      var pr = document.createElement("div"); pr.className = "pulse-ring"; pr.setAttribute("aria-hidden", "true"); finale.appendChild(pr);
+      if ("IntersectionObserver" in window) {
+        var fo = new IntersectionObserver(function (es) {
+          es.forEach(function (en) { if (en.isIntersecting) { pr.classList.add("go"); fo.disconnect(); } });
+        }, { threshold: 0.3 });
+        fo.observe(finale);
+      } else pr.classList.add("go");
+    }
+
+    // Escape closes mobile menu (a11y)
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && mmenu && mmenu.classList.contains("open")) {
+        mmenu.classList.remove("open"); document.body.classList.remove("menu-open");
+        if (menuBtn) { menuBtn.textContent = "☰"; menuBtn.setAttribute("aria-expanded", "false"); menuBtn.focus(); }
+      }
+    });
+
+    var t = 0;
+    (function frame() {
+      requestAnimationFrame(frame);
+      if (hidden || calm) return;
+      t += 0.016;
+      cx += (tx - cx) * 0.06; cy += (ty - cy) * 0.06;
+      var y = window.scrollY;
+      vel += ((Math.abs(y - lastY) - vel) * 0.12);
+      lastY = y;
+      skew += ((Math.max(-8, Math.min(8, (y - (frame._py || y)) * 0.25)) - skew) * 0.1);
+      frame._py = y;
+      // headings skew
+      if (Math.abs(skew) > 0.05) {
+        document.documentElement.style.setProperty("--skew-live", skew.toFixed(2) + "deg");
+        var hs = document.querySelectorAll("h1.hero-h,h2.disp");
+        for (var i = 0; i < hs.length; i++) {
+          var r = hs[i].getBoundingClientRect();
+          if (r.top < window.innerHeight && r.bottom > 0) hs[i].style.setProperty("--skew", (skew * 0.12).toFixed(2) + "deg");
+        }
+      }
+      // filmstrip reacts to scroll
+      if (strip) strip.style.setProperty("--strip-speed", Math.max(12, 30 - vel * 0.6).toFixed(1) + "s");
+      // glow + flare + drone + cube drift
+      if (glow && fine) glow.style.transform = "translate3d(" + px.toFixed(0) + "px," + py.toFixed(0) + "px,0)";
+      if (flare) flare.style.transform = "translate3d(" + (cx * 120).toFixed(1) + "px," + (y * 0.08).toFixed(1) + "px,0)";
+      if (drone) {
+        var dr = drone.getBoundingClientRect();
+        if (dr.bottom > -100 && dr.top < window.innerHeight + 100)
+          drone.style.transform = "translateX(-50%) translate(" + (cx * 90).toFixed(1) + "px," + (Math.sin(t * 1.4) * 16 + y * 0.04).toFixed(1) + "px) rotate(" + (cx * 6).toFixed(2) + "deg)";
+      }
+      if (cube) {
+        var cr = cube.parentElement.getBoundingClientRect();
+        if (cr.bottom > -100 && cr.top < window.innerHeight + 200)
+          cube.parentElement.style.transform = "translate3d(" + (cx * -50).toFixed(1) + "px," + (cy * -40 + y * 0.05).toFixed(1) + "px,0)";
+      }
+      // orbs drift
+      for (var k = 0; k < orbs.length; k++) {
+        var o = orbs[k];
+        var ox = (o.x0 + Math.sin(t * 0.4 + o.ph) * o.amp + cx * 60) % window.innerWidth;
+        var oy = (o.y0 + Math.cos(t * 0.3 + o.ph) * o.amp * 0.7 + y * 0.03) % window.innerHeight;
+        if (ox < 0) ox += window.innerWidth; if (oy < 0) oy += window.innerHeight;
+        o.el.style.transform = "translate3d(" + ox.toFixed(0) + "px," + oy.toFixed(0) + "px,0)";
+      }
+    })();
+  })();
+
+  // shooting-star upgrade for existing sea motes (light touch)
+  (function stars() {
+    if (calm) return;
+    var cv = document.getElementById("sea");
+    if (!cv) return;
+    var shoot = document.createElement("canvas");
+    shoot.id = "shoot"; shoot.setAttribute("aria-hidden", "true");
+    shoot.style.cssText = "position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.9";
+    document.body.appendChild(shoot);
+    var ctx = shoot.getContext("2d"), W, H, sx = -100, sy = -100, life = 0;
+    function size() { W = shoot.width = window.innerWidth; H = shoot.height = window.innerHeight; }
+    size(); window.addEventListener("resize", size);
+    setInterval(function () {
+      if (document.hidden || calm) return;
+      sx = Math.random() * W; sy = Math.random() * H * 0.4; life = 1;
+    }, 5200);
+    (function frame() {
+      requestAnimationFrame(frame);
+      if (document.hidden) return;
+      ctx.clearRect(0, 0, W, H);
+      if (life > 0) {
+        life -= 0.02; sx += 9; sy += 3.5;
+        var g = ctx.createLinearGradient(sx, sy, sx - 90, sy - 35);
+        g.addColorStop(0, "rgba(246,185,65," + Math.max(0, life).toFixed(2) + ")");
+        g.addColorStop(1, "rgba(246,185,65,0)");
+        ctx.strokeStyle = g; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx - 90, sy - 35); ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255," + Math.max(0, life).toFixed(2) + ")";
+        ctx.beginPath(); ctx.arc(sx, sy, 2, 0, 6.283); ctx.fill();
+      }
+    })();
+  })();
+
   // Deep-link to app
   window.openFameGoApp = function () {
     window.location.href = "famego://auth/callback";
