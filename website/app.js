@@ -379,26 +379,50 @@
     })();
   })();
 
-  // The fish: hero phone drifts toward the cursor and dives as you scroll
-  (function floatphone() {
+  // Travelling companion: rides the whole page, changes state with depth,
+  // hands off to the big journey phone while that section is on screen.
+  (function companion() {
     var fp = document.getElementById("floatphone");
     if (!fp) return;
-    fp.style.transition = "opacity .4s ease"; // transform is driven per-frame below
-    var tx = 0, ty = 0, cx = 0, cy = 0, hidden = false;
+    document.body.classList.add("companion-live");
+    var states = Array.prototype.slice.call(fp.querySelectorAll(".cscr"));
+    var journeySec = document.getElementById("how");
+    var demoSec = document.getElementById("demo");
+    var matchSec = document.getElementById("matching");
+    var cur = -1, hidden = false;
     document.addEventListener("visibilitychange", function () { hidden = document.hidden; });
+    function setState(n) {
+      if (n === cur) return; cur = n;
+      states.forEach(function (s) { s.classList.toggle("on", s.getAttribute("data-c") === String(n)); });
+    }
+    // Handoff: fade out while the journey's own phone is on stage
+    if (journeySec && "IntersectionObserver" in window) {
+      var ho = new IntersectionObserver(function (es) {
+        es.forEach(function (en) { fp.classList.toggle("away", en.isIntersecting); });
+      }, { threshold: 0.12 });
+      ho.observe(journeySec);
+    }
+    var tx = 0, ty = 0, cx = 0, cy = 0;
     document.addEventListener("pointermove", function (e) {
-      tx = (e.clientX / window.innerWidth - 0.5) * 26;
-      ty = (e.clientY / window.innerHeight - 0.5) * 18;
+      tx = (e.clientX / window.innerWidth - 0.5) * 22;
+      ty = (e.clientY / window.innerHeight - 0.5) * 16;
     }, { passive: true });
+    var demoTop = 0, matchTop = 0;
+    function measure() {
+      demoTop = demoSec ? demoSec.offsetTop : 0;
+      matchTop = matchSec ? matchSec.offsetTop : 0;
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    window.addEventListener("load", measure);
     (function frame() {
       requestAnimationFrame(frame);
       if (hidden) return;
-      var r = fp.getBoundingClientRect();
-      if (r.bottom < -100 || r.top > window.innerHeight + 100) return; // hero off-screen: rest
       cx += (tx - cx) * 0.05;
       cy += (ty - cy) * 0.05;
-      var dive = Math.min(260, window.scrollY * 0.22);
-      fp.style.transform = "translate3d(" + cx.toFixed(1) + "px," + (cy + dive).toFixed(1) + "px,0) rotate(" + (7 + cx * 0.12).toFixed(2) + "deg)";
+      var y = window.scrollY;
+      setState(y < demoTop - 300 ? 0 : y < matchTop - 300 ? 1 : 2);
+      fp.style.transform = "translate3d(" + cx.toFixed(1) + "px," + cy.toFixed(1) + "px,0) rotate(" + (cx * 0.12).toFixed(2) + "deg)";
     })();
   })();
 

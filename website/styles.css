@@ -347,18 +347,21 @@ body.menu-open .topbar{z-index:90;background:transparent;border-bottom-color:tra
   background:var(--red);opacity:0;transform:scale(.4);transition:opacity .2s,transform .2s}
 .link-crew:hover .recdot{opacity:1;transform:scale(1)}
 .hero-note{margin-top:26px}
-/* floating phone — the fish of this site */
-.floatphone{position:absolute;right:-24px;top:96px;width:208px;z-index:1;
-  transform:rotate(7deg);animation:bob 7s ease-in-out infinite;will-change:transform;pointer-events:none}
-.floatphone .phone{width:100%;font-size:12px}
+/* travelling companion phone — rides the whole page like the site's fish */
+.floatphone{position:fixed;right:clamp(10px,2.6vw,48px);top:50%;width:188px;z-index:30;
+  margin-top:-235px;pointer-events:none;transition:opacity .5s var(--ease);will-change:transform;display:none}
+body.companion-live .floatphone{display:block}
+.floatphone .phone{width:100%;font-size:12px;animation:bob 7s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
 .floatphone .screen{min-height:0}
-.floatphone .sbody{padding:14px 13px}
+.floatphone .sbody{padding:14px 13px;min-height:340px}
 .floatphone .mock-title{font-size:16px}
 .floatphone .mcard{margin-bottom:7px;padding:9px 10px}
-@keyframes bob{0%,100%{margin-top:0}50%{margin-top:-16px}}
-#sea{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.75}
-@media(max-width:1180px){.floatphone{display:none}}
-@media(prefers-reduced-motion:reduce){.floatphone{animation:none}}
+.floatphone.away{opacity:0}
+.floatphone .cscr{display:none}
+.floatphone .cscr.on{display:block;animation:blurin .45s var(--ease)}
+@media(max-width:1280px){.floatphone{display:none!important}}
+@media(prefers-reduced-motion:reduce){.floatphone .phone{animation:none}}
 /* scroll cue */
 .scroll-cue{display:flex;flex-direction:column;align-items:center;gap:10px;margin:34px auto 26px;
   font-family:var(--mono);font-size:10px;letter-spacing:3px;color:var(--faint);text-decoration:none;
