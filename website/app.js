@@ -379,26 +379,39 @@
     })();
   })();
 
-  // The fish: hero phone drifts toward the cursor and dives as you scroll
+  // The fish: hero phone travels a bounded loop, drifts to cursor, dives on scroll — never clipped
   (function floatphone() {
     var fp = document.getElementById("floatphone");
-    if (!fp) return;
+    if (!fp || calm) return;
     fp.style.transition = "opacity .4s ease"; // transform is driven per-frame below
-    var tx = 0, ty = 0, cx = 0, cy = 0, hidden = false;
+    var tx = 0, ty = 0, cx = 0, cy = 0, hidden = false, t = 0;
     document.addEventListener("visibilitychange", function () { hidden = document.hidden; });
-    document.addEventListener("pointermove", function (e) {
-      tx = (e.clientX / window.innerWidth - 0.5) * 26;
-      ty = (e.clientY / window.innerHeight - 0.5) * 18;
-    }, { passive: true });
+    if (fine) {
+      document.addEventListener("pointermove", function (e) {
+        tx = (e.clientX / window.innerWidth - 0.5) * 22;
+        ty = (e.clientY / window.innerHeight - 0.5) * 14;
+      }, { passive: true });
+    }
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
     (function frame() {
       requestAnimationFrame(frame);
       if (hidden) return;
-      var r = fp.getBoundingClientRect();
-      if (r.bottom < -100 || r.top > window.innerHeight + 100) return; // hero off-screen: rest
+      t += 0.016;
+      var hero = fp.closest ? fp.closest(".hero-desk") : null;
+      var hr = hero ? hero.getBoundingClientRect() : null;
+      if (hr && (hr.bottom < -80 || hr.top > window.innerHeight + 80)) { fp.style.opacity = "0"; return; }
       cx += (tx - cx) * 0.05;
       cy += (ty - cy) * 0.05;
-      var dive = Math.min(260, window.scrollY * 0.22);
-      fp.style.transform = "translate3d(" + cx.toFixed(1) + "px," + (cy + dive).toFixed(1) + "px,0) rotate(" + (7 + cx * 0.12).toFixed(2) + "deg)";
+      // gentle travel loop (stays near its anchor — amplitude small so it can't hit the edge)
+      var loopX = Math.sin(t * 0.7) * 18 + Math.sin(t * 0.31) * 10;
+      var loopY = Math.cos(t * 0.55) * 16 + Math.sin(t * 0.9) * 6;
+      var dive = Math.min(220, window.scrollY * 0.18);
+      var x = clamp(cx + loopX, -60, 60);
+      var y = clamp(cy + loopY + dive, -30, 230);
+      var rot = 7 + cx * 0.1 + Math.sin(t * 0.7) * 2.5;
+      fp.style.transform = "translate3d(" + x.toFixed(1) + "px," + y.toFixed(1) + "px,0) rotate(" + rot.toFixed(2) + "deg)";
+      // fade as hero scrolls away instead of sliding under content
+      fp.style.opacity = String(clamp(1 - window.scrollY / (window.innerHeight * 0.85), 0, 1));
     })();
   })();
 

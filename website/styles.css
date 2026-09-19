@@ -347,9 +347,10 @@ body.menu-open .topbar{z-index:90;background:transparent;border-bottom-color:tra
   background:var(--red);opacity:0;transform:scale(.4);transition:opacity .2s,transform .2s}
 .link-crew:hover .recdot{opacity:1;transform:scale(1)}
 .hero-note{margin-top:26px}
-/* floating phone — the fish of this site */
-.floatphone{position:absolute;right:-24px;top:96px;width:208px;z-index:1;
-  transform:rotate(7deg);animation:bob 7s ease-in-out infinite;will-change:transform;pointer-events:none}
+/* floating phone — travels inside the hero, never clipped */
+.floatphone{position:absolute;right:clamp(18px,4vw,68px);top:104px;width:min(208px,22vw);z-index:1;
+  transform:rotate(7deg);will-change:transform,opacity;pointer-events:none}
+body:not(.alive) .floatphone{animation:bob 7s ease-in-out infinite}
 .floatphone .phone{width:100%;font-size:12px}
 .floatphone .screen{min-height:0}
 .floatphone .sbody{padding:14px 13px}
@@ -357,7 +358,8 @@ body.menu-open .topbar{z-index:90;background:transparent;border-bottom-color:tra
 .floatphone .mcard{margin-bottom:7px;padding:9px 10px}
 @keyframes bob{0%,100%{margin-top:0}50%{margin-top:-16px}}
 #sea{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.75}
-@media(max-width:1180px){.floatphone{display:none}}
+@media(max-width:1180px){.floatphone{right:16px;top:auto;bottom:120px;width:170px;opacity:.92}}
+@media(max-width:760px){.floatphone{display:none}}
 @media(prefers-reduced-motion:reduce){.floatphone{animation:none}}
 /* scroll cue */
 .scroll-cue{display:flex;flex-direction:column;align-items:center;gap:10px;margin:34px auto 26px;
