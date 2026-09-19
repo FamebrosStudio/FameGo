@@ -369,7 +369,7 @@ body.menu-open .topbar{z-index:90;background:transparent;border-bottom-color:tra
 .ribbon span.solid{color:var(--gold);-webkit-text-stroke:0}
 @media(prefers-reduced-motion:reduce){.spin-badge svg,.ribbon .rtrack{animation:none}}
 /* travelling companion phone — rides the whole page like the site's fish */
-.floatphone{position:fixed;left:0;top:0;width:188px;z-index:30;
+.floatphone{position:fixed;left:0;top:0;width:188px;z-index:65;
   pointer-events:none;transition:opacity .5s var(--ease);will-change:transform;display:none}
 body.companion-live .floatphone{display:block}
 .floatphone .phone{width:100%;font-size:12px;animation:bob 7s ease-in-out infinite}
