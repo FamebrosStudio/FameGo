@@ -55,8 +55,8 @@
   if (menuBtn && !mmenu && siteNav) {
     menuBtn.addEventListener("click", function () {
       var open = siteNav.classList.toggle("open");
-      menuBtn.textContent = open ? "✕" : "☰";
       menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+      document.body.classList.toggle("menu-open", open);
     });
   }
   if (menuBtn && mmenu) {
@@ -64,7 +64,6 @@
     links.forEach(function (a, i) { a.style.transitionDelay = (0.06 * i + 0.1) + "s"; });
     menuBtn.addEventListener("click", function () {
       var open = mmenu.classList.toggle("open");
-      menuBtn.textContent = open ? "✕" : "☰";
       menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
       menuBtn.setAttribute("aria-label", open ? "Close menu" : "Open menu");
       document.body.classList.toggle("menu-open", open);
@@ -72,7 +71,6 @@
     links.forEach(function (a) {
       a.addEventListener("click", function () {
         mmenu.classList.remove("open");
-        menuBtn.textContent = "☰";
         menuBtn.setAttribute("aria-expanded", "false");
         document.body.classList.remove("menu-open");
       });
@@ -379,8 +377,9 @@
     })();
   })();
 
-  // Travelling companion: rides the whole page, changes state with depth,
-  // hands off to the big journey phone while that section is on screen.
+  // Roaming companion: swims the whole screen like the site's fish,
+  // leans toward your cursor, changes state with scroll depth,
+  // and hands off to the big journey phone while that section is on screen.
   (function companion() {
     var fp = document.getElementById("floatphone");
     if (!fp) return;
@@ -402,11 +401,8 @@
       }, { threshold: 0.12 });
       ho.observe(journeySec);
     }
-    var tx = 0, ty = 0, cx = 0, cy = 0;
-    document.addEventListener("pointermove", function (e) {
-      tx = (e.clientX / window.innerWidth - 0.5) * 22;
-      ty = (e.clientY / window.innerHeight - 0.5) * 16;
-    }, { passive: true });
+    var mx = window.innerWidth / 2, my = window.innerHeight / 2;
+    document.addEventListener("pointermove", function (e) { mx = e.clientX; my = e.clientY; }, { passive: true });
     var demoTop = 0, matchTop = 0;
     function measure() {
       demoTop = demoSec ? demoSec.offsetTop : 0;
@@ -415,14 +411,35 @@
     measure();
     window.addEventListener("resize", measure);
     window.addEventListener("load", measure);
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    var t = Math.random() * 100, px = 0, py = 0, rot = 0, started = false;
     (function frame() {
       requestAnimationFrame(frame);
       if (hidden) return;
-      cx += (tx - cx) * 0.05;
-      cy += (ty - cy) * 0.05;
+      t += 0.016;
+      var W = window.innerWidth, H = window.innerHeight;
+      var x0 = 24, x1 = Math.max(x0 + 1, W - 212);
+      var y0 = 84, y1 = Math.max(y0 + 1, H - 450);
+      // slow multi-sine wander across the full viewport
+      var nx = 0.5 + 0.36 * Math.sin(t * 0.27 + 1.2) + 0.10 * Math.sin(t * 0.83);
+      var ny = 0.5 + 0.34 * Math.sin(t * 0.21 + 4.0) + 0.10 * Math.sin(t * 0.71 + 2.0);
+      var ax = x0 + clamp(nx, 0, 1) * (x1 - x0);
+      var ay = y0 + clamp(ny, 0, 1) * (y1 - y0);
+      // gentle pull toward the cursor, like a curious fish
+      var dx = clamp((mx - (ax + 94)) * 0.12, -130, 130);
+      var dy = clamp((my - (ay + 220)) * 0.12, -110, 110);
+      var gx = clamp(ax + dx, x0 - 8, x1 + 8);
+      var gy = clamp(ay + dy, y0 - 8, y1 + 8);
+      if (!started) { px = gx; py = gy; started = true; }
+      var vx = gx - px, vy = gy - py;
+      px += vx * 0.045;
+      py += vy * 0.045;
+      // bank into the swim direction
+      var targetRot = clamp(vx * 0.35, -11, 11);
+      rot += (targetRot - rot) * 0.06;
       var y = window.scrollY;
       setState(y < demoTop - 300 ? 0 : y < matchTop - 300 ? 1 : 2);
-      fp.style.transform = "translate3d(" + cx.toFixed(1) + "px," + cy.toFixed(1) + "px,0) rotate(" + (cx * 0.12).toFixed(2) + "deg)";
+      fp.style.transform = "translate3d(" + px.toFixed(1) + "px," + py.toFixed(1) + "px,0) rotate(" + rot.toFixed(2) + "deg)";
     })();
   })();
 

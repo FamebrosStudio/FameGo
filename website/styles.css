@@ -259,7 +259,12 @@ body.loading{overflow:hidden}
 .rv{opacity:0;transform:translateY(16px);transition:opacity .38s var(--ease),transform .38s var(--ease)}
 .rv.in{opacity:1;transform:none}
 @media(prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}.phone,.live-dot::after,.status-pill i{animation:none}.btn.sheen::after{animation:none}}
-.menu-btn{display:none;background:none;border:1px solid var(--border);border-radius:10px;color:var(--text);padding:7px 12px;font-size:15px;cursor:pointer}
+.menu-btn{display:none;background:none;border:1px solid var(--border);border-radius:10px;color:var(--text);padding:9px 11px;cursor:pointer}
+.menu-btn i{display:block;width:18px;height:2px;background:var(--text);border-radius:2px;margin:4px 0;transition:transform .3s var(--ease),opacity .2s}
+.menu-btn i:first-child{margin-top:0}.menu-btn i:last-child{margin-bottom:0}
+body.menu-open .menu-btn i:nth-child(1){transform:translateY(6px) rotate(45deg)}
+body.menu-open .menu-btn i:nth-child(2){opacity:0}
+body.menu-open .menu-btn i:nth-child(3){transform:translateY(-6px) rotate(-45deg)}
 @media(max-width:940px){
   .hero-desk{padding-top:104px}
   .grid3,.steps{grid-template-columns:1fr}
@@ -348,8 +353,8 @@ body.menu-open .topbar{z-index:90;background:transparent;border-bottom-color:tra
 .link-crew:hover .recdot{opacity:1;transform:scale(1)}
 .hero-note{margin-top:26px}
 /* travelling companion phone — rides the whole page like the site's fish */
-.floatphone{position:fixed;right:clamp(10px,2.6vw,48px);top:50%;width:188px;z-index:30;
-  margin-top:-235px;pointer-events:none;transition:opacity .5s var(--ease);will-change:transform;display:none}
+.floatphone{position:fixed;left:0;top:0;width:188px;z-index:30;
+  pointer-events:none;transition:opacity .5s var(--ease);will-change:transform;display:none}
 body.companion-live .floatphone{display:block}
 .floatphone .phone{width:100%;font-size:12px;animation:bob 7s ease-in-out infinite}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
@@ -382,9 +387,9 @@ h2.disp.rl.in .rl-line > span{transform:none}
   font-family:var(--mono);font-size:10.5px;letter-spacing:2px;color:var(--faint)}
 .desk-head .live{display:inline-flex;align-items:center;gap:7px;color:var(--green)}
 .desk-body{padding:20px 18px 18px;min-height:308px}
-.desk-line{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px dashed #22272f;font-size:13.5px}
+.desk-line{display:flex;justify-content:space-between;gap:4px 12px;padding:9px 0;border-bottom:1px dashed #22272f;font-size:13.5px;flex-wrap:wrap}
 .desk-line span:first-child{color:var(--faint);font-family:var(--mono);font-size:11px;letter-spacing:1.5px;padding-top:2px}
-.desk-line b{font-weight:600;text-align:right}
+.desk-line b{font-weight:600;text-align:right;min-width:0;overflow-wrap:anywhere}
 .desk-status{margin-top:16px;font-family:var(--mono);font-size:12px;letter-spacing:1px;min-height:88px}
 .desk-status div{opacity:0;transform:translateX(-8px);transition:opacity .4s,transform .4s;padding:3px 0;color:var(--muted)}
 .desk-status div.show{opacity:1;transform:none}
@@ -635,6 +640,7 @@ h2.disp.rl.in .rl-line > span{transform:none}
 }
 @media(max-width:640px){
   .hero-desk{padding-top:96px}
+  .hero-h{font-size:clamp(36px,11.5vw,54px)}
   .nav{display:none}
   .statrow{grid-template-columns:1fr 1fr}
   .foot .cols{grid-template-columns:1fr}
