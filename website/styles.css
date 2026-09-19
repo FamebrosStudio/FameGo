@@ -81,7 +81,7 @@ h2{font-size:clamp(23px,3vw,32px);letter-spacing:-.02em;font-weight:750;line-hei
 /* ——— phone (shared with journey) ——— */
 .phone{position:relative;width:252px;background:#050607;border:1px solid #262c35;border-radius:40px;padding:11px;
   box-shadow:0 40px 90px rgba(0,0,0,.65), inset 0 0 0 1px rgba(255,255,255,.04)}
-.screen{background:var(--card);border-radius:30px;overflow:hidden;min-height:500px;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.03)}
+.screen{background:var(--card);border-radius:30px;overflow:visible;min-height:500px;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.03)}
 .notch{height:30px;display:flex;justify-content:center;align-items:center}
 .notch i{width:86px;height:20px;background:#000;border-radius:999px;display:block;border:1px solid var(--border)}
 .sbody{padding:18px 16px 16px;flex:1;display:flex;flex-direction:column}
@@ -193,7 +193,7 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding:34px 0 46px;co
 @keyframes sheen{0%,55%{left:-90px}90%,100%{left:calc(100% + 40px)}}
 @keyframes blurin{from{opacity:0;filter:blur(10px);transform:translateY(14px)}to{opacity:1;filter:blur(0);transform:none}}
 /* 3D-card glare on the journey phone */
-.phone{overflow:hidden}
+.phone{}
 .phone::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
   background:radial-gradient(300px circle at var(--mx,50%) var(--my,20%),rgba(255,255,255,.09),transparent 60%);
   opacity:0;transition:opacity .3s}
