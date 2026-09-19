@@ -423,9 +423,10 @@
       // swim wobble so it feels alive even when the cursor rests
       var wx = Math.sin(t * 0.9) * 26 + Math.sin(t * 0.31 + 2) * 14;
       var wy = Math.cos(t * 0.7 + 1) * 22 + Math.sin(t * 0.23) * 12;
-      // chase a point trailing just below-right of the cursor
-      var gx = clamp(mx - 40 + wx, x0, x1);
-      var gy = clamp(my - 140 + wy, y0, y1);
+      // chase a point trailing below-right of the cursor — never covering it,
+      // so buttons and text under the pointer stay visible and clickable
+      var gx = clamp(mx + 34 + wx, x0, x1);
+      var gy = clamp(my + 48 + wy, y0, y1);
       if (!started) { px = gx; py = gy; started = true; }
       var vx = gx - px, vy = gy - py;
       px += vx * 0.045;

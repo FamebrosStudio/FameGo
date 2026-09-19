@@ -610,6 +610,10 @@ h2.disp.rl.in .rl-line > span{transform:none}
 .shot::before{content:"";position:absolute;inset:auto 0 0 0;height:44%;z-index:1;pointer-events:none;
   background:linear-gradient(transparent,rgba(0,0,0,.55))}
 .proof .bts img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+/* photo strip — shared photography band for content pages */
+.photostrip{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:30px}
+.photostrip .shot{min-height:260px}
+@media(max-width:640px){.photostrip{grid-template-columns:1fr}}
 /* ——— contact sheet gallery ——— */
 .sheet{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;margin-top:36px}
 .shot{border:1px solid #23282f;border-radius:8px;overflow:hidden;position:relative;background:#101014;min-height:220px}
