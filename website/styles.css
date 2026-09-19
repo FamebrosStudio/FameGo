@@ -32,11 +32,8 @@ body{
     radial-gradient(900px 600px at 85% 110%, rgba(85,194,255,.04), transparent 60%),
     var(--bg);
 }
-.ambient::after{content:"";position:absolute;inset:0;
-  background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);
-  background-size:56px 56px;
-  mask-image:radial-gradient(720px 460px at 50% 0%, #000 30%, transparent 75%);
-}
+/* interactive dot-grid canvas */
+#grid{position:fixed;inset:0;z-index:0;pointer-events:none}
 .wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
 a{color:inherit}
 /* ——— top bar ——— */
@@ -250,7 +247,7 @@ body.loading{overflow:hidden}
 @keyframes lrise{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){
   #loader{display:none}
-  .grain,#sea{display:none}
+  .grain,#sea,#grid{display:none}
   .cur-dot,.cur-ring{display:none!important}
 }
 @media(max-width:940px){
@@ -437,14 +434,7 @@ h2.disp.rl.in .rl-line > span{transform:none}
 .filmstrip .strip{display:flex;gap:14px;padding:14px 0;width:max-content;animation:mscroll 30s linear infinite}
 .frame{flex:0 0 auto;width:220px;aspect-ratio:16/10;border-radius:6px;position:relative;overflow:hidden;
   border:1px solid #23282f;background:#101014}
-.frame i{position:absolute;inset:0}
-.frame.f1 i{background:radial-gradient(120px 90px at 30% 20%,rgba(246,185,65,.5),transparent 65%),linear-gradient(160deg,#2a2118,#0d0c0a 70%)}
-.frame.f2 i{background:radial-gradient(100px 120px at 70% 30%,rgba(85,194,255,.35),transparent 65%),linear-gradient(200deg,#141a20,#0a0b0d 70%)}
-.frame.f3 i{background:radial-gradient(130px 80px at 50% 80%,rgba(255,90,95,.4),transparent 65%),linear-gradient(180deg,#1d1214,#0b0a0b 75%)}
-.frame.f4 i{background:radial-gradient(90px 90px at 80% 70%,rgba(67,209,158,.4),transparent 65%),linear-gradient(140deg,#101815,#0a0c0b 70%)}
-.frame.f5 i{background:radial-gradient(110px 70px at 20% 60%,rgba(246,185,65,.35),transparent 65%),linear-gradient(220deg,#221a10,#0c0b09 70%)}
-.frame.f6 i{background:radial-gradient(140px 100px at 60% 20%,rgba(244,241,234,.28),transparent 60%),linear-gradient(180deg,#1a1b1e,#0b0b0d 72%)}
-.frame figcaption{position:absolute;left:8px;bottom:6px;font-family:var(--mono);font-size:9px;letter-spacing:1.5px;color:rgba(244,241,234,.85)}
+.frame figcaption{position:absolute;left:8px;bottom:6px;font-family:var(--mono);font-size:9px;letter-spacing:1.5px;color:rgba(244,241,234,.85);z-index:2}
 .frame::after{content:"";position:absolute;inset:0;background:inherit;background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23n)" opacity="0.5"/></svg>');opacity:.14;mix-blend-mode:overlay}
 
 /* ——— paper manifesto (light editorial break) ——— */
@@ -605,26 +595,29 @@ h2.disp.rl.in .rl-line > span{transform:none}
 .story p{color:var(--muted);font-size:15px;margin-top:16px;max-width:440px}
 .story .sig{font-family:var(--hand);font-size:30px;color:var(--gold);transform:rotate(-4deg);margin-top:20px;display:inline-block}
 .story .reel{display:flex;gap:10px}
-.story .reel i{flex:1;border-radius:10px;min-height:220px;border:1px solid #262c35}
-.story .reel i:nth-child(1){background:linear-gradient(160deg,#2c2214,#0d0c0a 70%);transform:rotate(-2deg)}
-.story .reel i:nth-child(2){background:linear-gradient(200deg,#141a20,#0a0b0d 70%);transform:rotate(1.5deg);margin-top:26px}
-.story .reel i:nth-child(3){background:linear-gradient(180deg,#1d1214,#0b0a0b 75%);transform:rotate(-1deg)}
+.story .reel img{flex:1;border-radius:10px;min-height:220px;max-width:33%;object-fit:cover;border:1px solid #262c35}
+.story .reel img:nth-child(1){transform:rotate(-2deg)}
+.story .reel img:nth-child(2){transform:rotate(1.5deg);margin-top:26px}
+.story .reel img:nth-child(3){transform:rotate(-1deg)}
 
+/* real photography — object-fit covers, captions stay legible */
+.frame img,.shot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  transition:transform .6s var(--ease)}
+.shot:hover img{transform:scale(1.05)}
+.frame figcaption,.shot figcaption{text-shadow:0 1px 8px rgba(0,0,0,.9)}
+.frame::before{content:"";position:absolute;inset:auto 0 0 0;height:44%;z-index:1;pointer-events:none;
+  background:linear-gradient(transparent,rgba(0,0,0,.55))}
+.shot::before{content:"";position:absolute;inset:auto 0 0 0;height:44%;z-index:1;pointer-events:none;
+  background:linear-gradient(transparent,rgba(0,0,0,.55))}
+.proof .bts img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 /* ——— contact sheet gallery ——— */
 .sheet{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;margin-top:36px}
 .shot{border:1px solid #23282f;border-radius:8px;overflow:hidden;position:relative;background:#101014;min-height:220px}
-.shot i{position:absolute;inset:0;transition:transform .6s var(--ease)}
-.shot:hover i{transform:scale(1.05)}
 .shot.s1{grid-column:span 7;min-height:340px}
-.shot.s1 i{background:radial-gradient(220px 160px at 30% 25%,rgba(246,185,65,.5),transparent 62%),linear-gradient(155deg,#2b2115,#0c0b09 70%)}
 .shot.s2{grid-column:span 5}
-.shot.s2 i{background:radial-gradient(160px 200px at 70% 30%,rgba(85,194,255,.35),transparent 62%),linear-gradient(200deg,#131a21,#0a0b0d 70%)}
 .shot.s3{grid-column:span 4}
-.shot.s3 i{background:radial-gradient(140px 140px at 50% 70%,rgba(255,90,95,.4),transparent 62%),linear-gradient(180deg,#1e1214,#0b0a0b 75%)}
 .shot.s4{grid-column:span 4}
-.shot.s4 i{background:radial-gradient(150px 110px at 60% 30%,rgba(67,209,158,.38),transparent 62%),linear-gradient(140deg,#101814,#0a0c0b 70%)}
 .shot.s5{grid-column:span 4}
-.shot.s5 i{background:radial-gradient(170px 120px at 40% 40%,rgba(244,241,234,.3),transparent 60%),linear-gradient(180deg,#1b1c20,#0b0b0d 72%)}
 .shot figcaption{position:absolute;left:10px;bottom:8px;font-family:var(--mono);font-size:9.5px;letter-spacing:1.6px;color:rgba(244,241,234,.9);z-index:2}
 .flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:70}
 .flash.go{animation:flash .45s ease-out}
@@ -677,6 +670,9 @@ h2.disp.rl.in .rl-line > span{transform:none}
   .half{min-height:0;padding:44px 24px}
   .split{display:block}
   .demo-q{padding-top:24px}
+  .story .reel{flex-direction:column}
+  .story .reel img{max-width:100%;min-height:180px}
+  .story .reel img:nth-child(2){margin-top:0}
 }
 @media(prefers-reduced-motion:reduce){
   .filmstrip .strip{animation:none}

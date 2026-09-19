@@ -28,6 +28,7 @@
 <div class="cur-dot" id="curDot" aria-hidden="true"></div>
 <div class="cur-ring" id="curRing" aria-hidden="true"></div>
 <div class="ambient" aria-hidden="true"></div>
+<canvas id="grid" aria-hidden="true"></canvas>
 <div class="grain" aria-hidden="true"></div>
 <canvas id="sea" aria-hidden="true"></canvas>
 <div class="scrollbar" aria-hidden="true"><i id="scrollbarFill"></i></div>
@@ -140,18 +141,18 @@
   <!-- ═══ categories strip ═══ -->
   <div class="filmstrip" aria-label="Shoot categories"><div class="holes" aria-hidden="true"></div>
     <div class="strip">
-      <figure class="frame f1"><i></i><figcaption>FASHION · EDITORIAL</figcaption></figure>
-      <figure class="frame f2"><i></i><figcaption>FOOD · MENU</figcaption></figure>
-      <figure class="frame f3"><i></i><figcaption>PRODUCT · E-COM</figcaption></figure>
-      <figure class="frame f4"><i></i><figcaption>EVENTS · LIVE</figcaption></figure>
-      <figure class="frame f5"><i></i><figcaption>REELS · VIDEO</figcaption></figure>
-      <figure class="frame f6"><i></i><figcaption>CORPORATE · INTERVIEWS</figcaption></figure>
-      <figure class="frame f1"><i></i><figcaption>FASHION · EDITORIAL</figcaption></figure>
-      <figure class="frame f2"><i></i><figcaption>FOOD · MENU</figcaption></figure>
-      <figure class="frame f3"><i></i><figcaption>PRODUCT · E-COM</figcaption></figure>
-      <figure class="frame f4"><i></i><figcaption>EVENTS · LIVE</figcaption></figure>
-      <figure class="frame f5"><i></i><figcaption>REELS · VIDEO</figcaption></figure>
-      <figure class="frame f6"><i></i><figcaption>CORPORATE · INTERVIEWS</figcaption></figure>
+      <figure class="frame f1"><img src="assets/g-fashion.jpg" alt="Fashion shoot on set" loading="lazy" decoding="async" /><figcaption>FASHION · ON SET</figcaption></figure>
+      <figure class="frame f2"><img src="assets/g-bts.jpg" alt="Behind the scenes phone shoot" loading="lazy" decoding="async" /><figcaption>BEHIND THE SCENES</figcaption></figure>
+      <figure class="frame f3"><img src="assets/g-event.jpg" alt="Event coverage" loading="lazy" decoding="async" /><figcaption>EVENT · LIVE</figcaption></figure>
+      <figure class="frame f4"><img src="assets/g-launch.jpg" alt="Launch day crew" loading="lazy" decoding="async" /><figcaption>LAUNCH DAY</figcaption></figure>
+      <figure class="frame f5"><img src="assets/g-party.jpg" alt="Celebration shoot" loading="lazy" decoding="async" /><figcaption>CELEBRATIONS</figcaption></figure>
+      <figure class="frame f6"><img src="assets/story-beach.jpg" alt="Outdoor shoot at the beach" loading="lazy" decoding="async" /><figcaption>OUTDOOR · ON LOCATION</figcaption></figure>
+      <figure class="frame f1"><img src="assets/g-fashion.jpg" alt="" loading="lazy" decoding="async" /><figcaption>FASHION · ON SET</figcaption></figure>
+      <figure class="frame f2"><img src="assets/g-bts.jpg" alt="" loading="lazy" decoding="async" /><figcaption>BEHIND THE SCENES</figcaption></figure>
+      <figure class="frame f3"><img src="assets/g-event.jpg" alt="" loading="lazy" decoding="async" /><figcaption>EVENT · LIVE</figcaption></figure>
+      <figure class="frame f4"><img src="assets/g-launch.jpg" alt="" loading="lazy" decoding="async" /><figcaption>LAUNCH DAY</figcaption></figure>
+      <figure class="frame f5"><img src="assets/g-party.jpg" alt="" loading="lazy" decoding="async" /><figcaption>CELEBRATIONS</figcaption></figure>
+      <figure class="frame f6"><img src="assets/story-beach.jpg" alt="" loading="lazy" decoding="async" /><figcaption>OUTDOOR · ON LOCATION</figcaption></figure>
     </div>
   <div class="holes" aria-hidden="true"></div></div>
 
@@ -343,7 +344,7 @@
         <blockquote>A booking desk for shoots, backed by a studio that runs them. <span>No brokers in between.</span></blockquote>
         <cite>— FAMEBROS STUDIO · MUMBAI</cite>
       </div>
-      <figure class="bts" data-plx="0.04"><span class="slate-no">ON SET · 06:12 AM</span><figcaption>FOOD SHOOT · CREW OF THREE · ILLUSTRATION</figcaption></figure>
+      <figure class="bts" data-plx="0.04"><img src="assets/bts-main.jpg" alt="Famebros photographer framing a product shoot" loading="lazy" decoding="async" /><span class="slate-no">ON SET · 06:12 AM</span><figcaption>PRODUCT SHOOT · FAMEBROS WORK</figcaption></figure>
     </div>
     <div class="statrow">
       <div class="rv"><b>6</b><span>CREW ROLES TO BOOK</span></div>
@@ -392,7 +393,7 @@
         <p>Famebros Studio works in production and social content. FameGo is the booking desk we always wanted for our own sets — now open to everyone.</p>
         <span class="sig">— Famebros Studio</span>
       </div>
-      <div class="reel" data-plx="-0.05" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="reel" data-plx="-0.05" aria-hidden="false" aria-label="Famebros Studio work"><img src="assets/story-event.jpg" alt="Famebros Studio event coverage" loading="lazy" decoding="async" /><img src="assets/story-team.jpg" alt="Famebros Studio crew" loading="lazy" decoding="async" /><img src="assets/story-beach.jpg" alt="Outdoor location shoot" loading="lazy" decoding="async" /></div>
     </div>
   </section>
 
@@ -401,11 +402,11 @@
     <span class="k-label rv"><b>09 /</b> WHAT YOU CAN BOOK FOR</span>
     <h2 class="disp rv" id="galH" style="font-size:clamp(34px,4.6vw,58px);margin-top:14px">One crew pool.<br />Every kind of shoot.</h2>
     <div class="sheet rv" id="sheet">
-      <figure class="shot s1"><i></i><figcaption>FASHION · EDITORIAL &amp; LOOKBOOKS</figcaption></figure>
-      <figure class="shot s2"><i></i><figcaption>FOOD · MENUS &amp; CAFÉS</figcaption></figure>
-      <figure class="shot s3"><i></i><figcaption>PRODUCT · E-COMMERCE</figcaption></figure>
-      <figure class="shot s4"><i></i><figcaption>EVENTS · LIVE COVERAGE</figcaption></figure>
-      <figure class="shot s5"><i></i><figcaption>REELS · VIDEO &amp; CORPORATE</figcaption></figure>
+      <figure class="shot s1"><img src="assets/g-bts.jpg" alt="Behind the scenes at a shoot" loading="lazy" decoding="async" /><figcaption>BEHIND THE SCENES</figcaption></figure>
+      <figure class="shot s2"><img src="assets/g-fashion.jpg" alt="Fashion shoot" loading="lazy" decoding="async" /><figcaption>FASHION · ON SET</figcaption></figure>
+      <figure class="shot s3"><img src="assets/g-event.jpg" alt="Event coverage" loading="lazy" decoding="async" /><figcaption>EVENT · LIVE</figcaption></figure>
+      <figure class="shot s4"><img src="assets/g-launch.jpg" alt="Launch day" loading="lazy" decoding="async" /><figcaption>LAUNCH DAY</figcaption></figure>
+      <figure class="shot s5"><img src="assets/g-party.jpg" alt="Celebration shoot" loading="lazy" decoding="async" /><figcaption>CELEBRATIONS</figcaption></figure>
     </div>
   </section>
 

@@ -472,6 +472,47 @@
     });
   })();
 
+  // Interactive dot-grid — cells ignite gold and lean away near the cursor
+  (function grid() {
+    var cv = document.getElementById("grid");
+    if (!cv || !cv.getContext) return;
+    var ctx = cv.getContext("2d"), W = 0, H = 0, cols = 0, rows = 0, SP = 46;
+    var mx = -9999, my = -9999, sx = mx, sy = my, hidden = false;
+    function size() {
+      W = cv.width = window.innerWidth; H = cv.height = window.innerHeight;
+      cols = Math.ceil(W / SP) + 1; rows = Math.ceil(H / SP) + 1;
+    }
+    size();
+    window.addEventListener("resize", size);
+    document.addEventListener("pointermove", function (e) { mx = e.clientX; my = e.clientY; }, { passive: true });
+    document.addEventListener("visibilitychange", function () { hidden = document.hidden; });
+    var R = 150; // cursor influence radius
+    (function frame() {
+      requestAnimationFrame(frame);
+      if (hidden) return;
+      sx += (mx - sx) * 0.12; sy += (my - sy) * 0.12;
+      ctx.clearRect(0, 0, W, H);
+      for (var j = 0; j < rows; j++) {
+        var by = j * SP;
+        for (var i = 0; i < cols; i++) {
+          var bx = i * SP;
+          var dx = bx - sx, dy = by - sy;
+          var d = Math.sqrt(dx * dx + dy * dy);
+          var heat = d < R ? 1 - d / R : 0;
+          var push = heat * heat * 11;
+          var ox = d ? dx / d * push : 0, oy = d ? dy / d * push : 0;
+          var a = 0.05 + heat * 0.4;
+          ctx.beginPath();
+          ctx.arc(bx + ox, by + oy, 1.1 + heat * 0.9, 0, 6.283);
+          ctx.fillStyle = heat > 0.02
+            ? "rgba(246,185,65," + a.toFixed(3) + ")"
+            : "rgba(255,255,255," + a.toFixed(3) + ")";
+          ctx.fill();
+        }
+      }
+    })();
+  })();
+
   // Card spotlight — soft light follows the cursor over interactive surfaces
   document.addEventListener("pointermove", function (e) {
     var t = e.target.closest ? e.target.closest(".card,.phone,.tier,.shot,.opt,.stamp") : null;
