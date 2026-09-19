@@ -348,7 +348,7 @@ body.menu-open .topbar{z-index:90;background:transparent;border-bottom-color:tra
 .link-crew:hover .recdot{opacity:1;transform:scale(1)}
 .hero-note{margin-top:26px}
 /* floating phone — travels inside the hero, never clipped */
-.floatphone{position:absolute;right:clamp(18px,4vw,68px);top:104px;width:min(208px,22vw);z-index:1;
+.floatphone{position:absolute;right:clamp(18px,4vw,68px);top:104px;width:min(208px,22vw);z-index:5;
   transform:rotate(7deg);will-change:transform,opacity;pointer-events:none}
 body:not(.alive) .floatphone{animation:bob 7s ease-in-out infinite}
 .floatphone .phone{width:100%;font-size:12px}
