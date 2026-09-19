@@ -443,6 +443,17 @@
     })();
   })();
 
+  // Magnetic primary CTAs — small pull, tactile release
+  document.querySelectorAll(".btn.sheen").forEach(function (b) {
+    b.addEventListener("pointermove", function (e) {
+      var r = b.getBoundingClientRect();
+      var x = (e.clientX - (r.left + r.width / 2)) / r.width;
+      var y = (e.clientY - (r.top + r.height / 2)) / r.height;
+      b.style.transform = "translate(" + (x * 6).toFixed(1) + "px," + (y * 5).toFixed(1) + "px)";
+    });
+    b.addEventListener("pointerleave", function () { b.style.transform = ""; });
+  });
+
   // Card spotlight — soft light follows the cursor over interactive surfaces
   document.addEventListener("pointermove", function (e) {
     var t = e.target.closest ? e.target.closest(".card,.phone,.tier,.shot,.opt,.stamp") : null;
