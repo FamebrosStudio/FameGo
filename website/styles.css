@@ -356,6 +356,9 @@ body:not(.alive) .floatphone{animation:bob 7s ease-in-out infinite}
 .floatphone .sbody{padding:14px 13px}
 .floatphone .mock-title{font-size:16px}
 .floatphone .mcard{margin-bottom:7px;padding:9px 10px}
+.floatphone .status-pill{align-self:flex-start;max-width:100%;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;font-size:9px;letter-spacing:1.2px;padding:5px 10px}
+.floatphone .screen{overflow:hidden}
 @keyframes bob{0%,100%{margin-top:0}50%{margin-top:-16px}}
 #sea{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.75}
 @media(max-width:1180px){.floatphone{right:16px;top:auto;bottom:120px;width:170px;opacity:.92}}
