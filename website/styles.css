@@ -327,7 +327,7 @@ body.menu-open .topbar{z-index:90;background:transparent;border-bottom-color:tra
 
 /* ——— HERO: the booking desk ——— */
 .hero-desk{min-height:100svh;display:flex;flex-direction:column;justify-content:flex-end;
-  padding:110px 0 0;position:relative;overflow:hidden}
+  padding:110px 0 0;position:relative;overflow:visible}
 .setlights{position:absolute;inset:0;pointer-events:none;
   background:
     radial-gradient(560px 340px at 12% 8%,rgba(246,185,65,.09),transparent 62%),
